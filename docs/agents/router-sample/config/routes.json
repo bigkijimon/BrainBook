@@ -1,0 +1,19 @@
+{
+  "default_worker": "free_worker",
+  "routes": {
+    "coding": "free_worker",
+    "bug_fix": "free_worker",
+    "ui_design": "free_worker",
+    "qa": "paid_worker",
+    "debug": "paid_worker",
+    "difficult": "paid_worker",
+    "web": "hermes",
+    "coordination": "hermes"
+  },
+  "fallbacks": {
+    "free_worker": ["hermes"],
+    "paid_worker": ["free_worker", "hermes"],
+    "hermes": []
+  },
+  "_comment": "Cost-tiered: cheapest worker that can do the job wins. Escalate only on an explicit hard/high-risk category or a failed free attempt."
+}

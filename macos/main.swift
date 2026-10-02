@@ -11,6 +11,17 @@ let healthURL = URL(string: "http://127.0.0.1:\(port)/api/health")!
 let hermesURL = DashboardConnection.dashboardURL
 let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("BrainBook")
 
+// One timestamped line into the server log. Both the start and the stop reason go through
+// here: the 2026-10-02 "server stopped" had no cause left behind because the reason only
+// ever appeared on screen. Standalone (not a method) so the termination queue can write it
+// even while the app delegate is being torn down.
+func logLine(_ handle: FileHandle?, _ text: String) {
+    guard let handle else { return }
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    try? handle.write(contentsOf: Data("\(formatter.string(from: Date())) \(text)\n".utf8))
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     var window: NSWindow!
     var webView: WKWebView!
@@ -163,13 +174,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let logDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/BrainBook")
         try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
         let logURL = logDir.appendingPathComponent("server.log")
-        FileManager.default.createFile(atPath: logURL.path, contents: nil)
-        if let handle = try? FileHandle(forWritingTo: logURL) {
+        // One previous run survives a restart: over 5 MB, server.log becomes server.log.1.
+        let rotatedURL = logDir.appendingPathComponent("server.log.1")
+        if let size = (try? FileManager.default.attributesOfItem(atPath: logURL.path))?[.size] as? NSNumber,
+           size.int64Value > 5 * 1024 * 1024 {
+            try? FileManager.default.removeItem(at: rotatedURL)
+            try? FileManager.default.moveItem(at: logURL, to: rotatedURL)
+        }
+        // O_APPEND creates the file only when missing and never truncates it, so the run that
+        // just ended keeps its last lines (a plain createFile emptied it on every launch).
+        let fd = open(logURL.path, O_WRONLY | O_CREAT | O_APPEND, 0o644)
+        if fd >= 0 {
+            let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
             logHandle = handle
             process.standardOutput = handle
             process.standardError = handle
         }
+        // Strong capture: the stop line is written even if the app delegate is already gone.
+        let childLog = logHandle
         process.terminationHandler = { [weak self] proc in
+            let reason: String
+            switch proc.terminationReason {
+            case .exit: reason = "exit"
+            case .uncaughtSignal: reason = "uncaughtSignal"
+            @unknown default: reason = "unknown"
+            }
+            logLine(childLog, "server stopped status=\(proc.terminationStatus) reason=\(reason)")
             DispatchQueue.main.async {
                 guard let self, !self.terminating else { return }
                 self.webView.loadHTMLString(self.loadingPage("BrainBook server stopped (exit \(proc.terminationStatus)). Log: ~/Library/Logs/BrainBook/server.log — press ⌘R to restart."), baseURL: nil)
@@ -178,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         do {
             try process.run()
             server = process
+            logLine(childLog, "server started pid=\(process.processIdentifier)")
         } catch {
             webView.loadHTMLString(loadingPage("Could not start server: \(error.localizedDescription)"), baseURL: nil)
         }

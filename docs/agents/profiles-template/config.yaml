@@ -1,0 +1,24 @@
+# Minimal profile config — cheap/local tier
+#
+# Copy to ~/.hermes/profiles/<name>/config.yaml and adjust.
+# This points at a local OpenAI-compatible endpoint (e.g. llama.cpp's llama-server,
+# Ollama, LM Studio, etc). Swap base_url/model for whatever you run locally.
+
+model:
+  default: your-local-model-id   # must match what your local server reports at /v1/models
+  provider: custom
+  base_url: http://127.0.0.1:8080/v1
+
+agent:
+  max_turns: 200
+  reasoning_effort: medium
+
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+
+skills:
+  allowlist: []   # add skill names here as you install them
+
+# Keep this profile's scope small and predictable: no plugins, no extra toolsets,
+# until you have a concrete reason to add them.

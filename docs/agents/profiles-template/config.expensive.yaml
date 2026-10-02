@@ -1,0 +1,27 @@
+# Paid-tier profile config — for hard/high-stakes work only
+#
+# Copy to ~/.hermes/profiles/<name>/config.yaml and adjust.
+# Use this profile deliberately (explicit routing, or you launch it by hand) rather than
+# as your default, so you don't burn paid-API budget on routine work.
+
+model:
+  default: claude-sonnet-5      # or any paid model you have access to
+  provider: anthropic
+  base_url: https://api.anthropic.com
+  api_mode: anthropic_messages
+
+# Fallback to a second paid provider if the primary is rate-limited/unavailable.
+fallback_providers:
+  - provider: anthropic
+    model: claude-sonnet-5
+
+agent:
+  max_turns: 200
+  reasoning_effort: high
+
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+
+skills:
+  allowlist: []

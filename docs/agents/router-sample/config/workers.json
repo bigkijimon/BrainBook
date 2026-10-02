@@ -1,0 +1,24 @@
+{
+  "_comment": "Generic worker registry. Edit binary/model/cost for your own setup. No real credentials here.",
+  "free_worker": {
+    "role": "default_worker",
+    "enabled": true,
+    "binary": "opencode",
+    "model": "your-free-model-id",
+    "cost": "free",
+    "note": "Example: a CLI coding agent with a free tier (OpenCode Zen, a local model via its own CLI, etc)."
+  },
+  "paid_worker": {
+    "role": "escalation_worker",
+    "enabled": true,
+    "binary": "claude",
+    "model": "sonnet",
+    "cost": "paid",
+    "note": "Used only for hard/high-risk work or after the free worker fails. Cap spend per run in your adapter."
+  },
+  "hermes": {
+    "role": "coordinator",
+    "enabled": true,
+    "note": "Web/browser/tool/coordination work that doesn't need a file-editing agent stays with Hermes itself."
+  }
+}

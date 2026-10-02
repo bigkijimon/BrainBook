@@ -82,6 +82,13 @@ next_step: "Ask the landlord about rent"
 
 Hermes (and any other agent) can update `## Progress` and `next_step` too, so the lights stay accurate whoever did the work.
 
+## Agent construction (multi-agent setup)
+
+Want **Run** to dispatch across more than one coding agent, with cheap work on a free/local
+model and hard work on a paid one? See [`docs/agents/`](docs/agents/) for a generic Hermes
+profile template, a minimal task-router sample, and two sanitized operating skills — no
+company-specific data, just the pattern.
+
 ## Build from source
 
 Requirements: Apple silicon Mac, Xcode Command Line Tools, and Node.js 22 or later.

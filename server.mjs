@@ -22,6 +22,23 @@ import { fileURLToPath } from 'node:url';
 const execFileAsync = promisify(execFile);
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+// Every exit path names its reason on stdout, which the macOS app points at
+// ~/Library/Logs/BrainBook/server.log (macos/main.swift). A restart must keep the
+// previous run's last lines, so this file is the only place a stop reason is written.
+const stamp = () => new Date().toISOString();
+const stopWith = (reason, code = 0) => {
+  console.log(`${stamp()} stopped: ${reason}`);
+  process.exit(code);
+};
+const stopFatal = (label, error) => {
+  const detail = error instanceof Error ? (error.stack || error.message) : String(error);
+  console.error(`${stamp()} stopped: ${label}\n${detail}`);
+  process.exit(1);
+};
+// Registered before any top-level await, so a boot failure is logged too instead of
+// dying with a message nobody saw (registered listeners keep Node from exiting by itself).
+process.on('uncaughtException', (error) => stopFatal('uncaught exception', error));
+process.on('unhandledRejection', (reason) => stopFatal('unhandled rejection', reason));
 // Per-user state lives outside the app bundle. The macOS app sets BRAINBOOK_HOME to ~/Library/Application Support/BrainBook.
 const appHome = path.resolve(process.env.BRAINBOOK_HOME || process.env.ASTER_HOME || path.join(root, 'data'));
 const TERMINAL_IMAGE_MAX = 15 * 1024 * 1024;
@@ -1471,7 +1488,7 @@ const phoneTerminal = createHermesTerminal({ ...terminalOptions, name: 'phone' }
 const terminalFor = (req) => (req.remoteDevice ? phoneTerminal : terminal);
 const remote = await createRemote({ stateDir: appHome });
 let remoteServer = null;
-for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { terminal.stop(); phoneTerminal.stop(); process.exit(0); });
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { terminal.stop(); phoneTerminal.stop(); stopWith(`signal ${signal}`); });
 process.on('exit', () => { terminal.stop(); phoneTerminal.stop(); });
 
 let vite;
@@ -1579,7 +1596,7 @@ if (smoke) {
 } else {
   // Owned by the BrainBook app: exit when the app is gone (e.g. force-quit), so no orphan keeps the port.
   const parentPid = Number(process.env.BRAINBOOK_PARENT_PID || 0);
-  if (parentPid > 0) setInterval(() => { try { process.kill(parentPid, 0); } catch { process.exit(0); } }, 2000).unref();
+  if (parentPid > 0) setInterval(() => { try { process.kill(parentPid, 0); } catch { stopWith(`parent gone (pid ${parentPid})`); } }, 2000).unref();
   // Record our pid so the app can clear a stuck server of its own on the next launch.
   fs.writeFile(path.join(appHome, 'server.pid'), String(process.pid)).catch(() => {});
   server.listen(port, '127.0.0.1', () => {
