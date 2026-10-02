@@ -1,0 +1,53 @@
+<canvas class="bb-rain" aria-hidden="true"></canvas><div class="bb-sun"></div><div class="bb-sea"></div><svg class="bb-palm l" viewBox="0 0 200 320" aria-hidden="true"><path d="M104 320c-6-70-2-150 14-214l-7-2c-17 62-22 142-17 216z"/><path d="M116 104c-30-26-72-30-104-12 34-4 64 6 88 26zM116 104c-6-38-34-66-72-74 26 16 46 42 54 76zM116 104c20-36 56-54 94-52-34 8-62 28-80 58zM116 104c34-10 66 2 84 30-26-16-54-20-80-10zM116 104c-28 2-54 20-64 48 18-22 40-34 66-36zM116 104c6-34 28-60 58-72-22 20-36 46-40 76z"/></svg><svg class="bb-palm r" viewBox="0 0 200 320" style="transform:scaleX(-1)" aria-hidden="true"><path d="M104 320c-6-70-2-150 14-214l-7-2c-17 62-22 142-17 216z"/><path d="M116 104c-30-26-72-30-104-12 34-4 64 6 88 26zM116 104c-6-38-34-66-72-74 26 16 46 42 54 76zM116 104c20-36 56-54 94-52-34 8-62 28-80 58zM116 104c34-10 66 2 84 30-26-16-54-20-80-10zM116 104c-28 2-54 20-64 48 18-22 40-34 66-36zM116 104c6-34 28-60 58-72-22 20-36 46-40 76z"/></svg>
+<script>
+/* Matrix-style rain: each column streams one Hermes command (top → bottom), with katakana noise.
+   Bright white head, neon cyan/pink trail. Stops by itself once the boot screen is dismissed. */
+(function () {
+  var canvas = document.querySelector('#bb-boot .bb-rain');
+  if (!canvas || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  var ctx = canvas.getContext('2d');
+  var CMDS = ['hermes', 'hermes chat', 'hermes kanban list', 'hermes cron list', '/skills', '/help', 'git status', 'npm run build', 'graphify --vault', 'obsidian://open', 'ssh tailscale', 'ls ~/ideas', 'cat idea.md', 'grep -r TODO', 'node server.mjs', 'python3 agent-feed.py', 'curl /api/brain', 'make it happen', 'dump → map → build', 'git commit -m "idea"'];
+  var KANA = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789';
+  var size = 16, cols = [], w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  function column(x, start) {
+    var cmd = CMDS[Math.floor(Math.random() * CMDS.length)];
+    return { x: x, y: start ? -Math.random() * h : -size * (4 + Math.random() * 20), text: cmd, i: 0, speed: 0.55 + Math.random() * 0.9, pink: Math.random() < 0.28 };
+  }
+  function resize() {
+    w = canvas.clientWidth; h = canvas.clientHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    size = w < 600 ? 13 : 16;
+    cols = []; for (var x = 0; x < w; x += size * 1.05) cols.push(column(x, true));
+    ctx.fillStyle = '#07020d'; ctx.fillRect(0, 0, w, h);
+  }
+  var last = 0, raf = 0;
+  function frame(t) {
+    var boot = document.getElementById('bb-boot');
+    if (!boot || boot.classList.contains('bb-done') || !canvas.isConnected) { cancelAnimationFrame(raf); return; }
+    raf = requestAnimationFrame(frame);
+    if (t - last < 45) return; last = t;
+    ctx.fillStyle = 'rgba(7,2,13,0.16)'; ctx.fillRect(0, 0, w, h);   // fading trail
+    ctx.font = '600 ' + size + 'px "VT323", "DM Mono", Menlo, monospace';
+    ctx.textAlign = 'center';
+    for (var k = 0; k < cols.length; k++) {
+      var c = cols[k];
+      var ch = c.i < c.text.length ? c.text[c.i] : KANA[Math.floor(Math.random() * KANA.length)];
+      if (ch === ' ') ch = '·';
+      if (c.y > 0) {
+        // previous glyph turns from white head to neon trail
+        ctx.fillStyle = c.pink ? '#ff4fa3' : '#2be8d9';
+        ctx.shadowBlur = 0;
+        ctx.fillText(c.prev || ch, c.x, c.y - size);
+        ctx.fillStyle = '#fbe9ff'; ctx.shadowColor = c.pink ? '#ff4fa3' : '#2be8d9'; ctx.shadowBlur = 10;
+        ctx.fillText(ch, c.x, c.y);
+        ctx.shadowBlur = 0;
+      }
+      c.prev = ch; c.i++;
+      c.y += size * c.speed;
+      if (c.y > h * 0.8 + Math.random() * h * 0.3) cols[k] = column(c.x, false);
+    }
+  }
+  resize(); window.addEventListener('resize', resize);
+  raf = requestAnimationFrame(frame);
+})();
+</script>

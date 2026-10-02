@@ -1,0 +1,21 @@
+# dependencies and build output
+node_modules/
+dist/
+macos/build/
+
+# personal data (the app keeps real data in ~/Library/Application Support/BrainBook)
+data/
+*.local.json
+.env
+.env.*
+
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/
+*.log
+macos/.sign-identity
+__pycache__/
+*.pyc
+.playwright-cli/
+evidence/

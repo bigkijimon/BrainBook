@@ -1,0 +1,31 @@
+/* Boot screen: Vice City title card over Matrix-style code rain.
+   Sunset, palm silhouettes, neon logo and a chunky loading bar; behind them, columns of Hermes
+   commands and katakana fall top to bottom (canvas, drawn by loading-svg.html's script).
+   Shared by the web page (index.html) and the Mac app (main.swift loadingPage). */
+#bb-boot{position:fixed;inset:0;z-index:9999;overflow:hidden;display:grid;place-items:center;background:linear-gradient(180deg,#07020d 0%,#12061f 30%,#2a0b45 52%,#7b2ff7 68%,#ff4fa3 82%,#ff7a45 93%,#ffc44d 100%);transition:opacity .5s ease,visibility .5s;font-family:'Bungee','Arial Black',system-ui,sans-serif}
+#bb-boot.bb-done{opacity:0;visibility:hidden}
+#bb-boot .bb-rain{position:absolute;inset:0;width:100%;height:100%;opacity:.9;-webkit-mask:linear-gradient(#000 0 55%,transparent 80%);mask:linear-gradient(#000 0 55%,transparent 80%)}
+#bb-boot .bb-sun{position:absolute;left:50%;bottom:24%;width:min(46vmin,420px);aspect-ratio:1;border-radius:50%;transform:translateX(-50%);background:linear-gradient(180deg,#ffe36e 0%,#ffc44d 30%,#ff7a45 62%,#ff4fa3 100%);-webkit-mask:linear-gradient(#000 0 52%,transparent 52% 56%,#000 56% 64%,transparent 64% 69%,#000 69% 76%,transparent 76% 82%,#000 82% 88%,transparent 88% 94%,#000 94%);mask:linear-gradient(#000 0 52%,transparent 52% 56%,#000 56% 64%,transparent 64% 69%,#000 69% 76%,transparent 76% 82%,#000 82% 88%,transparent 88% 94%,#000 94%);box-shadow:0 0 80px rgba(255,122,69,.6);animation:bbRise 1.4s cubic-bezier(.2,.8,.2,1) both}
+#bb-boot .bb-sea{position:absolute;left:0;right:0;bottom:0;height:24%;background:linear-gradient(180deg,#3a0b4a,#12061f);overflow:hidden}
+#bb-boot .bb-sea::before{content:'';position:absolute;left:-50%;right:-50%;top:0;bottom:-40%;background:linear-gradient(transparent 0 92%,rgba(43,232,217,.55) 92%) 0 0/100% 34px,linear-gradient(90deg,transparent 0 96%,rgba(255,79,163,.5) 96%) 0 0/48px 100%;transform:perspective(260px) rotateX(58deg);transform-origin:50% 0;animation:bbDrive 1.1s linear infinite}
+#bb-boot .bb-palm{position:absolute;bottom:22%;width:min(30vmin,260px);fill:#07020d;filter:drop-shadow(0 0 2px #ff4fa3)}
+#bb-boot .bb-palm.l{left:3%;transform-origin:50% 100%;animation:bbSway 5s ease-in-out infinite alternate}
+#bb-boot .bb-palm.r{right:2%;width:min(24vmin,210px);transform-origin:50% 100%;animation:bbSwayR 6s ease-in-out infinite alternate}
+#bb-boot .bb-box{position:relative;z-index:2;display:grid;justify-items:center;gap:4px;margin-bottom:12vh;padding:22px 34px 20px;text-align:center;background:radial-gradient(ellipse,rgba(7,2,13,.72) 30%,transparent 72%)}
+#bb-boot .bb-name{margin:0;color:#fbe9ff;font:400 clamp(54px,11vmin,110px)/1 'Yellowtail','Brush Script MT',cursive;transform:rotate(-6deg);text-shadow:0 0 6px #fff,0 0 18px #ff4fa3,0 0 40px #ff4fa3,4px 4px 0 #7b2ff7;animation:bbPop .9s .2s cubic-bezier(.2,1.4,.3,1) both,bbFlicker 3.2s 1.2s linear infinite}
+#bb-boot .bb-tag{margin:14px 0 0;padding:4px 14px;color:#12061f;background:#2be8d9;font-size:clamp(10px,1.6vmin,13px);letter-spacing:.32em;box-shadow:0 0 18px rgba(43,232,217,.7);animation:bbIn .6s .6s both}
+#bb-boot .bb-msg{min-height:1.2em;margin:26px 0 8px;color:#fbe9ff;font:400 clamp(14px,2vmin,18px)/1.3 'VT323','DM Mono',ui-monospace,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;text-shadow:0 0 8px #ff4fa3}
+#bb-boot .bb-msg::after{content:'_';animation:bbBlink 1s steps(1) infinite}
+#bb-boot .bb-bar{display:flex;gap:4px;padding:5px;border:2px solid #fbe9ff;background:rgba(18,6,31,.7);box-shadow:0 0 14px rgba(255,79,163,.6)}
+#bb-boot .bb-bar i{width:clamp(10px,1.6vmin,14px);height:clamp(12px,1.9vmin,16px);background:#ff4fa3;opacity:.15;animation:bbSeg 1.6s steps(1) infinite}
+#bb-boot .bb-bar i:nth-child(2){animation-delay:.1s}#bb-boot .bb-bar i:nth-child(3){animation-delay:.2s}#bb-boot .bb-bar i:nth-child(4){animation-delay:.3s}#bb-boot .bb-bar i:nth-child(5){animation-delay:.4s}#bb-boot .bb-bar i:nth-child(6){animation-delay:.5s}#bb-boot .bb-bar i:nth-child(7){animation-delay:.6s}#bb-boot .bb-bar i:nth-child(8){animation-delay:.7s}#bb-boot .bb-bar i:nth-child(9){animation-delay:.8s}#bb-boot .bb-bar i:nth-child(10){animation-delay:.9s}#bb-boot .bb-bar i:nth-child(11){animation-delay:1s}#bb-boot .bb-bar i:nth-child(12){animation-delay:1.1s}
+@keyframes bbRise{from{transform:translate(-50%,40%);opacity:0}}
+@keyframes bbDrive{to{background-position:0 34px,0 0}}
+@keyframes bbSway{from{transform:rotate(-1.5deg)}to{transform:rotate(1.5deg)}}
+@keyframes bbSwayR{from{transform:scaleX(-1) rotate(-1deg)}to{transform:scaleX(-1) rotate(2deg)}}
+@keyframes bbFlicker{0%,19%,21%,62%,64%,100%{opacity:1}20%,63%{opacity:.55}}
+@keyframes bbPop{from{opacity:0;transform:rotate(-6deg) scale(.6)}}
+@keyframes bbIn{from{opacity:0;transform:translateY(8px)}}
+@keyframes bbBlink{50%{opacity:0}}
+@keyframes bbSeg{0%{opacity:.15}8%,60%{opacity:1;background:#2be8d9;box-shadow:0 0 8px #2be8d9}}
+@media (prefers-reduced-motion:reduce){#bb-boot *,#bb-boot *::before{animation:none!important}#bb-boot .bb-rain{display:none}}
