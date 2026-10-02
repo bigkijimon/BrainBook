@@ -8,6 +8,7 @@
     "build": "node scripts/sync-loading.mjs && vite build",
     "start": "node server.mjs",
     "smoke": "node server.mjs --smoke",
+    "test:log": "node scripts/test-server-log.mjs",
     "test:voice": "node scripts/test-voice.mjs"
   },
   "dependencies": {

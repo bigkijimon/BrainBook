@@ -10,6 +10,15 @@ let baseURL = URL(string: "http://127.0.0.1:\(port)/")!
 let healthURL = URL(string: "http://127.0.0.1:\(port)/api/health")!
 let hermesURL = DashboardConnection.dashboardURL
 let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("BrainBook")
+// One place decides where the server log lives, so the rotation, the child process and the
+// "where to look" message can never disagree. BRAINBOOK_LOG_DIR exists for test runs that
+// must keep their evidence inside the repository (scripts/test-server-log.mjs).
+let logDirURL: URL = {
+    let override = ProcessInfo.processInfo.environment["BRAINBOOK_LOG_DIR"]
+    if let override, !override.isEmpty { return URL(fileURLWithPath: override) }
+    return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/BrainBook")
+}()
+let logURL = logDirURL.appendingPathComponent("server.log")
 
 // One timestamped line into the server log. Both the start and the stop reason go through
 // here: the 2026-10-02 "server stopped" had no cause left behind because the reason only
@@ -31,6 +40,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     var server: Process?
     var logHandle: FileHandle?
     var terminating = false
+
+    // Only the signals a Node server actually dies from; anything else keeps its number.
+    static let signalNames: [Int: String] = [
+        1: "SIGHUP", 2: "SIGINT", 3: "SIGQUIT", 4: "SIGILL", 6: "SIGABRT", 8: "SIGFPE",
+        9: "SIGKILL", 11: "SIGSEGV", 13: "SIGPIPE", 14: "SIGALRM", 15: "SIGTERM",
+        24: "SIGXCPU", 25: "SIGXFSZ",
+    ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
@@ -171,11 +187,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + (env["PATH"] ?? "")
         process.environment = env
 
-        let logDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/BrainBook")
-        try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
-        let logURL = logDir.appendingPathComponent("server.log")
+        try? FileManager.default.createDirectory(at: logDirURL, withIntermediateDirectories: true)
         // One previous run survives a restart: over 5 MB, server.log becomes server.log.1.
-        let rotatedURL = logDir.appendingPathComponent("server.log.1")
+        let rotatedURL = logDirURL.appendingPathComponent("server.log.1")
         if let size = (try? FileManager.default.attributesOfItem(atPath: logURL.path))?[.size] as? NSNumber,
            size.int64Value > 5 * 1024 * 1024 {
             try? FileManager.default.removeItem(at: rotatedURL)
@@ -193,16 +207,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         // Strong capture: the stop line is written even if the app delegate is already gone.
         let childLog = logHandle
         process.terminationHandler = { [weak self] proc in
-            let reason: String
+            // One account of the stop, used for the log line and for what the window says:
+            // a number alone ("exit 9") does not tell the owner anything.
+            var line = "server stopped status=\(proc.terminationStatus)"
+            var shown = "exit \(proc.terminationStatus)"
             switch proc.terminationReason {
-            case .exit: reason = "exit"
-            case .uncaughtSignal: reason = "uncaughtSignal"
-            @unknown default: reason = "unknown"
+            case .exit:
+                line += " reason=exit"
+            case .uncaughtSignal:
+                // Here terminationStatus is the signal number, not an exit code, so it is named.
+                let name = AppDelegate.signalNames[Int(proc.terminationStatus)] ?? "signal \(proc.terminationStatus)"
+                line += " reason=uncaughtSignal signal=\(name)"
+                shown = "killed by \(name)"
+            @unknown default:
+                line += " reason=unknown"
             }
-            logLine(childLog, "server stopped status=\(proc.terminationStatus) reason=\(reason)")
+            logLine(childLog, line)
             DispatchQueue.main.async {
                 guard let self, !self.terminating else { return }
-                self.webView.loadHTMLString(self.loadingPage("BrainBook server stopped (exit \(proc.terminationStatus)). Log: ~/Library/Logs/BrainBook/server.log — press ⌘R to restart."), baseURL: nil)
+                self.webView.loadHTMLString(self.loadingPage("BrainBook server stopped (\(shown)). Log: \(logURL.path) — press ⌘R to restart."), baseURL: nil)
             }
         }
         do {
