@@ -22,6 +22,16 @@ func logLine(_ handle: FileHandle?, _ text: String) {
     try? handle.write(contentsOf: Data("\(formatter.string(from: Date())) \(text)\n".utf8))
 }
 
+// Thin transparent view placed over the WKWebView in the area reserved for the traffic
+// lights (the brand strip, where no clickable UI lives) so the window can still be dragged.
+// titleVisibility = .hidden + fullSizeContentView makes the WKWebView cover the whole
+// titlebar and it swallows every mouse event there, leaving no draggable surface otherwise.
+final class DraggableTitlebarView: NSView {
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     var window: NSWindow!
     var webView: WKWebView!
@@ -74,6 +84,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         webView.widthAnchor.constraint(greaterThanOrEqualToConstant: 480).isActive = true
         hermesView.widthAnchor.constraint(greaterThanOrEqualToConstant: 380).isActive = true
         window.contentView = split
+        // Drag handle over the brand strip reserved for the traffic lights (CSS "topbar"
+        // padding-left:92px). titleVisibility = .hidden + fullSizeContentView means the
+        // WKWebView covers the whole titlebar area and swallows every mouse event, so with
+        // no native view there the window could not be dragged at all (2026-10 report).
+        let dragHandle = DraggableTitlebarView(frame: NSRect(x: 0, y: 0, width: 92, height: 78))
+        dragHandle.autoresizingMask = [.maxXMargin, .minYMargin]
+        webView.addSubview(dragHandle)
         window.center()
         window.setFrameAutosaveName("BrainBookMainWindow")
         window.makeKeyAndOrderFront(nil)
