@@ -83,16 +83,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         // removed from layout, so these do not apply while ⌘J has the panel closed.
         webView.widthAnchor.constraint(greaterThanOrEqualToConstant: 480).isActive = true
         hermesView.widthAnchor.constraint(greaterThanOrEqualToConstant: 380).isActive = true
-        window.contentView = split
+        // Root content view is a plain NSView, NOT split directly: NSSplitView manages its
+        // own subviews for divider layout, so a drag-handle subview added straight to split
+        // (as window.contentView == split would do) could be pushed behind split's arranged
+        // subviews and never receive mouse events. The split fills this wrapper view and the
+        // drag handle sits beside it as an independent sibling, always on top.
+        let rootView = NSView(frame: NSRect(x: 0, y: 0, width: 1440, height: 920))
+        split.frame = rootView.bounds
+        split.autoresizingMask = [.width, .height]
+        rootView.addSubview(split)
+        window.contentView = rootView
+        window.center()
+        window.setFrameAutosaveName("BrainBookMainWindow")
         // Drag handle over the brand strip reserved for the traffic lights (CSS "topbar"
         // padding-left:92px). titleVisibility = .hidden + fullSizeContentView means the
         // WKWebView covers the whole titlebar area and swallows every mouse event, so with
         // no native view there the window could not be dragged at all (2026-10 report).
-        let dragHandle = DraggableTitlebarView(frame: NSRect(x: 0, y: 0, width: 92, height: 78))
+        // Plain frame + autoresizing mask (not Auto Layout constraints against split) avoids
+        // fighting NSSplitView's own layout and resizing the window itself as a side effect.
+        // Positioned AFTER setFrameAutosaveName: that call restores any frame saved from a
+        // previous launch (a user who had resized/moved the window before upgrading would
+        // not start at the 920 pt the initial contentRect used), so the handle's y must be
+        // derived from the content view's actual current height, not a hardcoded constant.
+        let contentHeight = rootView.bounds.height
+        let dragHandle = DraggableTitlebarView(frame: NSRect(x: 0, y: contentHeight - 78, width: 92, height: 78))
         dragHandle.autoresizingMask = [.maxXMargin, .minYMargin]
-        webView.addSubview(dragHandle)
-        window.center()
-        window.setFrameAutosaveName("BrainBookMainWindow")
+        rootView.addSubview(dragHandle)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         // Hermes panel is open by default (BrainBook is a Hermes companion); ⌘J remembers the choice.
