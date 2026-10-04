@@ -2,14 +2,15 @@
 // (add BRAINBOOK_EVIDENCE_DIR=evidence to also save a screenshot).
 // A fake SpeechRecognition stands in for the microphone, and /api/tasks is mocked, so no audio is
 // recorded and no Kanban card is created. Covers both mics: the Office "Tell Bigkiji" box and the
-// team sheet's "Tell a member directly" box. Uses Google Chrome, or Playwright's Chromium without it.
+// team sheet's "Tell a member directly" box. The browser comes from scripts/browser.mjs, so any
+// installed Chromium works — Google Chrome is not required.
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
+import { launchTestBrowser } from './browser.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -36,22 +37,7 @@ const FAKE = `
 const server = await createServer({ root, configFile: false, plugins: [react()], logLevel: 'error', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
 const base = `http://127.0.0.1:${server.httpServer.address().port}/scripts/voice-harness/index.html`;
-// Any Chromium works (speech is faked). BRAINBOOK_TEST_CHROMIUM=/path/to/chrome picks one; otherwise
-// Google Chrome, then Playwright's own build (`npx playwright-core install chromium-headless-shell`).
-const launch = async () => {
-  const executablePath = process.env.BRAINBOOK_TEST_CHROMIUM;
-  const tries = executablePath ? [{ executablePath }] : [{ channel: 'chrome' }, {}];
-  const reasons = [];
-  for (const option of tries) {
-    try {
-      const browser = await chromium.launch({ ...option, headless: true });
-      console.log(`note browser: ${option.executablePath || option.channel || 'Playwright Chromium'} ${browser.version()}`);
-      return browser;
-    } catch (error) { reasons.push(error.message.split('\n')[0]); }
-  }
-  throw new Error(`No browser for the voice test (${reasons.join('; ')}). Install Google Chrome, run \`npx playwright-core install chromium-headless-shell\`, or set BRAINBOOK_TEST_CHROMIUM.`);
-};
-const browser = await launch();
+const browser = await launchTestBrowser();
 let failed = false;
 const check = async (name, fn) => {
   try { await fn(); console.log(`ok   ${name}`); } catch (error) { failed = true; console.log(`FAIL ${name}\n     ${error.message.split('\n').slice(0, 6).join(' | ')}`); }

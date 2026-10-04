@@ -31,8 +31,10 @@ export type TaskPlan = {
   phases: TaskPlanPhase[];
   risks: string[];
   nextAction: string;
-  source: 'opencode' | 'fallback';
+  source: 'router' | 'opencode' | 'fallback';
   model: string;
+  worker?: string;
+  routerTaskId?: string;
   generatedAt: string;
 };
 

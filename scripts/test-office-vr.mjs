@@ -2,14 +2,14 @@
 // Opens /vr with /api/office mocked and navigator.xr replaced by a fake, so no headset, GPU job
 // or Hermes write is involved. WebGL runs on Chrome's software renderer (SwiftShader).
 // With --real, also serves the live Hermes boards (read-only, as /api/office builds them) and saves
-// screenshots to evidence/. Needs Google Chrome; playwright-core is a devDependency.
+// screenshots to evidence/. Any installed Chromium works (scripts/browser.mjs finds one).
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launchTestBrowser } from './browser.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { buildOffice } from '../office.mjs';
@@ -61,7 +61,7 @@ const FAKE_XR = `
 const server = await createServer({ root, configFile: false, plugins: [react()], logLevel: 'error', appType: 'spa', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
 const base = `http://127.0.0.1:${server.httpServer.address().port}/vr`;
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const browser = await launchTestBrowser({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 let failed = false;
 const check = async (name, fn) => {
   try { await fn(); console.log(`ok   ${name}`); } catch (error) { failed = true; console.log(`FAIL ${name}\n     ${error.message.split('\n').slice(0, 6).join(' | ')}`); }

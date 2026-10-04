@@ -455,8 +455,19 @@ TEAM_PARENT = {"Bigkiji": None, "Pi": "Bigkiji", "Jev": "Bigkiji", "MiMo": "Pi",
 # Film Group: Steve directs; the scenario/audio departments run on Steve's profile; Auto QA
 # drives the Vision check; ComfyUI is operated by Maru's GPU lane.
 MOVIE_PARENT = {"Steve": None, "HideoKojima": "Steve", "RyūichiSakamoto": "Steve", "Kuro": "Steve", "Shimajiro": "Steve",
-                "Ame": "Shimajiro", "Maru": "Steve", "Auto QA": "Steve", "ComfyUI": "Maru"}
+                "Ame": "Shimajiro", "Maru": "Steve", "Auto QA": "Steve", "ComfyUI": "Maru",
+                "MiMo": "Steve", "Space Bunny": "Steve"}
 ROUTER_TO_MEMBER = {"mimo": "MiMo", "claude": "Claude Code", "hermes": "Bigkiji", "pi": "Pi"}
+# Owner 2026-10-02 ("まとめて"): MoviePro is ONE team. The Router team `movie-pro` is MoviePro's
+# script-fix lane, not a separate department, so its card is folded into the Film Group card
+# instead of being emitted a second time. Nothing in the Router config changes — display only.
+MOVIE_SCRIPT_TEAM = "movie-pro"
+# The lane's two members, in the order they read under Steve. Which model each one really runs is
+# read from the Router config (workers.yaml mimo, adapters/mimo ui), never written here.
+MOVIE_SCRIPT_CREW = [("MiMo", "builds scripts"), ("Space Bunny", "checks scripts")]
+# MiMo is the lane's build entry point and stays directly instructable from this card; Space Bunny
+# only checks, and was never a direct target on the lane card. Must match directTarget in server.mjs.
+MOVIE_SCRIPT_DIRECT = ["MiMo"]
 # Film Group leadership (ComfyUI/MovieProduction/AGENTS.md) and its department skills.
 MOVIE_CREW = [("Steve", "production director"), ("HideoKojima", "scenario and world"),
               ("RyūichiSakamoto", "audio"), ("Kuro", "independent review"), ("Shimajiro", "education brief"),
@@ -538,7 +549,9 @@ def member_models(home, router_config):
     except (OSError, IndexError):
         pass
     out["Space Bunny"] = _pretty(ui) or "Space Bunny (OpenCode)"
-    out["Claude Code"] = "Claude Sonnet (high) · Opus for difficult"   # config/routes.yaml claude_lanes
+    # Claude Code's identity is the Router worker config (workers.yaml claude), so a model swap
+    # there shows up in BrainBook on the next read. The literal is only the no-config fallback.
+    out["Claude Code"] = _pretty((workers.get("claude") or {}).get("model")) or "Claude Sonnet (high) · Opus for difficult"
     out["Vision"] = _pretty((workers.get("vision") or {}).get("model"))
     out["Qwen (local)"] = "Qwen3.8 27B · local"                        # config/resources.yaml qwen_model
     out["Router"] = "vLLM Semantic Router + rules"                      # workers.yaml semantic_router
@@ -550,6 +563,56 @@ def member_models(home, router_config):
     for name in ("Coco", "Blog QA", "Tech Blog QA"):                    # skills run by the sora profile
         out[name] = out.get("Sora")
     return {name: model for name, model in out.items() if model}
+
+
+def team_jobs(team, live_by_root):
+    """Live Router jobs under one registry team's roots. Empty when the team has none."""
+    roots = {os.path.realpath(team["root"])} | {os.path.realpath(r) for r in (team.get("roots") or {}).values()}
+    return [job for root in roots for job in live_by_root.get(root, [])]
+
+
+
+# Organizational display only. Worker selection remains exclusively in Router.
+# InvestPro is excluded while its owner rebuilds that team separately.
+REVIEWED_TEAM_IDS = {"app-dev", "accountpro", "hs-school-ops", "igataya-web", "marketing", "movie"}
+
+
+def reviewed_structure(team):
+    if team.get("id") not in REVIEWED_TEAM_IDS:
+        return
+    film = team["id"] == "movie"
+    if film and not any(m["name"] == "MiMo" for m in team["members"]):
+        return  # No registered script lane: do not invent one.
+    previous = {m["name"]: m for m in team["members"]}
+    leader = "Steve" if film else "Bigkiji"
+    crew = [
+        ("Pi", leader, "Prepares context, runs checks and cleans up task processes", "Local scripts; no model selection"),
+        ("Router", "Pi", "Selects workers by task, tools, current free eligibility and capability", "Router / Themis"),
+        ("MiMo", "Router", "Builds scripts through Router" if film else "Implementation through Router; configured model is not proof of availability", None),
+        ("Space Bunny", "Router", "Script review through Router; qualification required" if film else "UI through Router; configured model is not proof of availability", None),
+        ("QA / Debug", "Router", "Review requires defect evidence and a qualified free model", "Selected per task; qualification required"),
+        ("Jev", leader, "Optional bounded advice; never worker selection or approval", "Only when opted in and within the task budget"),
+    ]
+    if film:
+        team["members"] = [m for m in team["members"] if m["name"] not in {row[0] for row in crew}]
+    else:
+        team["members"] = [dict(previous.get("Bigkiji", {}), name="Bigkiji", parent=None,
+                                role="Owns the request, scope and delivery")]
+    for name, parent, role, model in crew:
+        member = dict(previous.get(name, {}), name=name, parent=parent, role=role)
+        # A queued/running card does not establish which support process ran.
+        member["live"] = bool(previous.get(name, {}).get("live")) if name in ("MiMo", "Space Bunny") else False
+        member["description"] = role
+        if model is not None:
+            member["model"] = model
+        team["members"].append(member)
+    if not film:
+        for name, member in previous.items():
+            if name not in {"Bigkiji", "Pi", "Router", "MiMo", "Space Bunny", "QA / Debug", "Jev", "Claude Code"}:
+                team["members"].append(dict(member, parent="Bigkiji", role=member["role"] + " (configured specialist role; task dispatch is separate)"))
+        team["direct"] = [name for name in team.get("direct", []) if name != "Claude Code"]
+    team["workflow"] = ("Script work only: " if film else "") + "Bigkiji → Pi preparation → Router selection → implementation → Pi checks → qualified review → bounded repair or delivery → task cleanup"
+    team["workflow_note"] = "Structure describes the workflow. Each task still needs successful preparation, skill-load, check and review receipts. Role files are instructions, not additional running employees."
 
 
 def teams(home, router_config, router_jobs):
@@ -588,9 +651,15 @@ def teams(home, router_config, router_jobs):
         except sqlite3.Error:
             pass
     out = []
+    # The script-fix lane is MoviePro's own lane (owner 2026-10-02), so it is measured here and
+    # folded into the MoviePro card below rather than emitted as a card of its own.
+    script_team = registry.get(MOVIE_SCRIPT_TEAM)
+    script_jobs = team_jobs(script_team, live_by_root) if script_team else []
+    script_names = {member for member, _role in MOVIE_SCRIPT_CREW}
     for name, team in registry.items():
-        roots = {os.path.realpath(team["root"])} | {os.path.realpath(r) for r in (team.get("roots") or {}).values()}
-        jobs = [j for r in roots for j in live_by_root.get(r, [])]
+        if name == MOVIE_SCRIPT_TEAM:
+            continue
+        jobs = team_jobs(team, live_by_root)
         cards = live_team_cards.get(name, [])
         busy = {j["member"] for j in jobs if j["member"]}
         if any(c["state"] == "working" for c in cards):
@@ -608,8 +677,8 @@ def teams(home, router_config, router_jobs):
                     # Owner 2026-10-01: every group takes direct instructions, not only MoviePro.
                     # Must match ROUTER_DIRECT / directTarget in server.mjs.
                     "direct": ["MiMo", "Claude Code", "Bigkiji"] + [p.capitalize() for p in (team.get("profiles") or {})]})
-    # MoviePro is the Film Group (ComfyUI/MovieProduction/AGENTS.md). It runs through the
-    # movie board + movie-pro/gpu-job, not the Router team lane.
+    # MoviePro is the film unit (ComfyUI/MovieProduction/AGENTS.md) plus the script-fix lane. It
+    # runs through the movie board + movie-pro/gpu-job, not through the Router team lane.
     movie_db = os.path.join(home, "kanban", "boards", "movie", "kanban.db")
     movie_cards, movie_busy = [], set()
     conn = connect(movie_db) if os.path.exists(movie_db) else None
@@ -627,16 +696,32 @@ def teams(home, router_config, router_jobs):
         member = "Auto QA" if job["member"] == "Vision" else job["member"]
         movie_busy.add(member)
         movie_cards.insert(0, {"title": job["title"], "state": "working", "member": member})
-    out.append({"id": "movie", "name": "MoviePro", "label": "Film Group (movie-pro, GPU)",
-                "live": bool(movie_busy),
-                "members": [{"name": member, "role": role, "live": member in movie_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_CREW],
-                "specialists": MOVIE_SKILLS, "work": movie_cards[:6], "board": "movie" if conn is not None else None,
-                "direct": [name for name in MOVIE_DIRECT]})
+    # A script-lane job belongs to the lane's own members only. Pi / Bigkiji / Claude Code also
+    # run there, but they are not on this card, so they must not light it up.
+    script_busy = {job["member"] for job in script_jobs if job["member"] in script_names}
+    members = [{"name": member, "role": role, "live": member in movie_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_CREW]
+    if script_team:  # the lane exists only while the Router config keeps it
+        members += [{"name": member, "role": role, "live": member in script_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_SCRIPT_CREW]
+    out.append({"id": "movie", "name": "MoviePro", "label": "Lesson videos, scripts and GPU",
+                "live": bool(movie_busy) or bool(script_busy),
+                "members": members,
+                "specialists": MOVIE_SKILLS,
+                "work": ([{"title": j["title"], "state": "working", "member": j["member"]} for j in script_jobs] + movie_cards)[:6],
+                "board": "movie" if conn is not None else None,
+                # MiMo reaches the same Router team lane as before (directTarget maps the MoviePro
+                # card's MiMo to the `movie-pro` lane), so folding the cards in loses no route.
+                "direct": list(dict.fromkeys([*MOVIE_DIRECT, *(MOVIE_SCRIPT_DIRECT if script_team else [])]))})
     out.append(blog_team(home))
     models = member_models(home, router_config)
     for team in out:
         for member in team["members"]:
             member["model"] = models.get(member["name"])
+    for team in out:
+        reviewed_structure(team)
+        if team.get("id") in REVIEWED_TEAM_IDS and os.path.isfile(os.path.join(home, "state", "team-lane", "repair-hold.json")):
+            team["workflow_note"] = "Automatic worker execution is held pending verification. " + team.get("workflow_note", "")
+        if team.get("id") == "blog":
+            team["workflow_note"] = "Sora owns drafts and publication approval. Universal Pi support and Router dispatch are not yet verified for this native profile path."
     print(json.dumps({"teams": out, "models": models}, ensure_ascii=False))
 
 

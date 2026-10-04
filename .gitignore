@@ -19,3 +19,10 @@ __pycache__/
 *.pyc
 .playwright-cli/
 evidence/
+inputs/
+
+# runtime scratch for local dev/test runs (dev-server logs, pids, throwaway BRAINBOOK_HOME copies
+# of the real app home). Lives inside the repo so a run never has to write outside the workspace —
+# that is what killed the first attempt at this card: its log went to /tmp, the command was refused,
+# and the whole verification never ran.
+.run/

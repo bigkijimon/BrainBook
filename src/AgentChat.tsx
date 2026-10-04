@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 // Raw 'Details:' tails and status prefixes are for the logs, not the chat.
 const tidy = (text: string) => text.split(/\n\s*Details:|\s+Details:\s*$/)[0].replace(/^(?:BLOCKED|DONE|FAILED|COMMENT):\s*/i, '').trim();
-import { ChevronDown, MessagesSquare } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { forOwner } from './AgentFeed';
 import { memberTone } from './TeamRail';
 import { personaOf } from './agentRoster';
@@ -22,7 +22,13 @@ const since = (seconds: number) => {
 };
 const stateOf = (last: Item): Thread['state'] => (last.kind === 'blocked' ? 'needs' : last.kind === 'done' ? 'done' : last.kind === 'failed' ? 'stopped' : 'moving');
 
-export function AgentChat() {
+// This is the panel's body only (merge 2026-10-02). The standalone section that used to live here
+// had exactly one consumer — App.tsx, now AgentChatPanel — and leaving it would keep the only code
+// path that can re-create the two-stacked-cards bug. MeetingRoom keeps its own standalone path
+// because scripts/meeting-harness genuinely mounts it alone.
+// onActiveChange hands the panel the badge count; a primitive count makes an identical setState
+// bail out, so this can never feed a render loop.
+export function AgentChat({ onActiveChange }: { onActiveChange?: (active: number) => void } = {}) {
   const [items, setItems] = useState<Item[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
@@ -58,12 +64,10 @@ export function AgentChat() {
   const shown = showDone ? threads : active;
   // Open the most urgent thread by default so the conversation is visible without a click.
   const current = open ?? shown[0]?.key ?? null;
+  // Primitive count: an identical setState bails out, so this can never feed a render loop.
+  useEffect(() => { onActiveChange?.(active.length); }, [active.length, onActiveChange]);
 
-  return <section className="agent-chat card-shell" aria-labelledby="agent-chat-heading">
-    <header className="agent-chat-head">
-      <h3 id="agent-chat-heading"><MessagesSquare size={16} strokeWidth={1.8} /> Agent chat <b>{active.length}</b></h3>
-      <small>What the agents say to each other on each job. Last 3 days.</small>
-    </header>
+  const body = <>
     {threads.length === 0 && <p className="agent-chat-empty">No agent conversation in the last 3 days.</p>}
     <ol className="agent-chat-list">
       {shown.map((thread) => {
@@ -96,5 +100,7 @@ export function AgentChat() {
       })}
     </ol>
     {done.length > 0 && <button type="button" className="capture-btn agent-chat-more" onClick={() => setShowDone((value) => !value)}>{showDone ? 'Hide finished' : `Show ${done.length} finished`}</button>}
-  </section>;
+  </>;
+
+  return body;
 }

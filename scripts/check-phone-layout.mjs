@@ -13,17 +13,13 @@
 //
 // Usage: node scripts/check-phone-layout.mjs [url]
 // Defaults to http://127.0.0.1:4199/
-import { chromium } from 'playwright-core';
+import { launchTestBrowser } from './browser.mjs';
 
 const url = process.argv[2] || 'http://127.0.0.1:4199/';
 const VIEWPORT = { width: 390, height: 844 };
 const TOLERANCE = 1.5; // px, allow for subpixel rounding
 
-const browser = await chromium.launch({
-  channel: 'chrome',
-  headless: true,
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-});
+const browser = await launchTestBrowser({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: VIEWPORT });
 
 try {

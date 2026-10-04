@@ -8,7 +8,8 @@ import { ArrowUpRight, Flag, Lightbulb, Link2, ListChecks, Loader2, Target, X } 
 type Link = { id: string; kind: string; title: string; why: string };
 type Step = { text: string; uses: string | null };
 export type Sorted = { kind: 'goal' | 'task' | 'idea'; title: string; reason: string; links: Link[]; steps: Step[]; source: 'model' | 'rule'; model: string | null };
-type Saved = { kind: string; title: string; path?: string; url?: string; links: number; steps: number };
+// The Control Center renders this composer, so it names what a save reports.
+export type Saved = { kind: string; title: string; path?: string; url?: string; links: number; steps: number };
 
 const KIND = {
   goal: { label: 'Goal', icon: Target, hint: 'An outcome you want to reach. Saved as a goal note with steps you can hand to agents.' },

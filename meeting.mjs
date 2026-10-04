@@ -1,23 +1,21 @@
 // Agent meeting (owner 2026-09-30): "make a meeting box for the group-top agents so they can
 // brainstorm; Bigkiji hosts, calls on each agent, and the real conversation is shown".
-// Every line in a transcript is a real model reply from that agent's own runtime (Hermes profile
-// or OpenCode). An agent whose runtime is down is recorded as absent with the measured reason; no
+// Bigkiji speaks through its Hermes coordinator; each member turn goes through Router.
+// A member whose Router request fails is recorded as absent with the measured reason; no
 // line is ever written on an agent's behalf. Transcripts live in <appHome>/meetings/<id>.json.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { runOpencode } from './capture.mjs';
+import { requireWorkerLaneOpen, submitWorkerText } from './worker-router.mjs';
 
-// Group tops under Bigkiji. `profile` = Hermes profile id (null = default/Bigkiji); `opencode` = model.
+// Display names are meeting roles, never a request for a particular worker or model.
 export const ATTENDEES = {
   Bigkiji: { persona: 'Bigkiji', group: 'Host · chief orchestrator', profile: null },
-  // Owner 2026-10-01 ("動画担当もbunnyかmino で"): the MoviePro seat runs on free Space Bunny, not Claude opus.
-  Steve: { persona: 'Steven Spielberg', group: 'MoviePro (lesson videos)', opencode: 'opencode/space-bunny-free' },
-  'Claude Code': { persona: 'Grace Hopper', group: 'Engineering QA', profile: 'claudecode' },
-  // Owner 2026-10-01 ("space bunny にさせて"): the QA seat is the free Space Bunny model, not paid Claude Code.
-  'Space Bunny': { persona: 'Grace Hopper', group: 'Engineering QA', opencode: 'opencode/space-bunny-free' },
-  MiMo: { persona: 'Linus Torvalds', group: 'AppPro (app building)', opencode: 'opencode/mimo-v2.6-flash-free' },
-  Sora: { persona: 'Seth Godin', group: 'BlogPro (blogs, social)', profile: 'sora', needs: 'http://127.0.0.1:8080/health' },
+  Steve: { persona: 'Steven Spielberg', group: 'MoviePro (lesson videos)' },
+  'Claude Code': { persona: 'Grace Hopper', group: 'Engineering QA' },
+  'Space Bunny': { persona: 'Grace Hopper', group: 'Engineering QA' },
+  MiMo: { persona: 'Linus Torvalds', group: 'AppPro (app building)' },
+  Sora: { persona: 'Seth Godin', group: 'BlogPro (blogs, social)' },
 };
 const MEMBERS = ['Steve', 'Space Bunny', 'MiMo', 'Sora'];
 
@@ -37,10 +35,6 @@ const runHermes = (profile, prompt, { hermesBin, env, timeout = 150000 }) => new
     resolve(text);
   });
 });
-
-const reachable = async (url) => {
-  try { const response = await fetch(url, { signal: AbortSignal.timeout(2500) }); return response.ok; } catch { return false; }
-};
 
 // Result summary (owner 2026-10-01): "話し合いが終わったら、なんのテーマでどんな結果が出たかを
 // まとめ表示して". Never invents text — it only extracts what Bigkiji's own closing line (see the
@@ -92,23 +86,16 @@ export const summarize = (meeting) => {
   return { theme, decision: sections.decision || '', actions: sections.actions || '', ideas: sections.ideas || '', raw: closing.text, rawFallback: false, isError: false };
 };
 
-export const createMeetings = ({ appHome, hermesBin, env, cwd }) => {
+export const createMeetings = ({ appHome, hermesBin, env, cwd, routerSubmitPath, workerHoldPath }) => {
   const dir = path.join(appHome, 'meetings');
   let running = null;
   const file = (id) => path.join(dir, `${id}.json`);
   const save = async (meeting) => { await fs.mkdir(dir, { recursive: true }); await fs.writeFile(file(meeting.id), JSON.stringify(meeting, null, 2)); };
 
   const speak = async (name, prompt) => {
-    const who = ATTENDEES[name];
-    if (who.needs && !(await reachable(who.needs))) throw new Error('its local model (Qwen) is not running right now');
-    if (who.opencode) {
-      const { stdout } = await runOpencode(['run', '--format', 'json', '--model', who.opencode, '--agent', 'plan', '--title', 'BrainBook meeting', prompt], { cwd, timeout: 120000 });
-      const text = stdout.split('\n').map((line) => { try { return JSON.parse(line); } catch { return null; } })
-        .filter((event) => event?.type === 'text').map((event) => event.part.text).join('').trim();
-      if (!text) throw new Error('empty answer');
-      return text;
-    }
-    return runHermes(who.profile, prompt, { hermesBin, env });
+    if (name === 'Bigkiji') return { text: await runHermes(null, prompt, { hermesBin, env }) };
+    return submitWorkerText({ prompt: `Draft a short meeting response.\n${prompt}`, purpose: `meeting:${name}`,
+      cwd, executable: routerSubmitPath, timeoutMs: 120000 });
   };
 
   const transcriptText = (meeting) => meeting.lines.filter((line) => line.kind === 'say')
@@ -124,25 +111,34 @@ export const createMeetings = ({ appHome, hermesBin, env, cwd }) => {
 
   const turn = async (meeting, name, task) => {
     const started = Date.now();
+    let answered = false;
     meeting.speaking = name; await save(meeting);
     try {
-      const text = (await speak(name, frame(name, meeting, task))).slice(0, 2000);
-      meeting.lines.push({ kind: 'say', who: name, text, at: Date.now() / 1000, seconds: Math.round((Date.now() - started) / 1000) });
+      const answer = await speak(name, frame(name, meeting, task));
+      meeting.lines.push({ kind: 'say', who: name, text: answer.text.slice(0, 2000), at: Date.now() / 1000,
+        seconds: Math.round((Date.now() - started) / 1000),
+        ...(answer.taskId ? { routerTaskId: answer.taskId, worker: answer.worker, model: answer.model } : {}) });
+      answered = true;
     } catch (error) {
       meeting.lines.push({ kind: 'absent', who: name, text: String(error.message || error).slice(0, 200), at: Date.now() / 1000 });
     }
     meeting.speaking = null; await save(meeting);
+    return answered;
   };
 
   const run = async (meeting) => {
     try {
-      await turn(meeting, 'Bigkiji', `Open the meeting. State the topic in one sentence, say what a good outcome is, then call on ${meeting.members.map((name) => `${ATTENDEES[name].persona} (${ATTENDEES[name].group})`).join(', ')} by name and ask each one a pointed question.`);
+      const opened = await turn(meeting, 'Bigkiji', `Open the meeting. State the topic in one sentence, say what a good outcome is, then call on ${meeting.members.map((name) => `${ATTENDEES[name].persona} (${ATTENDEES[name].group})`).join(', ')} by name and ask each one a pointed question.`);
+      if (!opened) throw new Error('The host could not open the meeting; no member rounds were started.');
       for (const name of meeting.members) await turn(meeting, name, 'Answer Bigkiji\'s question and give your best ideas from your group\'s point of view.');
       const present = meeting.members.filter((name) => meeting.lines.some((line) => line.kind === 'say' && line.who === name));
+      if (!present.length) throw new Error('No invited member answered; the meeting has no discussion result.');
       if (present.length > 1) {
         for (const name of present) await turn(meeting, name, 'Round 2: react to one idea from another lead by name. Build on it or challenge it, and say what your group would add.');
       }
       await turn(meeting, 'Bigkiji', 'Close the meeting and DECIDE. The meeting exists so the company runs 24 hours without Yuma (owner 2026-10-01: "わたしがいなくても稼働するように"). Summarise in Japanese as: ✅ 決定 — the one adopted plan (resolve every disagreement yourself; say which idea won and why), 🛠️ next actions with the owner group for each, to start now, 💡 the ideas behind it (who proposed each). If someone was absent, say so. Leave a point to Yuma ONLY if it needs owner authority (money, publication or deployment, credentials, production data, company facts, irreversible acts); name that point exactly. Never end with "Yuma decides" for a design or engineering choice.');
+      const closing = meeting.lines.at(-1);
+      if (closing?.kind !== 'say' || closing.who !== 'Bigkiji') throw new Error('The host could not provide a closing result.');
       meeting.status = 'done';
     } catch (error) {
       meeting.status = 'failed'; meeting.error = String(error.message || error).slice(0, 300);
@@ -159,6 +155,7 @@ export const createMeetings = ({ appHome, hermesBin, env, cwd }) => {
     if (running) throw Object.assign(new Error('A meeting is already running'), { status: 409 });
     const chosen = (Array.isArray(members) && members.length ? members : MEMBERS).filter((name) => MEMBERS.includes(name));
     if (!chosen.length) throw Object.assign(new Error('Pick at least one agent'), { status: 400 });
+    await requireWorkerLaneOpen({ executable: routerSubmitPath, holdPath: workerHoldPath });
     const meeting = { id: `m${Date.now().toString(36)}`, topic: text, members: chosen, status: 'running', startedAt: Date.now() / 1000, endedAt: null, speaking: null, lines: [] };
     await save(meeting);
     running = meeting.id;

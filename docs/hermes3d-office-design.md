@@ -104,7 +104,8 @@ BKU のグループ一覧・部屋の表示名・`overrides`（プロフィー�
 - `src/VoiceInput.tsx` — `VoiceRow`（マイクボタン・JA/EN・状態表示）と、Office パネル上部の「Tell Bigkiji」欄（`VoiceCommand`）。Send は既存の入口をそのまま使う: `POST /api/tasks` でタスクを保存し、`POST /api/tasks/:id/run` で Hermes Kanban に渡す（チームの lane / Bigkiji / 夜の GPU 枠は `queueTaskRun` が決める）。サーバーの変更は無い。
 - チームのシートの「Tell a member directly」欄（`src/TeamRail.tsx`）にも同じマイクを付けた。
 - macOS アプリ: `macos/build-app.sh` の Info.plist にマイクと音声認識の説明文を追加、`macos/main.swift` でローカルの BrainBook 画面だけにマイクを許可する。説明文の無い古いアプリでは、macOS がアプリを止めるのを避けるためマイクを開かず、「Fn を 2 回押す macOS の音声入力」を案内する。
-- 検証: `npm run test:voice`（= `node scripts/test-voice.mjs`。Chrome で、偽の音声認識エンジンと偽の `/api/tasks`・`/api/agents/instruct` を使う。録音もカード作成もしない）。Office の「Tell Bigkiji」欄と、チーム画面の「Tell a member directly」欄の両方のマイクを確かめる（12 項目）。`playwright-core` は devDependency（1.61.0 固定）なので `npm install` だけで動く。別に Google Chrome が要る。スクリーンショット `evidence/voice-input-2026-10-01.png`。
+- 検証: `npm run test:voice`（= `node scripts/test-voice.mjs`。偽の音声認識エンジンと偽の `/api/tasks`・`/api/agents/instruct` を使う。録音もカード作成もしない）。Office の「Tell Bigkiji」欄と、チーム画面の「Tell a member directly」欄の両方のマイクを確かめる（18 項目）。ブラウザは `BRAINBOOK_TEST_CHROMIUM` → Google Chrome → Playwright 自分の Chromium（`npx playwright-core install chromium-headless-shell`）の順に探して、使ったものを 1 行で出す。Google Chrome が無い環境でも動く。`playwright-core` は devDependency（1.61.0 固定）なので `npm install` だけで動く。スクリーンショット `evidence/voice-input-2026-10-01.png`。
+- この検証が黙って古びないよう `node scripts/check-ts-scope.mjs` がある。`npx tsc --noEmit` は `tsconfig.json` の `include` に当たるファイルしか見ないので、`scripts/voice-harness/main.tsx` のような検査対象の外にあるファイルは、そのまま pass して出ていく。チェックは `include` の値ではなく `tsc --listFiles` の結果と、このリポジトリが出荷する `.ts`/`.tsx` の一致を比べる。`include` を `["src"]` に戻すと、公式のチェックは exit 0 のままこのチェックだけが赤くなる。
 
 ## Step 4 で作ったもの（2026-10-01）: Bigkiji のチーム振り分けに合わせて自動で変わる
 

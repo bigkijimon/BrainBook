@@ -23,12 +23,19 @@ const terms = (text) => {
   return out;
 };
 
+let rawGraphCache = { key: '', value: null };
 const readGraphify = async (vaultPath) => {
-  const file = path.join(vaultPath, 'graphify-out', 'graph.json');
+  const file = path.resolve(process.env.BRAINBOOK_GRAPHIFY_PATH || path.join(vaultPath, 'graphify-out', 'graph.json'));
   try {
-    const [raw, stat] = await Promise.all([fs.readFile(file, 'utf8'), fs.stat(file)]);
-    const graph = JSON.parse(raw);
-    return { graph, builtAt: stat.mtime.toISOString() };
+    const stat = await fs.stat(file);
+    if (!stat.isFile() || stat.size > 64 * 1024 * 1024) return null;
+    const key = JSON.stringify([file, stat.mtimeMs, stat.ctimeMs, stat.size]);
+    if (rawGraphCache.key === key) return rawGraphCache.value;
+    const graph = JSON.parse(await fs.readFile(file, 'utf8'));
+    if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.links ?? graph.edges ?? [])) return null;
+    const value = { graph, builtAt: stat.mtime.toISOString(), key };
+    rawGraphCache = { key, value };
+    return value;
   } catch {
     return null;
   }
@@ -74,7 +81,7 @@ export const buildBrain = async ({ vaultPath, notes, readText }) => {
   let graphify = { available: false, builtAt: null, notesCovered: 0, noteLinks: 0 };
   if (graphifyInfo) {
     const { graph, builtAt } = graphifyInfo;
-    const cacheKey = `${builtAt}:${notes.length}`;
+    const cacheKey = JSON.stringify([graphifyInfo.key, path.resolve(vaultPath), [...byPath.keys()].sort()]);
     if (graphifyCache.key !== cacheKey) {
       const nodeFile = new Map();
       for (const node of graph.nodes || []) {

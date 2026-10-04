@@ -41,10 +41,9 @@ import {
 } from 'lucide-react';
 import { SetupDialog, type SetupState } from './SetupDialog';
 import { AgentFlow, agentTone, isHiddenAgent, useAgentFlow } from './AgentFlow';
-import { CaptureSorter } from './CaptureSorter';
+import { ControlCenter, RunButton } from './ControlCenter';
 import { GoalsPanel } from './GoalsPanel';
-import { AgentChat } from './AgentChat';
-import { MeetingRoom } from './MeetingRoom';
+import { AgentChatPanel } from './AgentChatPanel';
 import { OfficeView } from './OfficeView';
 import { personaOf } from './agentRoster';
 import { AgentFeed, type AgentMessage } from './AgentFeed';
@@ -56,9 +55,9 @@ import PhoneDialog from './PhoneDialog';
 import { TeamRail, useTeams } from './TeamRail';
 import { LIFE_AREAS, STATUSES, isTaskStatus, statusMeta, type LifeArea, type Priority, type Task, type TaskDomain, type TaskStatus, type VaultNote, type VaultTask } from './types';
 import { matchesFocus, scheduledTasks as listScheduledTasks } from './task-focus.mjs';
+import { runState, runSummary } from './next-work.mjs';
 
 const API = '/api';
-const newTaskTemplate = { title: '', description: '', priority: 'auto' as 'auto' | Priority, dueAt: '' };
 type Stream = { id: string; label: string; color: string };
 let STREAM_LIST: Stream[] = [];
 const streamColor = (id?: string) => STREAM_LIST.find((stream) => stream.id === id)?.color || '#b69bc4';
@@ -124,8 +123,14 @@ function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  // Every task entry point in the app lands on this one card (owner 2026-10-02), so anything that
+  // opens the composer scrolls the Control Center into view with it.
+  const controlRef = useRef<HTMLElement | null>(null);
+  const openControl = useCallback((compose = true) => {
+    setComposerOpen(compose);
+    window.requestAnimationFrame(() => controlRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }, []);
   const [goalsKey, setGoalsKey] = useState(0);
-  const [newTask, setNewTask] = useState(newTaskTemplate);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [planningId, setPlanningId] = useState<string | null>(null);
@@ -281,14 +286,14 @@ function App() {
       const target = event.target as HTMLElement | null;
       const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.tagName === 'SELECT';
       if (event.key === '?' && !typing) { event.preventDefault(); setHelpOpen(true); }
-      if (event.key.toLowerCase() === 'n' && !typing) { event.preventDefault(); setComposerOpen(true); }
+      if (event.key.toLowerCase() === 'n' && !typing) { event.preventDefault(); openControl(true); }
       if (event.key.toLowerCase() === 'd' && !typing && !event.metaKey && !event.ctrlKey) { event.preventDefault(); setDump({ parent: null }); }
       if (event.key.toLowerCase() === 'b' && !typing && !event.metaKey && !event.ctrlKey) { event.preventDefault(); setBrainOpen((value) => !value); setBrainPick(null); }
       if (event.key === 'Escape') { setHelpOpen(false); setProfileOpen(false); setComposerOpen(false); setLinking((current) => { if (!current) { setBrainOpen(false); setBrainPick(null); } return null; }); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [openControl]);
 
   useEffect(() => { void loadTasks(); void loadVault(); }, []);
   // First run / Settings: owner name and vault folder (per user, stored in their data folder).
@@ -480,24 +485,12 @@ function App() {
     if (remote) setMobileTab('tasks');
   };
 
-  const createTask = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!newTask.title.trim() || saving) return;
-    setSaving(true);
-    try {
-      const payload = { ...newTask, area: area !== 'all' ? area : focus === 'personal' ? 'play' : 'work', priority: newTask.priority === 'auto' ? undefined : newTask.priority, status: 'inbox' };
-      const result = await request<{ task: Task }>(`${API}/tasks`, { method: 'POST', body: JSON.stringify(payload) });
-      const task = normalizeTask(result.task);
-      setTasks((current) => [task, ...current]);
-      setSelectedId(task.id);
-      setNewTask(newTaskTemplate);
-      setComposerOpen(false);
-      notify('Task added.');
-    } catch (error) {
-      notify(error instanceof Error ? error.message : 'Could not save.');
-    } finally {
-      setSaving(false);
-    }
+  // A Next Work row opens its card, and the card detail panel only exists on the Tasks tab of the
+  // paired phone (styles.css hides the inspector on the Ideas tab), so the tap has to move the tab
+  // too - otherwise the Control Center row is a dead tap on the phone.
+  const openBoardTask = (id: string) => {
+    setSelectedId(id);
+    if (remote) setMobileTab('tasks');
   };
 
   const updateTask = async (taskId: string, patch: Partial<Task>, successMessage = 'Changes saved.') => {
@@ -574,10 +567,10 @@ function App() {
       const result = await request<{ task: Task }>(`${API}/tasks/${encodeURIComponent(task.id)}/plan`, { method: 'POST', body: '{}' });
       const next = normalizeTask(result.task);
       setTasks((current) => current.map((entry) => entry.id === task.id ? next : entry));
-      notify(next.plan?.source === 'opencode' ? 'OpenCode created a phased plan.' : 'Local plan template created.');
+      notify(next.plan?.source === 'router' ? 'Router created a phased plan.' : next.plan?.source === 'opencode' ? 'OpenCode created a phased plan.' : 'Local plan template created.');
     } catch (error) {
       setTasks((current) => current.map((entry) => entry.id === task.id ? { ...entry, planStatus: 'error', planError: error instanceof Error ? error.message : 'Planning failed.' } : entry));
-      notify(error instanceof Error ? error.message : 'OpenCode planning failed.');
+      notify(error instanceof Error ? error.message : 'Router planning failed.');
     } finally {
       setPlanningId(null);
     }
@@ -630,7 +623,7 @@ function App() {
             </div>}
           </div>
           <AgentFeed local={localFeed} character={character} />
-          <RunMenu tasks={tasks.filter((task) => matchesFocus(task, focus))} vaultTasks={areaReminders} onRunTask={runTask} onRunVault={runVaultTask} onTeam={() => setTeamOpen(true)} />
+          <RunShortcut tasks={tasks} vaultTasks={areaReminders} onOpen={() => openControl(false)} />
           <button className="dump-toggle" type="button" title="Get ideas out of your head (D)" onClick={() => setDump({ parent: null })}><Sparkles size={16} strokeWidth={1.5} /><span>Dump</span></button>
           <button className={`brain-toggle ${brainOpen ? 'active' : ''}`} type="button" aria-pressed={brainOpen} title="See how your ideas connect (B)" onClick={() => { setBrainOpen((value) => !value); setBrainPick(null); }}><Brain size={16} strokeWidth={1.5} /><span>{brainOpen ? 'Close map' : 'Map'}</span></button>
           <button className="avatar-button" type="button" aria-label="Account menu" onClick={() => { setProfileOpen((value) => !value); setHelpOpen(false); }}>{(ownerName || character.name || '?').slice(0, 1).toUpperCase()}</button>
@@ -733,8 +726,8 @@ function App() {
               <h2>{(() => { const h = new Date().getHours(); return h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; })()}{ownerName ? `, ${ownerName}` : ''}<span className="title-dot">.</span></h2>
               <p className="content-lede">A clear surface for the work that matters next.</p>
             </div>
-            <button className="primary-button" type="button" onClick={() => setComposerOpen((value) => !value)}>
-              <span>New</span><span className="button-icon"><Plus size={16} strokeWidth={1.7} /></span>
+            <button className="primary-button" type="button" title="Add a task in the Control Center" onClick={() => openControl(!composerOpen)}>
+              <span>New task</span><span className="button-icon"><Plus size={16} strokeWidth={1.7} /></span>
             </button>
           </div>
 
@@ -742,15 +735,27 @@ function App() {
           <AgentsLive tasks={tasks} onOpen={() => setTeamOpen(true)} />
           <AgentFlow open={teamOpen} onClose={() => setTeamOpen(false)} />
 
-          {composerOpen && <CaptureSorter onClose={() => setComposerOpen(false)} onSaved={(saved) => {
-            setComposerOpen(false);
-            notify(`Saved as ${saved.kind}${saved.links ? ` · ${saved.links} connection${saved.links > 1 ? 's' : ''}` : ''}${saved.steps ? ` · ${saved.steps} step${saved.steps > 1 ? 's' : ''}` : ''}.`);
-            void loadTasks(); void loadVault(); setGoalsKey((key) => key + 1);
-          }} />}
+          {/* The one task entry point (owner 2026-10-02): capture plus the Next Work List live here,
+              and the rest of the app reaches work through this card instead of its own list. */}
+          <ControlCenter
+            sectionRef={controlRef}
+            work={{ tasks, vaultTasks: areaReminders, asks: agentAsks, focus }}
+            entry={{
+              open: composerOpen,
+              onToggle: () => openControl(!composerOpen),
+              onSaved: (saved) => {
+                setComposerOpen(false);
+                notify(`Saved as ${saved.kind}${saved.links ? ` · ${saved.links} connection${saved.links > 1 ? 's' : ''}` : ''}${saved.steps ? ` · ${saved.steps} step${saved.steps > 1 ? 's' : ''}` : ''}.`);
+                void loadTasks(); void loadVault(); setGoalsKey((key) => key + 1);
+              },
+            }}
+            actions={{ openTask: openBoardTask, runTask, runVault: runVaultTask, toggle: toggleVaultTask }}
+            notes={areaNotes.length}
+            loading={vaultLoading}
+          />
           {<GoalsPanel refreshKey={goalsKey} notify={notify} onToggle={toggleVaultTask} onRun={runVaultTask} />}
           <OfficeView remote={remote} />
-          <MeetingRoom remote={remote} />
-          <AgentChat />
+          <AgentChatPanel remote={remote} />
 
           <div className="board-toolbar">
             <div className="toolbar-tabs"><button className={`toolbar-tab ${viewMode === 'board' ? 'active' : ''}`} type="button" onClick={() => setViewMode('board')}>Board</button><button className={`toolbar-tab ${viewMode === 'timeline' ? 'active' : ''}`} type="button" onClick={() => setViewMode('timeline')}>Timeline</button>{domainFilter !== 'all' && <button className="active-stream-filter" type="button" onClick={() => setDomainFilter('all')}>{domainFilters.find((domain) => domain.value === domainFilter)?.label} <X size={12} strokeWidth={1.5} /></button>}</div>
@@ -769,19 +774,18 @@ function App() {
             const otherCount = tasks.filter((task) => !task.isArchived && matchesFocus(task, other)).length;
             return <div className="board-empty-hint">
               <p><b>No {focus === 'work' ? 'Work' : 'Personal'} tasks{tasks.some((task) => !task.isArchived && matchesFocus(task, focus)) ? ' match these filters' : ' yet'}.</b>{otherCount > 0 && ` ${otherCount} ${otherCount === 1 ? 'task is' : 'tasks are'} in ${other === 'work' ? 'Work' : 'Personal'}.`}</p>
-              <div>{otherCount > 0 && <button type="button" className="ghost-button" onClick={() => chooseFocus(other)}>Show {other === 'work' ? 'Work' : 'Personal'}</button>}<button type="button" className="ghost-button" onClick={() => setComposerOpen(true)}>Add a task</button></div>
+              <div>{otherCount > 0 && <button type="button" className="ghost-button" onClick={() => chooseFocus(other)}>Show {other === 'work' ? 'Work' : 'Personal'}</button>}<button type="button" className="ghost-button" onClick={() => openControl(true)}>Add a task</button></div>
             </div>;
           })()}
           {loading ? <div className="loading-state"><span className="loading-orbit" />Loading tasks…</div> : visibleTasks.length === 0 ? null : viewMode === 'board' ? (
             <div className="board" aria-label="Task board">
               {STATUSES.map((status) => (
-                <TaskColumn key={status} status={status} tasks={visibleTasks.filter((task) => task.status === status)} selectedId={selectedId} onSelect={setSelectedId} onMove={moveTask} onDropTask={moveTask} onOpenComposer={() => setComposerOpen(true)} onRun={runTask} />
+                <TaskColumn key={status} status={status} tasks={visibleTasks.filter((task) => task.status === status)} selectedId={selectedId} onSelect={setSelectedId} onMove={moveTask} onDropTask={moveTask} onOpenComposer={() => openControl(true)} onRun={runTask} />
               ))}
             </div>
           ) : <TimelineView tasks={visibleTasks} selectedId={selectedId} onSelect={setSelectedId} />}
 
           <IdeaShelf streams={streams} notes={areaNotes} loading={vaultLoading} onSend={sendToHermes} onArea={moveNoteToArea} onKind={setNoteKind} />
-          <VaultPulse compact notes={areaNotes} tasks={areaReminders} boardTasks={tasks.filter((task) => matchesFocus(task, focus))} asks={agentAsks} loading={vaultLoading} onToggle={toggleVaultTask} onOpenTask={setSelectedId} onRunTask={runTask} onRunVault={runVaultTask} />
           <details className="tree-fold"><summary>Where every idea stands</summary>
             <IdeaTree taskPaths={taskLikePaths} character={character} brain={brain} area={area} selected={brainPick?.id || null} onSelect={(node) => { setBrainPick(node); setBrainOpen(true); }} onStart={(node) => { const note = vaultNotes.find((entry) => entry.path === node.id); if (note) sendToHermes(note); }} onBranch={(node) => setDump({ parent: { id: node.id, title: node.title } })} />
           </details>
@@ -807,82 +811,7 @@ function App() {
   );
 }
 
-type OwnerAction = { key: string; rank: number; tone: 'urgent' | 'due' | 'high' | 'soon'; label: string; title: string; detail?: string; onOpen?: () => void; href?: string; runnable?: Runnable; onRun?: () => void };
 type AgentAsk = { taskId: string; taskTitle: string; boardName: string; kind: string; text: string; at: number };
-
-// "Do now": what the owner must act on, ranked, visible the moment BrainBook opens.
-// Order: agents waiting on you → tasks needing attention → overdue → due today → high priority → due this week.
-function VaultPulse({ compact = false, notes, tasks, boardTasks, asks, loading, onToggle, onOpenTask, onRunTask, onRunVault }: { compact?: boolean; notes: VaultNote[]; tasks: VaultTask[]; boardTasks: Task[]; asks: AgentAsk[]; loading: boolean; onToggle: (task: VaultTask) => void; onOpenTask: (id: string) => void; onRunTask: (task: Task) => void; onRunVault: (task: VaultTask) => void }) {
-  const [all, setAll] = useState(false);
-  const now = Date.now();
-  const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
-  const week = now + 7 * 86400000;
-  const actions: OwnerAction[] = [];
-  // Owner 2026-09-30: "no raw information". An agent's blocked message is reduced to one plain reason.
-  const plainReason = (text: string) => {
-    const clean = text.replace(/[⛔⚠️❌]/gu, '').replace(/^\s*stopped for yuma:\s*/i, '').trim();
-    if (/not approved after/i.test(clean)) return 'QA did not pass. Needs your decision.';
-    if (/unsupported format|vision .*fail/i.test(clean)) return 'The review tool failed. Needs a retry.';
-    return clean.split(/(?<=[.!?。])\s/)[0].slice(0, 90);
-  };
-  asks.forEach((ask) => actions.push({ key: `ask:${ask.taskId}`, rank: 0, tone: 'urgent', label: 'Agent waiting', title: ask.taskTitle, detail: `${ask.boardName} · ${plainReason(ask.text)}` }));
-  boardTasks.filter((task) => !task.isArchived && task.status !== 'done').forEach((task) => {
-    const due = task.dueAt ? new Date(task.dueAt).getTime() : NaN;
-    const open = () => onOpenTask(task.id);
-    const run = { runnable: task, onRun: () => onRunTask(task) };
-    if (task.status === 'needs_attention') actions.push({ key: task.id, rank: 1, tone: 'urgent', label: 'Needs you', title: task.title, onOpen: open, ...run });
-    else if (due < now) actions.push({ key: task.id, rank: 2, tone: 'due', label: 'Overdue', title: task.title, onOpen: open, ...run });
-    else if (due <= endOfToday.getTime()) actions.push({ key: task.id, rank: 3, tone: 'due', label: 'Today', title: task.title, onOpen: open, ...run });
-    else if (task.priority === 'high') actions.push({ key: task.id, rank: 4, tone: 'high', label: 'High', title: task.title, onOpen: open, ...run });
-    else if (due <= week) actions.push({ key: task.id, rank: 5, tone: 'soon', label: formatShort(task.dueAt), title: task.title, onOpen: open, ...run });
-  });
-  // Undated items from the owner's own priority notes count as the curated "next" list, but
-  // they are shown one row per topic (note section) with progress, never as raw checklist lines.
-  const topics = new Map<string, { first: VaultTask; open: number; total: number }>();
-  tasks.forEach((task) => {
-    if (!/next work list|priority list/i.test(task.title) || task.dueAt) return;
-    const key = `${task.path}#${task.section || ''}`;
-    const entry = topics.get(key) || { first: task, open: 0, total: 0 };
-    entry.total += 1;
-    if (!task.done) { if (entry.open === 0) entry.first = task; entry.open += 1; }
-    topics.set(key, entry);
-  });
-  topics.forEach(({ first, open, total }, key) => {
-    if (open === 0 || /on hold/i.test(first.section || '')) return;
-    actions.push({ key: `topic:${key}`, rank: 4, tone: 'high', label: 'Priority', title: first.section || first.title, detail: `${total - open} of ${total} done · ${first.title.replace(/\s*[—-]\s*\d{4}-\d{2}-\d{2}$/, '')}`, href: first.url });
-  });
-  tasks.filter((task) => !task.done && task.dueAt).forEach((task) => {
-    const due = new Date(task.dueAt as string).getTime();
-    const rank = due < now ? 2 : due <= endOfToday.getTime() ? 3 : due <= week ? 5 : -1;
-    if (rank > 0) actions.push({ key: task.id, rank, tone: rank === 5 ? 'soon' : 'due', label: rank === 2 ? 'Overdue' : rank === 3 ? 'Today' : formatShort(task.dueAt), title: task.text.replace(/[📅⏳]\s*\d{4}-\d{2}-\d{2}/gu, '').trim() || task.title, detail: task.title, href: task.url, runnable: { title: task.text || task.title, kanban: task.kanban }, onRun: () => onRunVault(task) });
-  });
-  actions.sort((a, b) => a.rank - b.rank);
-  const shown = all ? actions : actions.slice(0, compact ? 3 : 6);
-  return (
-    <section className={`owner-now ${compact ? 'compact' : ''}`} aria-label="What you need to do now">
-      <header className="owner-now-head">
-        <h3>{compact ? 'From Obsidian' : 'Do now'}</h3>
-        <span>{loading ? 'Reading…' : actions.length === 0 ? 'Nothing needs you right now' : `${actions.length} ${actions.length === 1 ? 'thing needs' : 'things need'} you`}</span>
-        <small title="Markdown notes read from your Obsidian vault">{notes.length} notes synced</small>
-      </header>
-      {actions.length === 0 ? <p className="owner-now-empty">{loading ? 'Reading the vault…' : 'You are clear. Pick an idea below or add a task.'}</p> : <ol className="owner-now-list">
-        {shown.map((item) => {
-          const body = <><span className={`owner-tag tone-${item.tone}`}>{item.label}</span><span className="owner-text"><strong>{item.title}</strong>{item.detail && <small>{item.detail}</small>}</span></>;
-          return <li key={item.key} className={item.runnable ? `run-${runState(item.runnable)}` : ''}>{item.onOpen ? <button type="button" onClick={item.onOpen}>{body}</button> : item.href ? <a href={item.href} title="Open in Obsidian">{body}</a> : <div>{body}</div>}
-            {item.runnable && item.onRun && <RunButton task={item.runnable} onRun={item.onRun} />}
-            {item.href && !item.key.startsWith('topic:') && <button type="button" className="owner-done" title="Mark done in Obsidian" aria-label={`Mark ${item.title} done`} onClick={() => { const task = tasks.find((entry) => entry.id === item.key); if (task) onToggle(task); }}><Check size={14} strokeWidth={2} /></button>}</li>;
-        })}
-      </ol>}
-      {actions.length > (compact ? 3 : 6) && <button type="button" className="owner-now-more" onClick={() => setAll((value) => !value)}>{all ? 'Show less' : `Show all ${actions.length}`}</button>}
-    </section>
-  );
-}
-
-function formatShort(value: string | null | undefined) {
-  if (!value) return 'Soon';
-  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric' }).format(new Date(value));
-}
-
 
 type Character = { name: string; image: string; custom: boolean };
 type Progress = { xp: number; level: number; into: number; need: number; title: string; completed: number; ideas: number };
@@ -983,7 +912,7 @@ function TimelineView({ tasks, selectedId, onSelect }: { tasks: Task[]; selected
 }
 
 function HelpDialog({ onClose }: { onClose: () => void }) {
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><div className="help-head"><div><span className="eyebrow">ASTER / QUICK GUIDE</span><h2 id="help-title">How BrainBook works</h2></div><button className="icon-button" type="button" aria-label="Close help" onClick={onClose}><X size={17} strokeWidth={1.5} /></button></div><div className="help-grid"><div><strong>01 / Capture</strong><p>Add a task with “New task” or “Capture another” in the Inbox.</p></div><div><strong>02 / Move</strong><p>Drag a card, or use the menu at its bottom right, to change its status.</p></div><div><strong>03 / Focus</strong><p>Switch views with Today, High signal and Completed. Search and the priority filter work together.</p></div><div><strong>04 / Vault</strong><p>Obsidian notes and reminders appear in the particle stream. Checking one updates the original line in the note.</p></div></div><div className="help-foot"><span>LOCAL-FIRST · NO CLOUD REQUIRED</span><button className="submit-button" type="button" onClick={onClose}>Close <Check size={14} strokeWidth={1.5} /></button></div></section></div>;
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><div className="help-head"><div><span className="eyebrow">ASTER / QUICK GUIDE</span><h2 id="help-title">How BrainBook works</h2></div><button className="icon-button" type="button" aria-label="Close help" onClick={onClose}><X size={17} strokeWidth={1.5} /></button></div><div className="help-grid"><div><strong>01 / Capture</strong><p>Everything enters in the Control Center at the top: <b>New task</b>, the <b>N</b> key and “Capture another” all open the same box. The top-bar <b>Run</b> button goes there too, but only to show the list — a task is handed over from a row in it.</p></div><div><strong>02 / Next</strong><p>The Next Work List under it is the one ranked answer to what happens next — board tasks, your Obsidian checklist lines and anything an agent is waiting on.</p></div><div><strong>03 / Move</strong><p>Drag a card, or use the menu at its bottom right, to change its status. Run hands it to Bigkiji.</p></div><div><strong>04 / Vault</strong><p>Obsidian notes and reminders appear under the list. Checking one updates the original line in the note.</p></div></div><div className="help-foot"><span>LOCAL-FIRST · NO CLOUD REQUIRED</span><button className="submit-button" type="button" onClick={onClose}>Close <Check size={14} strokeWidth={1.5} /></button></div></section></div>;
 }
 
 function TaskColumn({ status, tasks, selectedId, onSelect, onMove, onDropTask, onOpenComposer, onRun }: {
@@ -1009,41 +938,17 @@ function TaskColumn({ status, tasks, selectedId, onSelect, onMove, onDropTask, o
   );
 }
 
-// Top-bar Run: the one obvious place to start work. Lists what is ready to hand to Bigkiji (Work board
-// first by priority, then the owner's Obsidian priority list); pulses while any handed task is running.
-function RunMenu({ tasks, vaultTasks, onRunTask, onRunVault, onTeam }: { tasks: Task[]; vaultTasks: VaultTask[]; onRunTask: (task: Task) => void; onRunVault: (task: VaultTask) => void; onTeam: () => void }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-  const weight = { high: 0, normal: 1, low: 2 } as const;
-  const boardReady = tasks.filter((task) => !task.isArchived && task.status !== 'done' && runState(task) === 'idle').sort((a, b) => weight[a.priority] - weight[b.priority]);
-  const vaultReady = vaultTasks.filter((task) => !task.done && runState({ title: task.title, kanban: task.kanban }) === 'idle' && /next work list|priority list/i.test(task.title));
-  const active = [...tasks, ...vaultTasks].filter((task) => task.kanban && !['done', 'archived'].includes(task.kanban.status));
-  const running = active.filter((task) => task.kanban?.status === 'running').length;
-  const items: { key: string; title: string; hint: string; go: () => void }[] = [
-    ...boardReady.map((task) => ({ key: task.id, title: task.title, hint: `Board · ${task.priority}`, go: () => onRunTask(task) })),
-    ...vaultReady.map((task) => ({ key: task.id, title: task.text || task.title, hint: 'Obsidian priority list', go: () => onRunVault(task) })),
-  ].slice(0, 8);
+// Top-bar Run (owner 2026-10-02): a shortcut into the Control Center, not a second queue. It keeps
+// the live count — that is the one thing that belongs in the top bar — and opens the Next Work List,
+// which is where a task is actually handed to Bigkiji.
+function RunShortcut({ tasks, vaultTasks, onOpen }: { tasks: Task[]; vaultTasks: VaultTask[]; onOpen: () => void }) {
+  const { active, running } = runSummary({ tasks, vaultTasks });
   return (
     <div className="run-menu">
-      <button type="button" className={`run-top ${running ? 'is-running' : active.length ? 'is-queued' : ''}`} aria-expanded={open} aria-haspopup="menu" title="Start a task with Bigkiji" onClick={() => setOpen((value) => !value)}>
+      <button type="button" className={`run-top ${running ? 'is-running' : active ? 'is-queued' : ''}`} title="Open the Control Center to hand work to Bigkiji" onClick={onOpen}>
         {running ? <span className="run-spinner" aria-hidden="true" /> : <Play size={13} strokeWidth={2.4} />}
-        <span>{running ? `Running ${running}` : active.length ? `Queued ${active.length}` : 'Run'}</span>
+        <span>{running ? `Running ${running}` : active ? `Queued ${active}` : 'Run'}</span>
       </button>
-      {open && <>
-        <div className="run-scrim" onClick={() => setOpen(false)} />
-        <div className="run-pop" role="menu" aria-label="Start a task">
-          <p className="run-pop-title">Start a task — Bigkiji picks it up within a minute</p>
-          {items.length === 0 ? <p className="run-pop-empty">Nothing waiting. Add a task with New task, then Run it here.</p> : <ol>
-            {items.map((item) => <li key={item.key}><button type="button" role="menuitem" onClick={() => { item.go(); setOpen(false); }}><Play size={12} strokeWidth={2.4} /><span><strong>{item.title}</strong><small>{item.hint}</small></span></button></li>)}
-          </ol>}
-          <button type="button" className="run-pop-team" onClick={() => { setOpen(false); onTeam(); }}>{active.length > 0 ? `${running} running · ${active.length - running} queued — ` : ''}See who is working →</button>
-        </div>
-      </>}
     </div>
   );
 }
@@ -1080,35 +985,6 @@ function AgentsLive({ tasks, onOpen }: { tasks: Task[]; onOpen: () => void }) {
       </button>
     </section>
   );
-}
-
-type RunState = 'idle' | 'queued' | 'waiting-gpu' | 'running' | 'blocked' | 'done';
-type Runnable = { title: string; status?: string; kanban?: Task['kanban'] };
-function runState(task: Runnable): RunState {
-  const status = task.kanban?.status;
-  if (!status) return 'idle';
-  if (status === 'running') return 'running';
-  if (status === 'scheduled') return task.kanban?.gpu ? 'waiting-gpu' : 'queued';
-  if (status === 'blocked') return 'blocked';
-  if (status === 'done' || status === 'archived') return 'done';
-  return 'queued';
-}
-const RUN_LABEL: Record<RunState, string> = { idle: 'Run', queued: 'Queued', 'waiting-gpu': 'Waits for night GPU', running: 'Running', blocked: 'Needs you', done: 'Done' };
-const RUN_HINT: Record<RunState, string> = {
-  idle: 'Hand this task to Bigkiji. It starts within about a minute, even when you are away.',
-  queued: 'Waiting for the Hermes dispatcher to pick it up (checks every minute).',
-  'waiting-gpu': 'Needs the GPU, so it starts in the night window (01:00–06:00) when the GPU is free.',
-  running: 'Bigkiji is working on this now.',
-  blocked: 'Bigkiji stopped and needs a decision from you. See the agent updates.',
-  done: 'Finished. See the agent updates for the summary.',
-};
-function RunButton<T extends Runnable>({ task, onRun }: { task: T; onRun: (task: T) => void }) {
-  const run = runState(task);
-  if (task.status === 'done' && run === 'idle') return null;
-  return <button type="button" className={`run-button run-${run}`} disabled={run !== 'idle'} title={RUN_HINT[run]} aria-label={`${RUN_LABEL[run]}: ${task.title}`} onClick={(event) => { event.stopPropagation(); onRun(task); }}>
-    {run === 'running' ? <span className="run-spinner" aria-hidden="true" /> : run === 'idle' ? <Play size={12} strokeWidth={2.2} /> : null}
-    {RUN_LABEL[run]}
-  </button>;
 }
 
 function TaskCard({ task, selected, onSelect, onMove, onRun }: { task: Task; selected: boolean; onSelect: () => void; onMove: (id: string, status: TaskStatus) => void; onRun: (task: Task) => void }) {
@@ -1149,7 +1025,7 @@ function TaskInspector({ task, saving, planning, onClose, onUpdate, onArchive, o
         <div className="field-grid"><label className="field-label">Status<select value={value('status')} onChange={(event) => setDraft({ ...draft, status: event.target.value as TaskStatus })}>{STATUSES.map((status) => <option key={status} value={status}>{statusMeta[status].label}</option>)}</select></label><label className="field-label">Priority<select value={value('priority')} onChange={(event) => { const current = value('routing') || task.routing; setDraft({ ...draft, priority: event.target.value as Priority, routing: { ...current, priorityReason: 'manual priority override', prioritySource: 'manual' } }); }}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label></div>
         <label className="field-label">Stream<select value={value('routing')?.domain || 'private'} onChange={(event) => { const next = event.target.value as TaskDomain; const selected = STREAM_LIST.find((stream) => stream.id === next); const current = value('routing') || task.routing; setDraft({ ...draft, routing: { ...current, domain: next, domainLabel: selected?.label || current.domainLabel, priorityReason: 'manual domain override' } }); }} aria-label="Task stream">{STREAM_LIST.map((stream) => <option key={stream.id} value={stream.id}>{stream.label}</option>)}</select></label><label className="field-label">Area<select value={(value('area') as LifeArea | null | undefined) || task.lifeArea || 'work'} onChange={(event) => setDraft({ ...draft, area: event.target.value as LifeArea })} aria-label="Life area">{LIFE_AREAS.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select></label>
         <div className="routing-panel"><div className="routing-panel-head"><span>AUTO ROUTING</span><strong>{prioritySourceLabel}</strong></div><div className="routing-domain"><span className="routing-pulse" /><strong>{task.routing?.domainLabel || 'Private / personal'}</strong><span>→ {task.routing?.worker || 'hermes'}</span></div><p>{task.routing?.priorityReason || 'Classification is ready.'}{priorityConfidenceLabel}</p></div>
-        <div className="plan-panel"><div className="plan-panel-head"><span>EXECUTION PLAN</span><strong>{task.plan ? (task.plan.source === 'opencode' ? 'OPENCODE' : 'LOCAL TEMPLATE') : planning ? 'ANALYZING' : 'NOT GENERATED'}</strong>{task.plan && <button className="plan-refresh" type="button" onClick={() => onPlan(task)} disabled={planning}>{planning ? '...' : 'Re-analyze'}</button>}</div>{task.plan ? <PlanView plan={task.plan} /> : <div className="plan-empty"><p>Let the OpenCode agent break this task into phases.</p><button className="plan-button" type="button" onClick={() => onPlan(task)} disabled={planning}>{planning ? 'Analyzing…' : 'Analyze with OpenCode'}<Sparkles size={14} strokeWidth={1.5} /></button>{task.planError && <small>{task.planError}</small>}</div>}</div>
+        <div className="plan-panel"><div className="plan-panel-head"><span>EXECUTION PLAN</span><strong>{task.plan ? (task.plan.source === 'router' ? 'ROUTER' : task.plan.source === 'opencode' ? 'OPENCODE' : 'LOCAL TEMPLATE') : planning ? 'ANALYZING' : 'NOT GENERATED'}</strong>{task.plan && <button className="plan-refresh" type="button" onClick={() => onPlan(task)} disabled={planning}>{planning ? '...' : 'Re-analyze'}</button>}</div>{task.plan ? <PlanView plan={task.plan} /> : <div className="plan-empty"><p>Let the Router break this task into phases.</p><button className="plan-button" type="button" onClick={() => onPlan(task)} disabled={planning}>{planning ? 'Analyzing…' : 'Analyze with Router'}<Sparkles size={14} strokeWidth={1.5} /></button>{task.planError && <small>{task.planError}</small>}</div>}</div>
         <label className="field-label">Due<input type="date" value={value('dueAt')?.slice(0, 10) || ''} onChange={(event) => setDraft({ ...draft, dueAt: event.target.value ? new Date(`${event.target.value}T12:00:00`).toISOString() : null })} /></label>
         <div className="inspector-note"><CalendarDays size={15} strokeWidth={1.5} /><div><span>Updated</span><strong>{relativeTime(task.updatedAt)} · {formatDate(task.updatedAt)}</strong></div></div>
         <div className="history-block"><div className="history-title"><span>FIELD NOTES</span><span>{task.notes.length}</span></div>{task.notes.length === 0 ? <p>No notes yet.</p> : task.notes.map((note, index) => <div className="note-row" key={`${note}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><p>{note}</p></div>)}</div>

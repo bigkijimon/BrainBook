@@ -177,7 +177,11 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 .priority-select, .filter-box { position: relative; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: rgba(255, 241, 255, 0.035); }
 .priority-select select, .filter-box select, .status-select select, .field-label select { appearance: none; border: 0; outline: 0; color: inherit; background: transparent; font-size: 10px; }
 .priority-select select option, .filter-box select option, .field-label select option { color: #180927; }
-.submit-button, .save-button { justify-content: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 9px; color: #250f39; background: var(--lime); font-size: 10px; font-weight: 800; transition: transform 300ms var(--ease), background 300ms var(--ease); }
+/* white-space: nowrap: these labels are 2-3 words and must never break. Inside .meeting-foot the
+   caption was taking the free space and the label wrapped to 2 line-boxes (3 at 390px) inside a
+   fixed min-height:36px box, so "Start meeting" read as "Start" over "meeting" crushed into a stub.
+   Flexbox will not shrink an item below its min-content width, so nowrap alone holds the label. */
+.submit-button, .save-button { justify-content: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 9px; color: #250f39; background: var(--lime); font-size: 10px; font-weight: 800; white-space: nowrap; transition: transform 300ms var(--ease), background 300ms var(--ease); }
 .submit-button:hover, .save-button:hover { transform: translateY(-1px); background: #ff80c4; }
 
 .board-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 27px 0 15px; }
@@ -412,7 +416,10 @@ input::placeholder, textarea::placeholder { color: #694f73; }
   .mobile-tabs button { flex: 1; display: grid; place-items: center; gap: 2px; border: 0; background: none; color: #8a5fa0; font: 400 9px 'Bungee', sans-serif; letter-spacing: 0.08em; }
   .mobile-tabs button.active { color: #ff4fa3; text-shadow: 0 0 10px rgba(255, 79, 163, 0.7); }
   .is-remote .mobile-terminal:not([hidden]) { display: block; position: fixed; z-index: 55; left: 0; right: 0; top: calc(66px + env(safe-area-inset-top)); bottom: calc(64px + env(safe-area-inset-bottom)); }
-  .is-remote.tab-ideas .sidebar, .is-remote.tab-ideas .vault-pulse, .is-remote.tab-ideas .board-toolbar, .is-remote.tab-ideas .board, .is-remote.tab-ideas .timeline-view, .is-remote.tab-ideas .bottom-stats, .is-remote.tab-ideas .inspector, .is-remote.tab-ideas .content-header .primary-button { display: none; }
+  /* The Control Center stays on both tabs: it is the one task entry, so it must not be one of the
+     things a tab switch hides. The header's own "New task" button goes on Ideas — the card carries
+     one — and the dead .vault-pulse selector is gone with the panel it referred to. */
+  .is-remote.tab-ideas .sidebar, .is-remote.tab-ideas .board-toolbar, .is-remote.tab-ideas .board, .is-remote.tab-ideas .timeline-view, .is-remote.tab-ideas .bottom-stats, .is-remote.tab-ideas .inspector, .is-remote.tab-ideas .content-header .primary-button { display: none; }
   .is-remote.tab-tasks .idea-shelf { display: none; }
   .is-remote.tab-hermes .workspace { visibility: hidden; }
   .is-remote .idea-to-hermes { opacity: 1; padding: 8px 10px; font-size: 9px; }
@@ -589,7 +596,15 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 .bell-button.has-unread svg { animation: bellRing 1.4s ease-in-out 2; transform-origin: 50% 0; }
 @keyframes bellRing { 0%, 60%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-14deg); } }
 .toast-stack { position: fixed; left: 24px; bottom: 24px; z-index: 110; display: grid; gap: 10px; width: min(400px, calc(100vw - 32px)); margin: 0; padding: 0; list-style: none; pointer-events: none; }
-.toast-stack .agent-msg { pointer-events: auto; }
+/* The whole card was a pointer-event blocker so that one 32px Dismiss button in its corner could be
+   tapped. That made a 400x100 notice swallow every click underneath it: measured on the phone
+   layout, a live toast covered a full-width .chat-thread-row of the merged panel top to bottom, so
+   the owner could not open any agent thread while an update was on screen (at 1280px it covered the
+   24x18 "全文" control instead). A notice is passive - only the control inside it takes a tap, and
+   the rest passes through to the page. .agent-details is display:none inside a toast, so the
+   Dismiss button really is the card's only control. */
+.toast-stack .agent-msg { pointer-events: none; }
+.toast-stack .agent-dismiss { pointer-events: auto; }
 .feed-panel { position: absolute; top: 58px; right: 60px; z-index: 105; width: min(420px, calc(100vw - 24px)); max-height: min(70vh, 640px); overflow: auto; padding: 12px 14px 14px; border: 1px solid rgba(255, 79, 163, .35); border-radius: 18px; background: rgba(18, 6, 31, .97); box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
 .feed-panel > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .feed-empty { color: #b69bc4; font-size: 13px; }
@@ -956,15 +971,28 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 .idea-dir .idea-area { height: 26px; min-height: 26px; }
 .dir-group .dir-line { min-height: 36px; }
 
-/* "Do now" panel: ranked owner actions at the top of the page. */
-.owner-now { margin-top: 22px; padding: 14px 16px; border: 1px solid rgba(255, 241, 255, .12); border-radius: 16px; background: rgba(18, 6, 31, .72); backdrop-filter: blur(6px); }
-.owner-now-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
-.owner-now-head h3 { margin: 0; color: #fbe9ff; font: 400 16px 'Bungee', sans-serif; letter-spacing: .03em; }
-.owner-now-head span { color: #d9c4e6; font-size: 13px; }
-.owner-now-head small { margin-left: auto; color: #b89ac8; font: 400 11px 'DM Mono', monospace; }
+/* Control Center (owner 2026-10-02): the one task entry point and the one Next Work List.
+   The card shell comes from .card-shell; the rows keep the proven .owner-now-* vocabulary. */
+.control-center { display: flex; flex-direction: column; margin: 20px 0 0; padding: 14px 16px; border-radius: 18px; }
+.control-center-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.control-center-head h3 { display: flex; align-items: center; gap: 7px; margin: 0; color: #fbe9ff; font: 400 16px 'Bungee', sans-serif; letter-spacing: .03em; }
+.control-center-head h3 b { padding: 1px 8px; border-radius: 999px; color: #1b0830; background: #2be8d9; font: 800 11px 'Manrope', sans-serif; }
+.control-center-head small { min-width: 0; color: #d9c4e6; font-size: 12.5px; }
+.control-center-add { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; margin-left: auto; padding: 0 13px; border: 1px solid rgba(43, 232, 217, .45); border-radius: 999px; color: #2be8d9; background: rgba(43, 232, 217, .08); font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
+.control-center-add:hover { background: rgba(43, 232, 217, .18); }
+.control-center-add.is-open { color: #1b0830; background: #2be8d9; }
+.control-center .composer { margin: 4px 0 10px; padding: 12px; border-radius: 14px; }
+.control-center-foot { display: flex; align-items: center; gap: 8px; margin: 10px 2px 0; padding-top: 9px; border-top: 1px solid rgba(255, 241, 255, .08); color: #b89ac8; font-size: 11.5px; }
+.control-center-foot svg { flex: none; color: #2be8d9; }
+.control-center-foot span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.control-center-foot small { margin-left: auto; font: 400 11px 'DM Mono', monospace; white-space: nowrap; }
+.next-work-list { margin-top: 2px; }
 .owner-now-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .owner-now-list li { display: flex; align-items: center; gap: 4px; }
-.owner-now-list li > button:first-child, .owner-now-list li > a, .owner-now-list li > div { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; min-height: 34px; padding: 4px 8px; border: 0; border-radius: 10px; color: inherit; background: none; text-align: left; text-decoration: none; cursor: pointer; }
+.owner-now-list li > button:first-child, .owner-now-list li > a, .owner-now-list li > div { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; min-height: 34px; padding: 4px 8px; border: 0; border-radius: 10px; color: inherit; background: none; text-align: left; text-decoration: none; }
+/* A row with nothing to open (an agent waiting on a card from another board) keeps the layout but
+   not the affordance: it must not take a pointer cursor or a hover it cannot honour. */
+.owner-now-list li > button:first-child, .owner-now-list li > a { cursor: pointer; }
 .owner-now-list li > button:first-child:hover, .owner-now-list li > a:hover { background: rgba(255, 241, 255, .06); }
 .owner-tag { flex: none; min-width: 84px; padding: 2px 8px; border-radius: 999px; font: 700 10.5px 'Manrope', sans-serif; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
 .owner-tag.tone-urgent { color: #1b0830; background: #ffb347; }
@@ -1039,12 +1067,7 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 /* Running task card: stronger motion + progress sweep. */
 .task-card.run-running::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 6px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, transparent, #2be8d9, #ff4fa3, transparent) no-repeat; background-size: 40% 100%; animation: card-sweep 1.4s ease-in-out infinite; }
 @keyframes card-sweep { 0% { background-position: -60% 0; } 100% { background-position: 160% 0; } }
-/* Obsidian block: compact, below the work. */
-.owner-now.compact { margin-top: 18px; padding: 10px 14px; }
-.owner-now.compact .owner-now-head h3 { font-size: 14px; }
-.owner-now.compact .owner-now-list li { min-height: 30px; }
-.owner-now.compact .owner-text strong { font-size: 12.5px; }
-.owner-now.compact .owner-tag { font-size: 9.5px; padding: 2px 7px; }
+/* Obsidian block: the Next Work List rows share the proven compact row rules. */
 .tree-fold { margin: 14px 0; }
 .tree-fold > summary { cursor: pointer; padding: 8px 4px; color: #c3a8d1; font: 700 13px 'Manrope', sans-serif; }
 @media (prefers-reduced-motion: reduce) { .agents-live.on, .agents-live.on::before, .live-orb i, .live-avatar, .live-bar i, .task-card.run-running::after { animation: none; } }
@@ -1052,36 +1075,20 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 /* Idea list overflow fix: grid columns must not grow to the longest title. */
 .dir-tree, .dir-children { grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; }
 .dir-node, .dir-line, .idea-file-open, .idea-row-main { min-width: 0; max-width: 100%; }
-.idea-shelf, .owner-now, .agents-live { min-width: 0; max-width: 100%; overflow: hidden; }
+.idea-shelf, .control-center, .agents-live { min-width: 0; max-width: 100%; overflow: hidden; }
 /* Top-bar Run. */
 .run-menu { position: relative; }
 .topbar .run-top { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px; border: 0; border-radius: 999px; color: #1b0830; background: #2be8d9; font: 800 12.5px 'Manrope', sans-serif; cursor: pointer; }
 .topbar .run-top:hover { box-shadow: 0 0 14px rgba(43, 232, 217, .6); }
 .topbar .run-top.is-queued { color: #2be8d9; background: rgba(43, 232, 217, .14); box-shadow: inset 0 0 0 1px rgba(43, 232, 217, .6); }
 .topbar .run-top.is-running { color: #fff; background: linear-gradient(90deg, #ff4fa3, #8f7bff, #2be8d9, #ff4fa3); background-size: 300% 100%; animation: run-flow 2.4s linear infinite, run-breathe 2s ease-in-out infinite; }
-.run-scrim { position: fixed; inset: 0; z-index: 60; }
-.run-pop { position: absolute; top: 38px; right: 0; z-index: 61; width: min(380px, calc(100vw - 24px)); padding: 12px; border: 1px solid rgba(255, 241, 255, .16); border-radius: 16px; background: #1d0b30; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
-.run-pop-title { margin: 0 0 8px; color: #c3a8d1; font-size: 12px; }
-.run-pop ol { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.run-pop li button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 6px 10px; border: 0; border-radius: 10px; color: #f6e9ff; background: rgba(255, 255, 255, .04); text-align: left; cursor: pointer; }
-.run-pop li button:hover, .run-pop li button:focus-visible { background: rgba(43, 232, 217, .14); }
-.run-pop li button svg { flex: none; color: #2be8d9; }
-.run-pop li span { display: flex; flex-direction: column; min-width: 0; }
-.run-pop li strong { overflow: hidden; font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
-.run-pop li small { color: #c3a8d1; font-size: 11px; }
-.run-pop-empty, .run-pop-foot { margin: 6px 2px 0; color: #c3a8d1; font-size: 12px; }
-/* Do-now / From-Obsidian rows: the Run button must not stretch the row past the panel. */
+/* Next Work List rows: the Run button must not stretch the row past the card. */
 .owner-now-list li { display: flex; align-items: center; min-width: 0; }
 .owner-now-list li > a, .owner-now-list li > button:not(.run-button):not(.owner-done), .owner-now-list li > div { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; overflow: hidden; }
 .owner-now-list .owner-text { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; align-items: baseline; overflow: hidden; }
 .owner-now-list .owner-text strong { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .owner-now-list .owner-text small { flex: none; max-width: 40%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .owner-now-list li .run-button, .owner-now-list li .owner-done { flex: none; }
-/* Run popup rows stay inside the popup. */
-.run-pop li button { min-width: 0; overflow: hidden; }
-.run-pop li span { flex: 1 1 auto; overflow: hidden; }
-.run-pop li strong, .run-pop li small { display: block; max-width: 100%; }
-.run-pop ol { grid-template-columns: minmax(0, 1fr); }
 
 /* ── Polish pass ── */
 /* Idea rows: quiet by default, actions appear on hover/focus (always shown on touch). */
@@ -1094,7 +1101,7 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 .idea-dir .dir-group-toggle { min-height: 36px; }
 .idea-dir .dir-group-toggle:hover { background: rgba(255, 241, 255, .05); }
 /* Section rhythm: one consistent gap between blocks. */
-.main-content > .agents-live, .main-content > .board-empty-hint, .main-content > .idea-shelf, .main-content > .owner-now { margin-bottom: 20px; }
+.main-content > .agents-live, .main-content > .board-empty-hint, .main-content > .idea-shelf, .main-content > .control-center { margin-bottom: 20px; }
 .idea-shelf { margin-top: 20px; }
 .board-empty-hint { margin-bottom: 0; }
 /* Footer line replaces the duplicate stat tiles. */
@@ -1102,7 +1109,7 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 /* Consistent keyboard focus ring everywhere. */
 .main-content :is(button, a, select, input):focus-visible, .topbar :is(button, a):focus-visible { outline: 2px solid #2be8d9; outline-offset: 2px; }
 /* Headings wrap nicely; numbers line up. */
-.content-header h2, .agents-live h3, .owner-now h3 { text-wrap: balance; }
+.content-header h2, .agents-live h3, .control-center-head h3 { text-wrap: balance; }
 .dir-count, .agents-live small, .run-top span, .shelf-switch b { font-variant-numeric: tabular-nums; }
 /* Pause decorative loops when the user prefers less motion. */
 @media (prefers-reduced-motion: reduce) { .topbar .run-top.is-running { animation: none; } }
@@ -1127,7 +1134,6 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 .is-live .live-packet i { animation: packet 1.2s ease-in-out infinite; }
 .is-past .live-packet i { left: 30px; background: #8a7896; box-shadow: none; }
 @keyframes packet { 0% { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateX(30px); opacity: 0; } }
-.run-pop-team { width: 100%; margin-top: 8px; padding: 8px; border: 0; border-top: 1px solid rgba(255, 241, 255, .1); color: #2be8d9; background: none; font: 700 12px 'Manrope', sans-serif; text-align: left; cursor: pointer; }
 .flow-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(10, 2, 20, .6); backdrop-filter: blur(4px); }
 .flow-dialog { display: flex; flex-direction: column; width: min(1040px, 100%); max-height: calc(100dvh - 32px); overflow: hidden; border: 1px solid rgba(255, 241, 255, .16); border-radius: 22px; background: #170828; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); animation: flow-in .18s ease-out; }
 @keyframes flow-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
@@ -1294,7 +1300,7 @@ div.agent-text { display: grid; gap: 2px; }
   .topbar .run-top { padding: 0 10px; }
   /* Pop-overs anchored to a small button opened half off screen on phones.
      Pin them under the top bar, full width, like the agent-updates panel. */
-  .profile-popover, .routine-popover, .run-pop { position: fixed; top: calc(62px + env(safe-area-inset-top)); left: 12px; right: 12px; width: auto; max-height: calc(100dvh - 150px); overflow-y: auto; }
+  .profile-popover, .routine-popover { position: fixed; top: calc(62px + env(safe-area-inset-top)); left: 12px; right: 12px; width: auto; max-height: calc(100dvh - 150px); overflow-y: auto; }
 }
 @media (max-width: 380px) {
   /* Smallest phones: the logo picture gives its room to the controls. */
@@ -1592,7 +1598,10 @@ div.agent-text { display: grid; gap: 2px; }
 .meeting-chip input { accent-color: var(--agent); margin: 0; }
 .meeting-chip.on, .meeting-chip.is-host { border-color: var(--agent); color: #f6e9ff; background: color-mix(in srgb, var(--agent) 14%, transparent); }
 .meeting-chip.is-host { cursor: default; }
-.meeting-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+/* wrap: the caption is the only elastic child here. If it keeps shrinking to keep the button on one
+   line, it becomes a 2px-wide ribbon of text instead - so at a narrow width it drops to its own
+   row and the button keeps its full label. */
+.meeting-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .meeting-foot small { color: #b89ac8; font-size: 12px; }
 .meeting-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .meeting-item { border-radius: 14px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,241,255,.08); }
@@ -1621,6 +1630,53 @@ div.agent-text { display: grid; gap: 2px; }
 .meeting-full-topic { margin: 0 12px 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.02); border: 1px dashed rgba(255,241,255,.12); color: #d9c7e6; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .meeting-full-topic b { color: #bfa6cf; font: 700 11px 'Manrope', sans-serif; letter-spacing: .02em; margin-inline-end: 4px; }
 
+/* Merged chat/meeting panel (2026-10-02, AgentChatPanel): one card shell holds AgentChat's
+   threads and MeetingRoom's body. While a meeting runs the chat block hides ([hidden] must win,
+   like .office-detail) and the meeting body sits directly under the live header; while idle the
+   meeting body follows the threads with one clear group gap (16px, 2x the 8px list gap). */
+.panel-chat[hidden] { display: none; }
+/* Live mode, the panel header takes over as the meeting's own heading - .meeting-head is not drawn
+   then - so it has to wear the meeting's colour, not the chat's. It stayed teal (#7ff3e8, the agent
+   -chat heading) above a body that is entirely pink, and teal is the app-wide "live/working" hue, so
+   a pink meeting read as a teal one whenever it was the thing on screen. #ff9ccc is the value
+   .meeting-head h3 already ships; measured 8.0:1 on the light end of .card-shell's gradient and
+   9.4:1 on the dark end, against a 4.5:1 floor for 15px bold text. */
+.agent-chat-head.is-meeting h3 { color: #ff9ccc; }
+.agent-chat-head.is-meeting h3 b { color: #ff9ccc; background: rgba(255,79,163,.18); }
+/* The 16px group gap belongs only where two groups actually meet. Live, the meeting body is the
+   first thing under the header, which already carries its own 10px margin-bottom — adding the
+   group gap there too would leave the meeting sitting 26px down while the chat sits 10px down. */
+.meeting-embed { margin-top: 0; }
+.panel-chat:not([hidden]) + .meeting-embed { margin-top: 16px; }
+.panel-topic { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; min-width: 0; }
+/* Visually hidden but announced. The merged panel replaces its body on a poll, so the mode switch
+   needs a live region; the repo had no screen-reader-only utility, and inline styles on one <p>
+   would not survive the next caller. */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Tap size of the panel's small controls. Measured on the rendered panel at 1280px and 390px:
+   .meeting-summary-more ("全文", the summary reveal) was 24x18 — under the 24x24 floor of WCAG 2.2
+   SC 2.5.8 (AA), and eleven of them stack, so nothing was reliably tappable on a phone;
+   .desk-reason-more (OfficeView) ships the same 18px text button; .office-desk-more measured 25px
+   tall, one pixel over the floor. Growing the rendered box is not an option: 11 summary cards would
+   gain ~290px of height on the phone for a control whose whole design is 12px pink text. So the hit
+   box grows and the box does not — an absolutely positioned ::after fills the shortfall, which adds
+   zero layout and leaves every pill, border and font size exactly as drawn. Safe to overlap here:
+   each of these is the last child of its block and the only thing below it is text, never another
+   control. 44px is the phone floor (Apple HIG / WCAG 2.5.5 AAA); the AA 24px floor is met at every
+   width. `.meeting-chip` is deliberately not here — at 32px it already clears AA, and a 44px hit box
+   on each chip of a 6px-gap wrapped row would make neighbouring chips steal each other's taps. */
+.meeting-summary-more, .desk-reason-more, .office-desk-more { position: relative; }
+.meeting-summary-more::after, .desk-reason-more::after, .office-desk-more::after {
+  content: ''; position: absolute; top: 50%; left: 50%; translate: -50% -50%;
+  width: max(100%, 24px); height: max(100%, 24px);
+}
+@media (pointer: coarse) {
+  .meeting-summary-more::after, .desk-reason-more::after, .office-desk-more::after {
+    width: max(100%, 44px); height: max(100%, 44px);
+  }
+}
+
 /* Office (Hermes3D goal step 2): rooms = company groups, from real Hermes data. */
 .office { margin: 14px 0 6px; padding: 16px; border-radius: 18px; }
 .office-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
@@ -1629,17 +1685,115 @@ div.agent-text { display: grid; gap: 2px; }
 .office-head[aria-expanded="true"] .chat-chevron { transform: rotate(180deg); }
 .office-desk { margin-top: 12px; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(255,138,154,.4); background: rgba(255,79,110,.07); }
 .office-desk b { color: #ffb0bc; font: 800 12.5px 'Manrope', sans-serif; }
-.office-desk ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; max-height: 180px; overflow: auto; }
-.office-desk li { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: #f6e9ff; }
-.office-desk li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.office-desk li small { flex: none; color: #bfa6cf; }
-.office-grid { display: grid; align-items: start; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; }
-.office-room { display: grid; gap: 8px; align-content: start; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,241,255,.08); }
-.office-room.is-live { border-color: rgba(43,232,217,.45); }
-.office-room.is-shared { background: rgba(127,243,232,.03); border-style: dashed; }
-.office-room header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.office-room header b { color: #f6e9ff; font: 800 14px 'Manrope', sans-serif; }
-.office-room header small { color: #bfa6cf; font-size: 11px; }
+.office-desk-note { margin: 1px 0 0; color: #cdb4dd; font-size: 11px; line-height: 1.45; }
+/* Every stopped card, one place, stacked instead of squeezed. The old list was a single line per
+   card with the title and the room fighting for the same 1100px, so both were ellipsized into
+   uselessness ("Router: UI builder must load UI skills (gate + …") — the reason, which is the whole
+   point of a triage list, was never drawn at all. Three short blocks: title, reason, provenance. */
+.office-desk ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 9px; }
+.office-desk li { display: grid; min-width: 0; color: #f6e9ff; }
+.desk-title { display: flex; align-items: baseline; gap: 0; margin: 0; font-size: 12.5px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.desk-title .office-flag { flex: none; color: #ff8a9a; }
+.desk-reason { margin: 2px 0 0; padding-inline-start: 14px; color: #ffd6dc; font-size: 11.5px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* `pre-line` keeps the numbered findings a card body carries; the clamp keeps the block two lines.
+   Read in full it must stop being a box: display:inline-box with a clamp and no height still clips. */
+.desk-reason[data-read="true"] { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.desk-meta { display: flex; align-items: center; gap: 6px; margin: 3px 0 0; padding-inline-start: 14px; color: #bfa6cf; font-size: 10.5px; line-height: 1.4; }
+/* "Needs you" is a word, not a hue: the ring flag alone would leave a phone user guessing. */
+.desk-needs { padding: 1px 6px; border: 1px solid rgba(255,176,188,.55); border-radius: 999px; color: #ffb0bc; font-size: 10px; font-style: normal; font-weight: 800; letter-spacing: .02em; }
+.desk-reason-more { justify-self: start; margin: 2px 0 0; padding: 0; border: 0; background: none; color: #ff9ccc; font: 700 11px 'Manrope', sans-serif; cursor: pointer; }
+.desk-reason-more:hover { text-decoration: underline; }
+.desk-reason-more:focus-visible { outline: 2px solid #ff4fa3; outline-offset: 2px; border-radius: 4px; }
+/* The desk used to be a 180px scroll box, so on a bad day 3 of 11 stopped cards sat under a
+   scrollbar with no count — hidden content with no cue. A counted disclosure is the cue. */
+.office-desk-more { display: inline-flex; align-items: center; gap: 4px; margin-top: 9px; padding: 4px 9px; border: 1px solid rgba(255,176,188,.4); border-radius: 999px; background: none; color: #ffb0bc; font: 800 11.5px 'Manrope', sans-serif; cursor: pointer; }
+.office-desk-more .chat-chevron { width: 13px; height: 13px; }
+.office-desk-more[aria-expanded="true"] .chat-chevron { transform: rotate(180deg); }
+.office-desk-more:focus-visible { outline: 2px solid #ff4fa3; outline-offset: 2px; }
+/* One status dot for every state the panel draws, so all rows share a left edge and nothing shouts
+   louder than the text beside it. `is-yuma` is a ring rather than a different hue, so the two kinds
+   of blocked flag are told apart without relying on colour alone. */
+.office-flag { display: inline-block; width: 7px; height: 7px; margin-inline-end: 7px; border-radius: 50%; background: currentColor; transform: translateY(-1px); }
+.office-flag.is-yuma { background: none; box-shadow: inset 0 0 0 2px currentColor; }
+/* Team rows (redesign 2026-10-02, owner: "コンパクトに完結に、詳細がわかるように"). The old
+   auto-fill grid of tiles forced each room into ~260px, so every title clamped to 2 lines and
+   the rest became "+1 more". One full-width row per room instead: name + meta, three count pills
+   right-aligned (so the red "N stopped" sits on the same edge in every row), and the card that room
+   is actually on. A stopped card is NOT repeated here — the desk above already lists all of them. */
+.office-rows { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+/* overflow:hidden clips the head's hover tint to the row's radius; the focus ring is pulled inside
+   so nothing important is clipped with it. */
+.office-row { min-width: 0; overflow: hidden; border: 1px solid rgba(255,241,255,.08); border-radius: 14px; background: rgba(255,255,255,.035); }
+.office-row.is-live { border-color: rgba(43,232,217,.4); }
+.office-row.has-stopped { border-color: rgba(255,138,154,.55); box-shadow: inset 3px 0 0 #ff8a9a; }
+.office-row.is-shared { background: rgba(127,243,232,.03); border-style: dashed; }
+/* A quiet room is one fact, so it gets one line: no card, no three zero pills, no "nothing on the
+   board" caption repeating what the absent pills already say. It stays a button — the seated agents
+   and the empty board are still one click away. */
+.office-row.is-quiet { border-color: transparent; background: none; }
+.office-row.is-quiet .office-row-head { padding: 5px 8px; }
+.office-row.is-quiet .office-row-top b { color: #cdb4dd; font-size: 12.5px; }
+.office-row.is-quiet .office-row-empty { flex: 0 0 auto; color: #9c88b0; font-size: 10.5px; }
+.office-row-head { display: grid; gap: 4px; width: 100%; min-width: 0; padding: 9px 12px; border: 0; border-radius: 0; background: none; color: inherit; text-align: left; cursor: pointer; touch-action: manipulation; }
+.office-row-head:active { background: rgba(255,241,255,.07); }
+.office-row .office-row-head:focus-visible { outline-offset: -3px; }
+@media (hover: hover) and (pointer: fine) { .office-row-head:hover { background: rgba(255,241,255,.05); } }
+.office-row-top { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+.office-row-top b { color: #f6e9ff; font: 800 13.5px 'Manrope', sans-serif; }
+.office-row-meta { flex: 1 1 auto; min-width: 0; color: #bfa6cf; font-size: 11px; overflow-wrap: anywhere; }
+.office-row-pills { flex: 0 0 auto; display: inline-flex; flex-wrap: wrap; gap: 5px; margin-left: auto; }
+.office-pill { padding: 2px 8px; border: 1px solid rgba(255,241,255,.14); border-radius: 999px; color: #9c88b0; background: rgba(10,2,20,.35); font: 800 10.5px 'Manrope', sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Colour is earned by a real count. Tinting every row's "0 stopped" pink is what stopped pink from
+   meaning "stopped"; the zero pill now recedes so the one that matters carries the scan. */
+.office-pill.is-working.has-items { border-color: rgba(43,232,217,.45); color: #7ff3e8; background: rgba(43,232,217,.1); }
+.office-pill.is-stopped.has-items { border-color: #ff8a9a; color: #fff0f2; background: rgba(255,79,110,.34); }
+.office-pill.is-waiting.has-items { border-color: rgba(191,166,207,.4); color: #cdb4dd; background: rgba(191,166,207,.09); }
+.office-pill.is-zero { border-color: rgba(255,241,255,.1); }
+/* One line per room, so every non-quiet row is the same height whatever the card says — the card's
+   own length must not decide the rhythm of the list. The card truncates here on purpose: it is one
+   click away in full (the chevron) and the reason it stopped, the part that actually decides, is
+   spelled out in the desk above. */
+.office-row-now { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.office-row-now .office-flag { flex: none; }
+.now-title { flex: 0 1 auto; min-width: 0; overflow: hidden; font-size: 12.5px; line-height: 1.45; white-space: nowrap; text-overflow: ellipsis; }
+/* The person on the card is an attribution, not the next word of the title, so it wears a chip. */
+.now-who { flex: none; margin-left: auto; padding: 0 7px; border: 1px solid rgba(255,241,255,.14); border-radius: 999px; color: #cdb4dd; background: rgba(10,2,20,.3); font-size: 10.5px; font-weight: 700; line-height: 1.6; white-space: nowrap; }
+.office-row-now.is-working { color: #7ff3e8; }
+.office-row-now.is-idle { color: #cdb4dd; }
+.office-row-now.is-stopped { color: #ff8a9a; }
+.office-row-head .chat-chevron { flex: none; margin-left: 2px; }
+.office-row-head[aria-expanded="true"] .chat-chevron { transform: rotate(180deg); }
+/* A phone row is ~360px wide. There the running card gets two lines instead of one ellipsis — the
+   list grows taller but every title reads without a tap, and vertical space is the cheap thing.
+   min-height holds the second line even when the title is short, so the rows keep one rhythm
+   instead of stepping between one-line and two-line cards. */
+@media (max-width: 600px) {
+  .now-title { min-height: 36px; white-space: normal; text-overflow: clip; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+}
+/* Detail behind the row: agents, then the full board as wrapping lanes — no clamp, no "+N more". */
+.office-detail { display: grid; gap: 9px; padding: 10px 12px 11px; border-top: 1px solid rgba(255,241,255,.07); }
+.office-detail[hidden] { display: none; }
+/* Columns, not a grid: a grid row is as tall as its tallest lane, so the Shelf (4th lane) started
+   below the 11-card Waiting lane and left a ~600px hole under the short Working lane. Multi-column
+   flow packs each lane into the shortest column; on a phone it is one column in the same order. */
+.office-lanes { columns: 3 270px; column-gap: 8px; margin-bottom: -8px; }
+.office-lanes > * { break-inside: avoid; margin: 0 0 8px; }
+.office-lane { display: block; min-width: 0; padding: 8px 10px 9px; border-radius: 12px; background: rgba(10,2,20,.35); }
+.office-lane h4 { display: flex; gap: 6px; margin: 0 0 6px; font: 800 10.5px 'Manrope', sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.office-lane h4 span { font-variant-numeric: tabular-nums; opacity: .85; }
+.office-lane.is-working h4 { color: #7ff3e8; }
+.office-lane.is-stopped h4 { color: #ff8a9a; }
+.office-lane.is-waiting h4 { color: #bfa6cf; }
+.office-lane.is-shelf h4 { color: #9fe8c4; }
+.office-lane ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.office-lane li { min-width: 0; }
+.lane-title { margin: 0; font-size: 12.5px; line-height: 1.4; color: #f6e9ff; overflow-wrap: anywhere; }
+/* pre-line, like the desk: a stop reason is a card body, and the numbered findings it carries are
+   only readable if their line breaks survive. Nothing is clamped here — this view is the full text. */
+.lane-reason { margin: 2px 0 0; font-size: 11.5px; line-height: 1.5; color: #ffd6dc; white-space: pre-line; overflow-wrap: anywhere; }
+.office-lane li small { display: block; margin-top: 1px; color: #bfa6cf; font-size: 10.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.lane-when { color: #bfa6cf; }
+.lane-empty { margin: 0; color: #bfa6cf; font-size: 12px; }
 .office-agents { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 5px; }
 .office-agents li { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 3px; border-radius: 999px; border: 1px solid rgba(255,241,255,.14); color: #cdb4dd; font: 700 11.5px 'Manrope', sans-serif; }
 .office-agents li i { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: color-mix(in srgb, var(--agent) 40%, transparent); color: #fff; font-style: normal; font-size: 10px; }
@@ -1650,13 +1804,6 @@ div.agent-text { display: grid; gap: 2px; }
 .office-bubble { flex-basis: 100%; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; font-size: 10.5px; }
 .office-agents li.is-working .office-bubble { color: #7ff3e8; } .office-agents li.is-stopped .office-bubble { color: #ff8a9a; }
 .office-agents li:has(.office-bubble) { flex-wrap: wrap; border-radius: 12px; }
-.office-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.office-col { min-width: 0; padding: 6px; border-radius: 10px; background: rgba(10,2,20,.35); }
-.office-col small { display: block; margin-bottom: 3px; font: 800 10.5px 'Manrope', sans-serif; letter-spacing: .04em; text-transform: uppercase; }
-.office-col.is-working small { color: #7ff3e8; } .office-col.is-stopped small { color: #ff8a9a; } .office-col.is-waiting small { color: #bfa6cf; }
-.office-col p, .office-shelf p { margin: 0 0 3px; font-size: 11.5px; line-height: 1.35; color: #f6e9ff; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.office-col p span, .office-shelf p span { color: #bfa6cf; }
-.office-shelf small { display: block; margin-bottom: 3px; color: #9fe8c4; font: 800 10.5px 'Manrope', sans-serif; letter-spacing: .04em; text-transform: uppercase; }
 .office-vr-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 11px; border-radius: 999px; border: 1px solid rgba(127,243,232,.45); color: #7ff3e8; font: 800 12px 'Manrope', sans-serif; text-decoration: none; }
 .office-vr-link:hover { background: rgba(127,243,232,.1); }
 
@@ -1705,13 +1852,16 @@ div.agent-text { display: grid; gap: 2px; }
   .idea-dir .idea-file-open .idea-row-main, .dir-line .idea-row-text { flex-direction: column; align-items: stretch; gap: 0; }
   .idea-dir .idea-file-open strong, .dir-line .idea-row-text strong { max-width: 100%; }
   .idea-dir .idea-file > .idea-area { margin-left: 34px; }
-  /* From Obsidian: heading, count and sync note fought for one line, and each item's tag
-     took 84px, so titles ended at "AccountPro: …". Stack the header and the item text. */
-  .owner-now-head { flex-wrap: wrap; row-gap: 2px; }
-  .owner-now-head h3 { flex: 1 0 100%; }
+  /* Control Center: heading, summary and New task fought for one line, and each row's tag took
+     84px, so titles ended at "AccountPro: …". Stack the header and the row text. */
+  .control-center-head { flex-wrap: wrap; row-gap: 2px; }
+  .control-center-head h3 { flex: 1 0 100%; }
+  .control-center-add { margin-left: 0; }
   .owner-tag { min-width: 0; }
   .owner-now-list .owner-text { flex-direction: column; align-items: stretch; gap: 0; }
   .owner-now-list .owner-text strong, .owner-now-list .owner-text small { flex: none; max-width: 100%; }
+  .control-center-foot { flex-wrap: wrap; row-gap: 2px; }
+  .control-center-foot small { margin-left: 0; }
   /* Board: the 420px desktop column floor made each empty single-column lane a ~450px void. */
   .column { min-height: 0; }
   .empty-column { min-height: 88px; }

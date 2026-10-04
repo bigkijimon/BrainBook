@@ -1,7 +1,11 @@
 // Meeting room (owner 2026-09-30): Bigkiji hosts a brainstorm with the group-top agents and every
 // line shown is that agent's real reply (see meeting.mjs). The owner writes a topic, picks who
 // joins, and watches the conversation arrive turn by turn. Absent agents show the measured reason.
-import { useCallback, useEffect, useState } from 'react';
+// Merge (owner 2026-10-02): embed renders this content inside AgentChatPanel's shared card shell,
+// and onLiveChange reports the running meeting up so the panel can switch its own header/body.
+// This poll stays the single source of "is a meeting running" — the panel deliberately does not
+// fetch /api/meetings itself.
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Loader2, Play, Users } from 'lucide-react';
 import { memberTone } from './TeamRail';
 
@@ -40,7 +44,7 @@ function SummaryCard({ summary }: { summary: Summary }) {
 const when = (seconds: number) => new Intl.DateTimeFormat('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(seconds * 1000));
 const HOST_TONE = '#ff4fa3';
 
-export function MeetingRoom({ remote }: { remote: boolean }) {
+export function MeetingRoom({ remote, embed = false, onLiveChange }: { remote: boolean; embed?: boolean; onLiveChange?: (live: { id: string; topic: string } | null) => void }) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [attendees, setAttendees] = useState<Record<string, Attendee>>({});
   const [topic, setTopic] = useState('');
@@ -63,6 +67,17 @@ export function MeetingRoom({ remote }: { remote: boolean }) {
   }, []);
   const live = meetings.find((meeting) => meeting.status === 'running');
   useEffect(() => { void load(); const timer = window.setInterval(load, live ? 3000 : 20000); return () => window.clearInterval(timer); }, [load, Boolean(live)]);
+  // Tell AgentChatPanel which mode to show. Dedupe by value before reporting: a fresh {id, topic}
+  // object into the panel's setState re-renders it, and if the callback were also unstable that
+  // would loop. AgentChatPanel now passes a useCallback, so the deps below only change when the
+  // running meeting itself does - this ref is the backstop that keeps that true.
+  const reportedLive = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const key = live ? `${live.id} ${live.topic}` : '';
+    if (reportedLive.current === key) return;
+    reportedLive.current = key;
+    onLiveChange?.(live ? { id: live.id, topic: live.topic } : null);
+  }, [live?.id, live?.topic, onLiveChange]);
 
   const start = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -82,13 +97,17 @@ export function MeetingRoom({ remote }: { remote: boolean }) {
   const current = openId ?? meetings[0]?.id ?? null;
   const members = Object.entries(attendees).filter(([, who]) => who.member);
 
-  return <section className="meeting card-shell" aria-labelledby="meeting-heading">
-    <header className="meeting-head">
+  // embed + running: AgentChatPanel's own header already reads "Meeting: <topic>", so this
+  // section label and the now fully-disabled start form would only repeat it — both drop out
+  // there. Idle embed and standalone rendering keep them exactly as before.
+  const showIntro = !embed || !live;
+  const content = <>
+    {showIntro && <header className="meeting-head">
       <h3 id="meeting-heading"><Users size={16} strokeWidth={1.8} /> Meeting room</h3>
       <small>Bigkiji hosts. The group leads brainstorm on your topic. Every line is the agent’s real reply.</small>
-    </header>
+    </header>}
 
-    {!remote && <form className="meeting-form" onSubmit={start}>
+    {!remote && showIntro && <form className="meeting-form" onSubmit={start}>
       <textarea rows={2} value={topic} maxLength={600} disabled={Boolean(live)} aria-label="Meeting topic"
         placeholder={live ? 'A meeting is in progress…' : 'Topic, e.g. “How do we sell Mr.INV to the first 10 car shops?”'} onChange={(event) => setTopic(event.target.value)} />
       <div className="meeting-invite" role="group" aria-label="Who joins">
@@ -135,5 +154,8 @@ export function MeetingRoom({ remote }: { remote: boolean }) {
         </li>;
       })}
     </ol>
-  </section>;
+  </>;
+
+  if (embed) return <div className="meeting-embed">{content}</div>;
+  return <section className="meeting card-shell" aria-labelledby="meeting-heading">{content}</section>;
 }

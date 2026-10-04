@@ -8,10 +8,13 @@ import QRCode from 'qrcode';
 import { WebSocketServer } from 'ws';
 import { cleanPasteText, createHermesTerminal, resolveHermes } from './terminal.mjs';
 import { COOKIE, createRemote, findTailscaleAddress } from './remote.mjs';
-import { sortCapture, runOpencode } from './capture.mjs';
+import { sortCapture } from './capture.mjs';
 import { createMeetings } from './meeting.mjs';
+import { resolveRouterSubmit, routeTaskLane, submitWorkerText } from './worker-router.mjs';
+import { JEV_CONFIDENCE_FLOOR, JEV_DECISIONS, JEV_SEND_BACK_CODES, formatJevSendBack, judgeJevAnswer } from './jev-decisions.mjs';
 import { AREA_IDS, classifyArea, createAreaOverrides, normalizeArea, classifyNoteKind, createKindOverrides } from './areas.mjs';
 import { buildBrain } from './brain.mjs';
+import { handleEvolutionRequest } from './investment-evolution.mjs';
 import { createIdeaStore } from './ideas.mjs';
 import { describeStreams, loadStreams } from './streams.mjs';
 import { computeProgress } from './progress.mjs';
@@ -97,6 +100,10 @@ const setupState = async () => ({
   hermes: Boolean(hermes?.bin),
 });
 const routerPath = process.env.AI_ROUTER_BIN || expandHome(settings.routerPath || '') || '';
+const routerSubmitPath = resolveRouterSubmit({
+  submitPath: expandHome(process.env.AI_ROUTER_SUBMIT_BIN || settings.routerSubmitPath || ''),
+  routerPath,
+});
 const jevPriorityPath = process.env.BRAINBOOK_JEV_PRIORITY_HELPER
   || path.join(os.homedir(), 'Documents', 'AI', 'router', 'jev', 'task_priority.py');
 const dev = process.argv.includes('--dev');
@@ -174,28 +181,16 @@ const normalizeTask = (input, existing = null) => {
   };
 };
 
-const routeThroughRouter = async (text) => {
-  if (!routerPath) return null; // optional: owner's AI Router (config.json "routerPath")
-  try {
-    const { stdout } = await execFileAsync('python3', [routerPath, '--json', '--check', '--origin', 'hermes', text], { timeout: 6000, maxBuffer: 64 * 1024 });
-    const line = stdout.trim().split('\n').filter(Boolean).at(-1);
-    const decision = line ? JSON.parse(line) : null;
-    if (!decision) return null;
-    return {
-      worker: decision.worker || 'hermes',
-      routeSource: decision.source || 'deterministic',
-      routeStatus: decision.status || 'ready',
-      reason: decision.reason || null,
-      confidence: decision.source === 'jev' ? Number(decision.jev?.confidence || 0) || 0.8 : 0.76,
-    };
-  } catch {
-    return null;
-  }
-};
+// One line, because the wire, the deadline and the send-back rules live with the other Router
+// adapters in worker-router.mjs: Jev-sourced lane advice is judged by jev-decisions.mjs, and a
+// sent-back answer arrives here as null, which keeps the deterministic lane.
+const routeThroughRouter = (text) => routeTaskLane({ routerPath, text });
 
 // Jev is a separate classifier for locally ambiguous priority only. It never
 // chooses Router workers. The helper receives one opaque task hash and the
 // current title/description on stdin; stderr is discarded to prevent leakage.
+// An answer Jev was not allowed to give is sent back and the local classifier
+// (or the deterministic rules) decides instead — see jev-decisions.mjs.
 const jevTaskPriority = async (task) => {
   if (process.env.JEV_TASK_PRIORITY_ENABLED !== '1' || process.env.JEV_CONTROL_ENABLED !== '1') return null;
   try { await fs.access(jevPriorityPath); } catch { return null; }
@@ -239,14 +234,13 @@ const jevTaskPriority = async (task) => {
     child.on('close', (code) => {
       if (code !== 0) { finish(null); return; }
       try {
-        const result = JSON.parse(output.trim());
-        const confidence = Number(result.confidence);
-        if (result.status !== 'ok' || !['low', 'normal', 'high'].includes(result.priority)
-            || !Number.isFinite(confidence) || confidence < 0.72 || confidence > 1) {
+        const verdict = judgeJevAnswer('task-priority', JSON.parse(output.trim()));
+        if (!verdict.accepted) {
+          console.log(formatJevSendBack(verdict));
           finish(null);
           return;
         }
-        finish({ priority: result.priority, confidence });
+        finish({ priority: verdict.value, confidence: verdict.confidence });
       } catch {
         finish(null);
       }
@@ -459,8 +453,8 @@ const fallbackPlan = (task) => {
   };
 };
 
-const normalizePlan = (value, model) => {
-  if (!value || !Array.isArray(value.phases)) throw new Error('OpenCode returned an invalid plan.');
+const normalizePlan = (value, answer) => {
+  if (!value || !Array.isArray(value.phases)) throw new Error('Router returned an invalid plan.');
   const phases = value.phases.slice(0, 8).map((phase, index) => ({
     name: trim(phase.name, 100) || `Phase ${index + 1}`,
     intent: trim(phase.intent, 240) || 'Clarify the goal',
@@ -473,14 +467,15 @@ const normalizePlan = (value, model) => {
     phases,
     risks: Array.isArray(value.risks) ? value.risks.map((risk) => trim(risk, 240)).filter(Boolean).slice(0, 8) : [],
     nextAction: trim(value.nextAction, 500) || phases[0]?.intent || 'Start Phase 01 first.',
-    source: 'opencode',
-    model,
+    source: 'router',
+    model: answer.model,
+    worker: answer.worker,
+    routerTaskId: answer.taskId,
     generatedAt: now(),
   };
 };
 
 const generateTaskPlan = async (task) => {
-  const model = process.env.ASTER_OPENCODE_MODEL || 'opencode/mimo-v2.6-flash-free';
   const prompt = [
     'You are the planning agent inside BrainBook, a local personal task system.',
     'Analyze the task below and return ONLY valid JSON. Do not use markdown fences.',
@@ -493,10 +488,10 @@ const generateTaskPlan = async (task) => {
     `Task description: ${task.description || '(none)'}`,
   ].join('\n');
   try {
-    const { stdout } = await runOpencode(['run', '--format', 'json', '--model', model, '--agent', 'plan', '--title', 'BrainBook task plan', prompt], { cwd: root, timeout: Number(process.env.ASTER_OPENCODE_TIMEOUT_MS || 30000) });
-    const textParts = stdout.split('\n').map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter((event) => event?.type === 'text' && typeof event.part?.text === 'string').map((event) => event.part.text);
-    if (!textParts.length) throw new Error('OpenCode returned no plan text.');
-    return normalizePlan(JSON.parse(textParts.at(-1)), model);
+    const answer = await submitWorkerText({ prompt: `Draft a task plan in JSON.\n${prompt}`, purpose: 'plan', cwd: root,
+      executable: routerSubmitPath, timeoutMs: 120000 });
+    const raw = answer.text.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+    return normalizePlan(JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)), answer);
   } catch {
     return fallbackPlan(task);
   }
@@ -506,8 +501,8 @@ const generateTaskPlan = async (task) => {
 // ── Run: hand a task to the EXISTING Hermes Kanban dispatcher (runs 24/7 inside the gateway). ──
 // BrainBook never schedules or executes work itself (one scheduler, one GPU owner). It creates one
 // idempotent card on the owner board assigned to Bigkiji (profile "default"); the dispatcher claims it
-// within ~60s, and Bigkiji routes engineering through the AI Router (MiMo first, Claude as paid
-// escalation; Codex is retired). GPU work is parked in Scheduled and released only inside the
+// within ~60s, and Bigkiji routes engineering through the AI Router with its owner cost policy.
+// Failure alone does not authorize paid escalation; Codex is retired. GPU work is parked in Scheduled and released only inside the
 // night window by the "night-gpu-window" Hermes cron job.
 const KANBAN_BOARD = 'owner';
 const GPU_WORDS = /(動画|映像|video|render|comfyui|keyframe|キーフレーム|画像生成|image generation|gpu|qwen|ltx)/i;
@@ -517,11 +512,19 @@ const runHermesKanban = async (args, timeout = 15000) => {
   const { stdout } = await execFileAsync(hermes.bin, ['kanban', '--board', KANBAN_BOARD, ...args], { timeout, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, PATH: hermes.path || process.env.PATH } });
   return stdout;
 };
+// The card rules are generated from the Jev decision declaration, so the words Bigkiji reads on
+// every card, the send-back codes it may see in a log, and the criteria the code enforces are one
+// definition (jev-decisions.mjs).
+const jevRule = () => {
+  const point = JEV_DECISIONS.find((entry) => entry.id === 'repair-or-hold');
+  return `- Decision support (Jev) advises only. Decision point "${point.label}": ${point.question} Usable answers: ${point.mayAnswer}. ${point.mayNot}. When its answer is sent back (${JEV_SEND_BACK_CODES.join(', ')}): missing, refused, over its authority, outside its allowed values, or carrying no readable confidence or a confidence below ${JEV_CONFIDENCE_FLOOR}, treat it as ${point.fallback}.`;
+};
 const kanbanBody = (task, gpu) => [
   `Owner task from BrainBook (priority: ${task.priority}, stream: ${task.routing?.domainLabel || 'Other'}).`,
   '', '## Task', task.title, '', task.description || '(no extra notes)', '',
   '## Rules for this run',
-  '- You are Bigkiji. Define the finish line, then route engineering work through the AI Router (`AI/router/bin/submit`): MiMo is the default worker, Claude Code is the paid escalation. Do NOT use Codex (retired by the owner; keep its files).',
+  '- You are Bigkiji. Define the finish line, then route engineering work through the AI Router (`AI/router/bin/submit`): Retain the free-only worker policy for implementation, QA, debugging and retries. Select a capable reviewer through Router using verified model availability; do not treat a failed free attempt as spending authority. Claude Code is the coordinating brain. Do NOT use Codex (retired by the owner; keep its files).',
+  jevRule(),
   gpu ? '- This task needs the GPU. It was released inside the night GPU window. Use `gpu-job` / movie-pro only; never start ComfyUI directly; stop if `movie-pro.operator-hold` exists.' : '- Do not start or wake the GPU / local models for this task. If it turns out to need the GPU, block the card with the reason instead.',
   '- Publication, deployment, spending, credentials, or production-data changes need the owner: block the card and state the exact decision needed.',
   '- Finish with kanban_complete and a short summary of what changed and how it was verified. If you cannot finish, kanban_block with the exact blocker.',
@@ -538,8 +541,8 @@ const DIRECT_MEMBERS = {
 };
 // Router teams (AppPro, AccountPro, ClassPro, VIT, Igataya; owner 2026-10-01: "各グループにオーナーが
 // 直接指示できる項目ですが、Movieproにしか反映されていない"). Every team gets the same three members:
-// MiMo builds through the team lane (bin/team-run: free build -> Pi checks -> Claude Code QA),
-// Claude Code takes QA/debug work directly, Bigkiji routes. A team's own Hermes profiles
+// MiMo builds through the team lane (free build -> Pi checks -> capable free QA).
+// Claude Code is an explicit coordinator target; Bigkiji routes ordinary work. A team's own Hermes profiles
 // (teams.yaml "profiles", e.g. tora, hana) are direct targets too. Must match agent-feed.py.
 const ROUTER_DIRECT = {
   MiMo: { assignee: 'team', board: 'owner', viaTeamLane: true },
@@ -547,15 +550,22 @@ const ROUTER_DIRECT = {
   Bigkiji: { profile: 'default', board: 'owner' },
 };
 const TEAMS_FILE = path.join(os.homedir(), 'Documents/AI/router/config/teams.yaml');
+// MoviePro is one team (owner 2026-10-02, "まとめて"), so its card carries the script-fix lane as
+// well. That lane is the Router team `movie-pro`, so a member of the merged card that is not in
+// DIRECT_MEMBERS resolves against `movie-pro` and files exactly the card it filed before the two
+// cards were merged. Must match MOVIE_SCRIPT_TEAM / MOVIE_SCRIPT_DIRECT in agent-feed.py.
+const MOVIE_TEAM = 'movie';
+const MOVIE_SCRIPT_TEAM = 'movie-pro';
 const directTarget = async (team, member) => {
   const fixed = DIRECT_MEMBERS[member];
   if (fixed) return fixed.team === team ? fixed : null;
+  const lane = team === MOVIE_TEAM ? MOVIE_SCRIPT_TEAM : team;
   let teams = {};
   try { teams = JSON.parse(await fs.readFile(TEAMS_FILE, 'utf8')).teams || {}; } catch { return null; }
-  if (!teams[team]) return null;
-  if (ROUTER_DIRECT[member]) return { ...ROUTER_DIRECT[member], team };
-  const profile = Object.keys(teams[team].profiles || {}).find((name) => name.charAt(0).toUpperCase() + name.slice(1) === member);
-  return profile ? { profile, board: 'owner', team } : null;
+  if (!teams[lane]) return null;
+  if (ROUTER_DIRECT[member]) return { ...ROUTER_DIRECT[member], team: lane };
+  const profile = Object.keys(teams[lane].profiles || {}).find((name) => name.charAt(0).toUpperCase() + name.slice(1) === member);
+  return profile ? { profile, board: 'owner', team: lane } : null;
 };
 const TEAM_RUN = path.join(os.homedir(), 'Documents/AI/router/bin/team-run');
 const teamFor = async (text) => {
@@ -1069,6 +1079,8 @@ const toggleVaultTask = async ({ id, text, done }) => {
 
 const handleApi = async (req, res, url) => {
   if (url.pathname === '/api/health') return json(res, { ok: true, service: 'brainbook', vault: vaultPath });
+  // InvestPro Evolution Arena: read-only snapshot of VIT's evolution store (investment-evolution.mjs).
+  if (await handleEvolutionRequest(req, res, url, { json })) return;
   // First-run setup and Settings: owner name + which Obsidian vault to use.
   if (url.pathname === '/api/streams' && req.method === 'GET') return json(res, { streams: describeStreams(streamConfig), custom: streamConfig.custom });
   if (url.pathname === '/api/setup' && req.method === 'GET') return json(res, await setupState());
@@ -1172,7 +1184,7 @@ const handleApi = async (req, res, url) => {
       `Direct instruction from Yuma (owner) to ${body.member}, sent from BrainBook${req.remoteDevice ? ' on the paired phone' : ''}.`,
       '', '## Instruction', text, '',
       '## Rules for this run',
-      target.viaTeamLane ? `- Team lane: MiMo builds, Pi checks, Claude Code reviews (bin/team-run, team ${target.team}).` : `- You are ${body.member} (Hermes profile \`${target.profile}\`). Do this yourself within your role; hand parts to another member only through a Kanban card.`,
+      target.viaTeamLane ? `- Team lane: Router selects free workers by task capability; Pi prepares and checks; QA uses an eligible capable reviewer (bin/team-run, team ${target.team}). Preserve the free-only policy on retry.` : `- You are ${body.member} (Hermes profile \`${target.profile}\`). Do this yourself within your role; hand parts to another member only through a Kanban card.`,
       target.team === 'movie' ? '- GPU work goes through `gpu-job` / `movie-pro` only. Never start ComfyUI directly. If `~/Documents/LLM-Local/.local/state/ai-stack/movie-pro.operator-hold` exists, do not start generation: block the card and say so. Only Yuma clears that hold.' : '- Do not start or wake the GPU.',
       '- Publication, deployment, spending, credentials, or production-data changes need the owner: block the card and state the exact decision needed.',
       '- Finish with kanban_complete and a short summary of what changed and how it was verified. If you cannot finish, kanban_block with the exact blocker.',
@@ -1248,7 +1260,7 @@ const handleApi = async (req, res, url) => {
   if (url.pathname === '/api/capture/sort' && req.method === 'POST') {
     const { text } = await readBody(req);
     if (!String(text || '').trim()) return json(res, { error: 'Nothing to sort' }, 400);
-    return json(res, await sortCapture({ text: String(text), candidates: await captureCandidates(), cwd: root }));
+    return json(res, await sortCapture({ text: String(text), candidates: await captureCandidates(), cwd: root, routerSubmitPath }));
   }
   if (url.pathname === '/api/meetings' && req.method === 'GET') return json(res, { meetings: await meetings.list(), attendees: meetings.attendees() });
   if (url.pathname === '/api/meetings' && req.method === 'POST') {
@@ -1448,7 +1460,7 @@ const handleApi = async (req, res, url) => {
     const analyzing = { ...store.tasks[index], planStatus: 'analyzing', planError: null, updatedAt: now() };
     await replaceTask(store, analyzing);
     const plan = await generateTaskPlan(analyzing);
-    const completed = { ...analyzing, plan, planStatus: 'ready', planError: plan.source === 'fallback' ? 'OpenCode plan unavailable; local template shown.' : null, updatedAt: now() };
+    const completed = { ...analyzing, plan, planStatus: 'ready', planError: plan.source === 'fallback' ? 'Router plan unavailable; local template shown.' : null, updatedAt: now() };
     await replaceTask(await readStore(), completed);
     return json(res, { task: completed, plan });
   }
@@ -1479,7 +1491,7 @@ const handleApi = async (req, res, url) => {
 // Hermes terminal (the only program the terminal can run) and phone access.
 
 const hermes = await resolveHermes(process.env.ASTER_HERMES_BIN || expandHome(settings.hermesBin || ''));
-const meetings = createMeetings({ appHome, hermesBin: hermes.bin, env: { ...process.env, PATH: hermes.path || process.env.PATH }, cwd: root });
+const meetings = createMeetings({ appHome, hermesBin: hermes.bin, env: { ...process.env, PATH: hermes.path || process.env.PATH }, cwd: root, routerSubmitPath });
 const terminalOptions = { root, cwd: expandHome(process.env.ASTER_HERMES_CWD || settings.hermesCwd || '~'), python: process.env.ASTER_PYTHON || '/usr/bin/python3', hermes };
 const terminal = createHermesTerminal({ ...terminalOptions, name: 'mac' });
 // Paired phones get their own Hermes session sized to the phone (owner 2026-09-29): the

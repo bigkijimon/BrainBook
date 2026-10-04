@@ -51,26 +51,10 @@ done
 cp "$ROOT/macos/loading.css" "$ROOT/macos/loading-svg.html" "$APP/Contents/Resources/"
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/BrainBook.icns"
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>CFBundleName</key><string>BrainBook</string>
-  <key>CFBundleDisplayName</key><string>BrainBook</string>
-  <key>CFBundleIdentifier</key><string>com.bku.brainbook</string>
-  <key>CFBundleExecutable</key><string>BrainBook</string>
-  <key>CFBundleIconFile</key><string>BrainBook</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.2.0</string>
-  <key>CFBundleVersion</key><string>3</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
-  <key>LSArchitecturePriority</key><array><string>arm64</string></array>
-  <key>NSHighResolutionCapable</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>BrainBook listens only while its mic button is on, to turn your spoken instruction into text you check before sending.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>BrainBook turns your spoken instruction into text you check before sending.</string>
-  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
-</dict></plist>
-PLIST
+# Bundle metadata and the packaged asset name both come from release/release-info.mjs. They were
+# hand-written here before, which is how the version drifted from the one the README advertised; the
+# script prints the asset name so the zip below cannot be named from a second pattern either.
+ASSET=$("$NODE" scripts/write-macos-plist.mjs "$APP/Contents/Info.plist")
 
 # Ad-hoc sign (inner binaries first) so Gatekeeper accepts a locally built app
 # Signing identity: macOS privacy permissions (e.g. access to ~/Documents) are tied to the app's
@@ -87,8 +71,7 @@ codesign --verify --deep --strict "$APP"
 
 # --package: make a zip for GitHub Releases instead of installing (used for sharing with friends).
 if [[ "${1:-}" == "--package" ]]; then
-  VERSION=$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist")
-  ZIP="$OUT/BrainBook-$VERSION-arm64.zip"
+  ZIP="$OUT/$ASSET"
   rm -f "$ZIP"
   ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
   shasum -a 256 "$ZIP" | tee "$ZIP.sha256"

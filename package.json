@@ -8,8 +8,12 @@
     "build": "node scripts/sync-loading.mjs && vite build",
     "start": "node server.mjs",
     "smoke": "node server.mjs --smoke",
+    "test:criteria": "node --test tests/jev-decisions.test.mjs tests/worker-router.test.mjs tests/next-work.test.mjs",
     "test:log": "node scripts/test-server-log.mjs",
-    "test:voice": "node scripts/test-voice.mjs"
+    "test:browser": "node scripts/test-browser.mjs",
+    "test:voice": "node scripts/test-voice.mjs",
+    "check:ts-scope": "node scripts/check-ts-scope.mjs",
+    "check:release": "node scripts/check-release-info.mjs"
   },
   "dependencies": {
     "@fontsource/bungee": "^5.3.0",

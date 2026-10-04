@@ -4,11 +4,11 @@
 // row heading — the owner's actual complaint (a long raw topic, not the computed theme, still
 // showing) never had a regression seam. This script closes that gap: it renders the real
 // MeetingRoom component in a real browser against a mocked /api/meetings response and asserts on
-// the rendered DOM, not on summarize()'s return value. Needs Google Chrome; playwright-core is a
+// the rendered DOM, not on summarize()'s return value. Any installed Chromium works; playwright-core is a
 // devDependency. Run: node scripts/test-meeting-render.mjs
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launchTestBrowser } from './browser.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { summarize } from '../meeting.mjs';
@@ -38,7 +38,7 @@ const ATTENDEES = { Bigkiji: { persona: 'Bigkiji', group: 'Host', member: false 
 const server = await createServer({ root, configFile: false, plugins: [react()], logLevel: 'error', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
 const base = `http://127.0.0.1:${server.httpServer.address().port}/scripts/meeting-harness/index.html`;
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const browser = await launchTestBrowser();
 let failed = false;
 const check = async (name, fn) => {
   try { await fn(); console.log(`ok   ${name}`); } catch (error) { failed = true; console.log(`FAIL ${name}\n     ${error.message.split('\n').slice(0, 6).join(' | ')}`); }

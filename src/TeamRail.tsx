@@ -2,16 +2,19 @@
 // hierarchy — Bigkiji routes, Pi supports, MiMo/Space Bunny build, Claude Code
 // checks, Jev advises — and every member wears its own coloured frame. A member
 // that is working right now pulses LIVE. Data: /api/agents/teams (read-only, 8 s).
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Boxes, Calculator, Clapperboard, Car, Cpu, GraduationCap, LineChart, LayoutGrid, Megaphone, Send, Target, X } from 'lucide-react';
 import { ROSTER, personaOf } from './agentRoster';
 import { VoiceRow } from './VoiceInput';
 import { joinSpoken } from './voice';
 
-type Member = { name: string; role: string; live: boolean; parent?: string | null; model?: string | null };
+// InvestPro only (owner 2026-10-04): the Evolution Arena view loads when its tab is first shown.
+const InvestProEvolution = lazy(() => import('./InvestProEvolution'));
+
+type Member = { name: string; role: string; live: boolean; parent?: string | null; model?: string | null; description?: string };
 type WorkItem = { title: string; member?: string | null; state?: string };
-type Team = { id: string; name: string; label: string; live: boolean; members: Member[]; specialists: string[]; work: WorkItem[]; direct?: string[] };
+type Team = { id: string; name: string; label: string; live: boolean; members: Member[]; specialists: string[]; work: WorkItem[]; direct?: string[]; workflow?: string; workflow_note?: string };
 
 const TEAM_ICON: Record<string, typeof Boxes> = {
   'app-dev': Boxes, accountpro: Calculator, 'hs-school-ops': GraduationCap,
@@ -92,25 +95,48 @@ function TeamSheet({ team, onClose }: { team: Team; onClose: () => void }) {
     const kids = team.members.filter((member) => member !== lead && parentOf(member) === name);
     return kids.length ? <ol>{kids.map((member) => <li key={member.name}>{frame(member)}{branch(member.name)}</li>)}</ol> : null;
   };
+  const hasEvolution = team.id === 'investment';
+  const [tab, setTab] = useState<'team' | 'evolution'>('team');
+  const tabs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const onTabKey = (event: React.KeyboardEvent) => {
+    const order = ['team', 'evolution'] as const;
+    const at = order.indexOf(tab);
+    const next = event.key === 'ArrowRight' ? order[(at + 1) % 2] : event.key === 'ArrowLeft' ? order[(at + 1) % 2] : event.key === 'Home' ? order[0] : event.key === 'End' ? order[1] : null;
+    if (!next) return;
+    event.preventDefault();
+    setTab(next);
+    tabs.current[next]?.focus();
+  };
+  const wide = hasEvolution && tab === 'evolution';
   return <div className="team-sheet-backdrop" onClick={onClose}>
-    <section className="team-sheet" role="dialog" aria-modal="true" aria-label={`${team.name} team`} onClick={(event) => event.stopPropagation()}>
+    <section className={`team-sheet${wide ? ' team-sheet--wide' : ''}`} role="dialog" aria-modal="true" aria-label={`${team.name} team`} onClick={(event) => event.stopPropagation()}>
       <header>
         <div><p className="eyebrow">{team.label.toUpperCase()}</p><h3>{team.name}{team.live && <span className="team-live big"><i />LIVE</span>}</h3></div>
         <button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
       </header>
+      {hasEvolution && <div className="team-tabs" role="tablist" aria-label={`${team.name} views`} onKeyDown={onTabKey}>
+        {(['team', 'evolution'] as const).map((id) => <button key={id} type="button" role="tab" id={`team-tab-${id}`} aria-selected={tab === id} aria-controls="team-tabpanel" tabIndex={tab === id ? 0 : -1}
+          ref={(node) => { tabs.current[id] = node; }} onClick={() => setTab(id)}>{id === 'team' ? 'Team' : 'EVOLUTION'}</button>)}
+      </div>}
+      <div id="team-tabpanel" role={hasEvolution ? 'tabpanel' : undefined} aria-labelledby={hasEvolution ? `team-tab-${tab}` : undefined}>
+      {wide ? <Suspense fallback={<p className="team-hint" role="status">Loading the arena…</p>}><InvestProEvolution /></Suspense> : <>
       {direct.length > 0 && <DirectBox team={team} direct={direct} to={to || direct[0]} onTo={setTo} />}
+      {team.workflow && <p className="team-hint">{team.workflow}</p>}
+      {team.workflow_note && <p className="team-hint">{team.workflow_note}</p>}
       <ol className="team-tree">
         {lead && <li className="tree-lead">{frame(lead)}</li>}
         {lead && <li className="tree-crew">{branch(lead.name)}</li>}
       </ol>
       <p className="team-hint">Tap anyone to see what they do.</p>
-      {info && <AgentInfo name={info.name} model={info.model} role={info.role} live={info.live} onClose={() => setInfo(null)}
+      {info && <AgentInfo name={info.name} model={info.model} description={info.description} role={info.role} live={info.live} onClose={() => setInfo(null)}
         onInstruct={direct.includes(info.name) ? () => { setTo(info.name); setInfo(null); } : undefined} />}
       {team.specialists.length > 0 && <div className="team-roles"><span>Role files</span>{team.specialists.map((role, index) => <em key={`${role}-${index}`}>{role}</em>)}</div>}
       <div className="team-work">
         <span>Now</span>
         {team.work.length ? team.work.map((item, index) => <p key={index}>{item.member && <b style={{ color: memberTone(item.member) }}>{item.member}</b>} {item.title}{item.state ? ` · ${item.state}` : ''}</p>)
           : <p className="muted">Nothing running for this team.</p>}
+      </div>
+      </>}
       </div>
     </section>
   </div>;
@@ -145,7 +171,7 @@ function DirectBox({ team, direct, to, onTo }: { team: Team; direct: string[]; t
       onChange={(event) => { setText(event.target.value); if (state.kind !== 'sending') setState({ kind: 'idle' }); }}
       onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void send(); } }} />
     <div className="direct-foot">
-      <small className={`direct-state is-${state.kind}`} role="status">{state.message || (state.kind === 'sending' ? 'Sending…' : `${personaOf(to)} gets it as a Kanban card and starts within a minute. ⌘↵ sends.`)}</small>
+      <small className={`direct-state is-${state.kind}`} role="status">{state.message || (state.kind === 'sending' ? 'Sending…' : (team.workflow || team.workflow_note ? "Queued work starts after the execution gates pass. ⌘↵ sends." : `${personaOf(to)} gets it as a Kanban card and starts within a minute. ⌘↵ sends.`))}</small>
       <button type="button" className="direct-send" disabled={!text.trim() || state.kind === 'sending'} onClick={() => void send()}><Send size={14} strokeWidth={1.8} />Send</button>
     </div>
   </div>;
@@ -169,7 +195,7 @@ export function MemberFrame({ member, picked = false, onPick }: { member: Member
 
 // "What does this agent do?" card (owner 2026-09-30). Text from agentRoster.ts; model live
 // from the configs. Shared by the team sheet and the orchestration diagram.
-export function AgentInfo({ name, model, role, live, onClose, onInstruct }: { name: string; model?: string | null; role?: string; live?: boolean; onClose: () => void; onInstruct?: () => void }) {
+export function AgentInfo({ name, model, description, role, live, onClose, onInstruct }: { name: string; model?: string | null; description?: string; role?: string; live?: boolean; onClose: () => void; onInstruct?: () => void }) {
   const entry = ROSTER[name];
   const tone = memberTone(name);
   useEffect(() => {
@@ -189,7 +215,7 @@ export function AgentInfo({ name, model, role, live, onClose, onInstruct }: { na
       </header>
       <dl>
         <dt>Model</dt><dd>{model || 'Not measured'}</dd>
-        <dt>What it does</dt><dd>{entry?.does || role || 'No description yet.'}</dd>
+        <dt>What it does</dt><dd>{description || entry?.does || role || 'No description yet.'}</dd>
         {entry?.gives && <><dt>What you get</dt><dd>{entry.gives}</dd></>}
         {entry?.instruct && <><dt>How to reach it</dt><dd>{entry.instruct}</dd></>}
       </dl>
