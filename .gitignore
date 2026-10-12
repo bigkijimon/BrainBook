@@ -18,7 +18,23 @@ macos/.sign-identity
 __pycache__/
 *.pyc
 .playwright-cli/
-evidence/
+# evidence/ is mostly one run's leftovers (server.log, server.pid, captures from older rounds), so it
+# stays out of the tree — except the captures an acceptance criterion is judged from. A capture that is
+# ignored is a file no review of the change can open, so the proof was unreachable however many times it
+# was regenerated; that is why each measured surface keeps its own captures here.
+evidence/*
+!evidence/team-sheet-*.png
+!evidence/control-center-*.png
+# …and the numbers behind those captures. A fit claimed in prose is a claim about a layout nobody can
+# re-check; the measurement file carries the popup height, its cap, the headroom and each region's
+# overflow for every card at every viewport, so a review reads the fit instead of taking it on trust.
+!evidence/team-sheet-*.json
+!evidence/control-center-*.json
+# …and the manifest each run writes before its first check, which is what ties a capture to the source
+# that produced it. Absent = never measured here, `running` = a run that did not finish, `complete`
+# with a matching fingerprint = the only state that describes a picture.
+!evidence/team-sheet-*.md
+!evidence/control-center-*.md
 inputs/
 
 # runtime scratch for local dev/test runs (dev-server logs, pids, throwaway BRAINBOOK_HOME copies
