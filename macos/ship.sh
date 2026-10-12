@@ -33,8 +33,26 @@ FAIL() { echo "❌ SHIP FAILED: $1" >&2; exit 1; }
 echo "── 1/6 type check ──"
 npx tsc --noEmit -p . || FAIL "tsc reported type errors — nothing was built or deployed"
 
-echo "── 2/6 + 3/6 build + install (macos/build-app.sh runs npm run build itself — do not build twice, two separate builds of identical source are not guaranteed byte-identical and that previously produced a false hash mismatch here) ──"
-bash "$ROOT/macos/build-app.sh" || FAIL "build-app.sh did not complete"
+echo "── 2/6 web build (npm run build) ──"
+npm run build || FAIL "npm run build did not complete"
+
+echo "── 3/6 native build + install (xcodebuild replaces macos/build-app.sh; kept for reference) ──"
+# Replaced 2026-10-12 by Xcode build; macos/build-app.sh kept for reference
+xcodebuild build -project macos/BrainBook.xcodeproj -scheme BrainBook -configuration Release || FAIL "xcodebuild did not complete"
+# Copy the built app to /Applications (fully replace, not merge)
+rm -rf /Applications/BrainBook.app
+DERIVED_DATA=$(xcodebuild -project macos/BrainBook.xcodeproj -scheme BrainBook -configuration Release -showBuildSettings 2>/dev/null | grep -E '^\\s*BUILD_DIR' | head -1 | sed 's/.*= //')
+if [[ -n "$DERIVED_DATA" && -d "$DERIVED_DATA/Release/BrainBook.app" ]]; then
+  ditto "$DERIVED_DATA/Release/BrainBook.app" /Applications/BrainBook.app
+else
+  # Fallback: search common derived data locations
+  FOUND_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "BrainBook.app" -path "*/Release/*" 2>/dev/null | head -1)
+  [[ -n "$FOUND_APP" ]] || FAIL "Could not locate built BrainBook.app in DerivedData"
+  ditto "$FOUND_APP" /Applications/BrainBook.app
+fi
+xattr -dr com.apple.quarantine /Applications/BrainBook.app 2>/dev/null || true
+rm -rf /Applications/Aster.app  # previous name
+echo "INSTALLED /Applications/BrainBook.app via Xcode build"
 
 echo "── 4/6 verify the installed bundle matches what was just built (no stale install) ──"
 # Compare content hashes only (not the absolute paths, which legitimately differ between
