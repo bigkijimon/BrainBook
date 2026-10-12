@@ -586,6 +586,41 @@ const teamFor = async (text) => {
     return stdout.trim();
   } catch { return ''; } // no team runner -> Bigkiji keeps the card, as before
 };
+// SUBAGENTS.md "Plan-first and simultaneous department-Top instruction": the accountable Top of
+// every involved department gets a supervisory copy at the same dispatch boundary as the specialist
+// card. teams.yaml is the single source of truth for which profile is that Top (its profiles entry
+// describes itself as "department Top"); never hardcode a second department->profile map here.
+const TOP_PROFILE_PATTERN = /^department top/i;
+const topProfileFor = async (department) => {
+  if (!department) return null;
+  try {
+    const teams = JSON.parse(await fs.readFile(TEAMS_FILE, 'utf8')).teams || {};
+    const profiles = teams[department]?.profiles || {};
+    const entry = Object.entries(profiles).find(([, desc]) => TOP_PROFILE_PATTERN.test(String(desc || '')));
+    return entry ? entry[0] : null;
+  } catch { return null; }
+};
+// The Top copy is a comment on the SAME card (the existing authenticated route) — never a second
+// card, writer or implicit spawn, and no extra spending: SUBAGENTS.md is explicit that the Top copy
+// is for acceptance/dependency supervision, not a second execution of the specialist job. A missing
+// Top profile is recorded as an explicit unresolved dependency, never silently skipped.
+const notifyDepartmentTops = async (task, cardId) => {
+  const departments = [...new Set((task.plan?.assignments || []).map((entry) => entry.department).filter(Boolean))];
+  const results = [];
+  for (const department of departments) {
+    const profile = await topProfileFor(department);
+    if (!profile) { results.push({ department, profile: null, ok: false, sentAt: now(), error: 'No department Top profile declared in teams.yaml' }); continue; }
+    const actors = (task.plan.assignments || []).filter((entry) => entry.department === department).map((entry) => entry.actor).filter(Boolean).join(', ');
+    const text = `Supervisory copy for ${profile} (department Top, ${department}): work on this card was dispatched to ${actors || 'the team lane'}. Acceptance/dependency supervision only — not a second execution. Record receipt when reviewed.`;
+    try {
+      await runHermesKanban(['comment', cardId, text.slice(0, 2000), '--author', 'brainbook-top-notify'], 8000);
+      results.push({ department, profile, ok: true, sentAt: now() });
+    } catch (error) {
+      results.push({ department, profile, ok: false, sentAt: now(), error: String(error?.message || error).slice(0, 200) });
+    }
+  }
+  return results;
+};
 const queueTaskRun = async (task) => {
   if (task.kanban && !['done', 'archived'].includes(task.kanban.status)) return task; // already queued
   const assigned = (plan) => plan && plan.source !== 'fallback' && Array.isArray(plan.phases) && plan.phases.length > 0 && Array.isArray(plan.assignments) && plan.assignments.length > 0 && plan.assignments.every((entry) => entry && typeof entry.department === 'string' && entry.department && !/unknown/i.test(entry.department) && typeof entry.actor === 'string' && entry.actor && !/unknown/i.test(entry.actor) && Array.isArray(entry.skills) && entry.skills.length > 0 && entry.skills.every((skill) => skill && typeof skill.name === 'string' && skill.name && typeof skill.source === 'string' && skill.source && !/unknown/i.test(skill.source)) && entry.scope && Array.isArray(entry.scope.write) && Array.isArray(entry.validation) && entry.validation.length > 0);
@@ -607,7 +642,8 @@ const queueTaskRun = async (task) => {
   let status = created.status || created.task?.status || 'ready';
   // GPU cards always wait in Scheduled; the night-gpu-window cron releases one at a time (01:00-06:00, GPU free, no hold).
   if (gpu) { await runHermesKanban(['schedule', id, 'gpu-night: waits for the night GPU window (01:00-06:00)']); status = 'scheduled'; }
-  return { ...task, status: kanbanStatusToTask[status] || 'working', kanban: { board: KANBAN_BOARD, id, status, assignee, team: team || null, queuedAt: now(), gpu }, updatedAt: now() };
+  const topNotify = await notifyDepartmentTops(task, id);
+  return { ...task, status: kanbanStatusToTask[status] || 'working', kanban: { board: KANBAN_BOARD, id, status, assignee, team: team || null, queuedAt: now(), gpu, topNotify }, updatedAt: now() };
 };
 let kanbanCache = { at: 0, byId: new Map() };
 const syncKanban = async (tasks) => {
