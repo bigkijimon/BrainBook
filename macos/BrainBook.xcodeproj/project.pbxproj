@@ -19,6 +19,15 @@
 		4680E9F4E04341A69CDF5925 /* release-info.mjs in Resources */ = {isa = PBXBuildFile; fileRef = 3397069E7E014522A97E8BD9 /* release-info.mjs */; };
 		D2DF83549E0341E38817197F /* node-self-contained in Resources */ = {isa = PBXBuildFile; fileRef = 2A75265D975A4F758929DFFF /* node-self-contained */; };
 
+		99409B34702641508646B202 /* dist in Resources */ = {isa = PBXBuildFile; fileRef = FD77C2CC1E154063B9C3BDC8 /* dist */; };
+		18D01F508B474FBE9A391B71 /* icon-1024.png in Resources */ = {isa = PBXBuildFile; fileRef = 49DA93C4A23B4D4BB10A698B /* icon-1024.png */; };
+		585BA71C799F4F79A9358BBC /* make_icon.py in Resources */ = {isa = PBXBuildFile; fileRef = 2F84DCFF73674E8D8897E30E /* make_icon.py */; };
+		834E5E4CBEDB4F4FA7B75E9B /* loading.css in Resources */ = {isa = PBXBuildFile; fileRef = 63FCAEC8737C44ACA581A99C /* loading.css */; };
+		1D719D720C2E4345BF33A7F4 /* loading-svg.html in Resources */ = {isa = PBXBuildFile; fileRef = D3DA7EE9358044B2A73C7A55 /* loading-svg.html */; };
+		99E284AAB8294E6394E0D16D /* write-macos-plist.mjs in Resources */ = {isa = PBXBuildFile; fileRef = 2C4DB6E81F0C45E5BC258ED6 /* write-macos-plist.mjs */; };
+		CD8814E8F0FC4CCF93109952 /* release-info.mjs in Resources */ = {isa = PBXBuildFile; fileRef = C7D396C6921A4F5482691CB3 /* release-info.mjs */; };
+		6C3F2B9354E846248B80521E /* node-self-contained in Resources */ = {isa = PBXBuildFile; fileRef = A4E38465826F49F880080F12 /* node-self-contained */; };
+
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +49,20 @@
 		3397069E7E014522A97E8BD9 /* release-info.mjs */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; name = "release-info.mjs"; path = ../../release/release-info.mjs; sourceTree = "<group>"; };
 		2A75265D975A4F758929DFFF /* node-self-contained */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = "compiled.mach-o.executable"; name = "node-self-contained"; path = ../node-self-contained; sourceTree = "<group>"; };
 
+		8916B3F033424B59AC990B16 /* server.mjs */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; name = server.mjs; path = ../../server.mjs; sourceTree = "<group>"; };
+		FBEFC23ACD3A4995A84F6132 /* office-map.json */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.json; name = "office-map.json"; path = ../../office-map.json; sourceTree = "<group>"; };
+		9169359F995B43F08CDD485F /* pty-host.py */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.python; name = "pty-host.py"; path = ../../pty-host.py; sourceTree = "<group>"; };
+		604FE14A500D4C3AAD1E6DF7 /* agent-feed.py */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.python; name = "agent-feed.py"; path = ../../agent-feed.py; sourceTree = "<group>"; };
+		C91B9FA3E5D54A3E90A23836 /* package.json */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.json; name = "package.json"; path = ../../package.json; sourceTree = "<group>"; };
+		FD77C2CC1E154063B9C3BDC8 /* dist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = dist; path = ../../dist; sourceTree = "<group>"; };
+		49DA93C4A23B4D4BB10A698B /* icon-1024.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = "icon-1024.png"; path = ../icon-1024.png; sourceTree = "<group>"; };
+		2F84DCFF73674E8D8897E30E /* make_icon.py */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.python; name = "make_icon.py"; path = ../make_icon.py; sourceTree = "<group>"; };
+		63FCAEC8737C44ACA581A99C /* loading.css */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.css; name = "loading.css"; path = ../loading.css; sourceTree = "<group>"; };
+		D3DA7EE9358044B2A73C7A55 /* loading-svg.html */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.html; name = "loading-svg.html"; path = ../loading-svg.html; sourceTree = "<group>"; };
+		2C4DB6E81F0C45E5BC258ED6 /* write-macos-plist.mjs */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; name = "write-macos-plist.mjs"; path = ../../scripts/write-macos-plist.mjs; sourceTree = "<group>"; };
+		C7D396C6921A4F5482691CB3 /* release-info.mjs */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; name = "release-info.mjs"; path = ../../release/release-info.mjs; sourceTree = "<group>"; };
+		A4E38465826F49F880080F12 /* node-self-contained */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = "compiled.mach-o.executable"; name = "node-self-contained"; path = ../node-self-contained; sourceTree = "<group>"; };
+
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +80,7 @@
 		072FEBBF92E6C331A734CDE4 = {
 			isa = PBXGroup;
 			children = (
+				79925921C2A54304AFC98D27 /* Resources */,
 				969EA12FBA0F4753BE20FA47 /* Resources */,
 				FF9C5D8EDECE260EDB9DE857 /* Products */,
 				2CC74A926649782848737D97 /* Frameworks */,
@@ -153,6 +177,60 @@
 			sourceTree = "<group>";
 		};
 
+
+		79925921C2A54304AFC98D27 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E7D3B49A787447118BC1DC3A /* Server Files */,
+				43CDD7F4BFF84D3AAC4171C6 /* dist */,
+				A448182704A34072934AD79C /* macOS Resources */,
+				18D561902B114F6B955ABDBA /* Scripts */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		E7D3B49A787447118BC1DC3A /* Server Files */ = {
+			isa = PBXGroup;
+			children = (
+				8916B3F033424B59AC990B16 /* server.mjs */,
+				FBEFC23ACD3A4995A84F6132 /* office-map.json */,
+				9169359F995B43F08CDD485F /* pty-host.py */,
+				604FE14A500D4C3AAD1E6DF7 /* agent-feed.py */,
+				C91B9FA3E5D54A3E90A23836 /* package.json */,
+			);
+			name = "Server Files";
+			sourceTree = "<group>";
+		};
+		43CDD7F4BFF84D3AAC4171C6 /* dist */ = {
+			isa = PBXGroup;
+			children = (
+				FD77C2CC1E154063B9C3BDC8 /* dist */,
+			);
+			name = dist;
+			sourceTree = "<group>";
+		};
+		A448182704A34072934AD79C /* macOS Resources */ = {
+			isa = PBXGroup;
+			children = (
+				49DA93C4A23B4D4BB10A698B /* icon-1024.png */,
+				2F84DCFF73674E8D8897E30E /* make_icon.py */,
+				63FCAEC8737C44ACA581A99C /* loading.css */,
+				D3DA7EE9358044B2A73C7A55 /* loading-svg.html */,
+				A4E38465826F49F880080F12 /* node-self-contained */,
+			);
+			name = "macOS Resources";
+			sourceTree = "<group>";
+		};
+		18D561902B114F6B955ABDBA /* Scripts */ = {
+			isa = PBXGroup;
+			children = (
+				2C4DB6E81F0C45E5BC258ED6 /* write-macos-plist.mjs */,
+				C7D396C6921A4F5482691CB3 /* release-info.mjs */,
+			);
+			name = Scripts;
+			sourceTree = "<group>";
+		};
+
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -169,7 +247,13 @@
 				614332899019441E8397D203 /* Prepare Node Binary */,
 				164FBD9F00AB4ABEABE4EE8A /* Generate App Icon */,
 				2DB7F85EFB254A06BDA04AF3 /* Copy Loading Assets */,
-				3BC969CB99CC45D6BF81C866 /* Generate Info.plist */,);
+				3BC969CB99CC45D6BF81C866 /* Generate Info.plist */,
+				7958F710339847398DB61B3C /* Copy Resources */,
+				7DD6C24F649D44AE9B160C7D /* npm install */,
+				E1E58D17B34A435B91D68C19 /* Prepare Node Binary */,
+				FF8C445459844800A6702897 /* Generate App Icon */,
+				5256684CD2FA43259B4C2872 /* Copy Loading Assets */,
+				F8365A2C7FC8467D87878097 /* Generate Info.plist */,);
 			buildRules = (
 			);
 			dependencies = (
@@ -229,6 +313,76 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		7958F710339847398DB61B3C /* Copy Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "# Copy server files, dist, and other resources to app bundle\nset -euo pipefail\nAPP_RES=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources\"\nAPP_APP=\"${APP_RES}/app\"\nREPO_ROOT=\"${SRCROOT}/..\"\n\n# Create app directory\nmkdir -p \"${APP_APP}/data\"\n\n# Copy server files (all .mjs, .json, .py files from repo root)\ncp \"${REPO_ROOT}\"/*.mjs \"${APP_APP}/\" 2>/dev/null || true\ncp \"${REPO_ROOT}\"/*.json \"${APP_APP}/\" 2>/dev/null || true\ncp \"${REPO_ROOT}\"/*.py \"${APP_APP}/\" 2>/dev/null || true\n\n# Copy dist folder\ncp -R \"${REPO_ROOT}/dist\" \"${APP_APP}/dist\"\n\n# Copy package.json\ncp \"${REPO_ROOT}/package.json\" \"${APP_APP}/\"\n";
+			showEnvVarsInLog = 0;
+		};
+		7DD6C24F649D44AE9B160C7D /* npm install */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "# Install npm dependencies (ws, qrcode) into app bundle\nset -euo pipefail\nAPP_DIR=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources/app\"\ncd \"${APP_DIR}\"\nnpm install --omit=dev --no-audit --no-fund --ignore-scripts ws qrcode >/dev/null\n";
+			showEnvVarsInLog = 0;
+		};
+		E1E58D17B34A435B91D68C19 /* Prepare Node Binary */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "# Bundle self-contained Node runtime (arm64 only)\nset -euo pipefail\nNODE_SRC=\"${SRCROOT}/../macos/node-self-contained\"\nNODE_DST=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources/node\"\nif [[ ! -f \"${NODE_SRC}\" ]]; then\n  echo \"ERROR: node-self-contained not found at ${NODE_SRC}\" >&2\n  exit 1\nfi\nlipo \"${NODE_SRC}\" -thin arm64 -output \"${NODE_DST}\" 2>/dev/null || cp \"${NODE_SRC}\" \"${NODE_DST}\"\nchmod +x \"${NODE_DST}\"\n\"${NODE_DST}\" -e \"process.exit(0)\" || { echo \"ERROR: bundled node does not start\" >&2; exit 1; }\n";
+			showEnvVarsInLog = 0;
+		};
+		FF8C445459844800A6702897 /* Generate App Icon */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "# Generate .icns from icon-1024.png\nset -euo pipefail\nAPP_RES=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources\"\nICONSET=\"${APP_RES}/BrainBook.iconset\"\nrm -rf \"${ICONSET}\"\nmkdir -p \"${ICONSET}\"\nPYTHON=${ASTER_ICON_PYTHON:-python3}\n\"${PYTHON}\" \"${SRCROOT}/../macos/make_icon.py\" \"${APP_RES}/icon-1024.png\" 2>/dev/null || cp \"${SRCROOT}/../macos/icon-1024.png\" \"${APP_RES}/icon-1024.png\"\nfor s in 16 32 128 256 512; do\n  sips -z $s $s \"${APP_RES}/icon-1024.png\" --out \"${ICONSET}/icon_${s}x${s}.png\" >/dev/null\n  sips -z $((s*2)) $((s*2)) \"${APP_RES}/icon-1024.png\" --out \"${ICONSET}/icon_${s}x${s}@2x.png\" >/dev/null\ndone\niconutil -c icns \"${ICONSET}\" -o \"${APP_RES}/BrainBook.icns\"\nrm -rf \"${ICONSET}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		5256684CD2FA43259B4C2872 /* Copy Loading Assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "# Copy loading.css and loading-svg.html to Resources\nset -euo pipefail\nAPP_RES=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources\"\ncp \"${SRCROOT}/../macos/loading.css\" \"${APP_RES}/\"\ncp \"${SRCROOT}/../macos/loading-svg.html\" \"${APP_RES}/\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F8365A2C7FC8467D87878097 /* Generate Info.plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "# Generate Info.plist from release/release-info.mjs\nset -euo pipefail\n# Write to an intermediate location so Xcode's ProcessInfoPlistFile can pick it up\nINFO_PLIST_OUT=\"${DERIVED_FILE_DIR}/Info.plist\"\nNODE_BIN=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources/node\"\nWRITE_PLIST=\"${SRCROOT}/../scripts/write-macos-plist.mjs\"\nif [[ ! -f \"${NODE_BIN}\" ]]; then\n  echo \"ERROR: Node binary not found at ${NODE_BIN}\" >&2\n  exit 1\nfi\nif [[ ! -f \"${WRITE_PLIST}\" ]]; then\n  echo \"ERROR: write-macos-plist.mjs not found at ${WRITE_PLIST}\" >&2\n  exit 1\nfi\n\"${NODE_BIN}\" \"${WRITE_PLIST}\" \"${INFO_PLIST_OUT}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 
 /* Begin PBXShellScriptBuildPhase section */
 		4F14E8D7231C4FFBAF3F1DF2 /* Copy Resources */ = {
@@ -310,7 +464,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "$(DERIVED_FILE_DIR)/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				ONLY_ACTIVE_ARCH = YES;
