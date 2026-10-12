@@ -183,8 +183,7 @@ node scripts/test-ideas.mjs && node scripts/test-remote.mjs   # tests
 npm run test:criteria                                         # Jev pass/send-back criteria + the Next Work List contract
 npm run test:control-center                                   # the Control Center list measured at 1440x900 and 390x844, plus the captures
 npm run check:release                                         # release figures agree with the declaration, the plist and this page
-macos/build-app.sh             # builds and installs /Applications/BrainBook.app
-macos/build-app.sh --package   # builds a zip for sharing, in macos/build/
+macos/ship.sh                  # builds via Xcode, installs to /Applications/BrainBook.app, verifies, restarts
 ```
 
 For development, `npm run dev` serves the UI with hot reload at http://127.0.0.1:4173. Set `OBSIDIAN_VAULT_PATH=/path/to/vault` to try it on a copy of a vault.
