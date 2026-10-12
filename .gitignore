@@ -42,3 +42,8 @@ inputs/
 # that is what killed the first attempt at this card: its log went to /tmp, the command was refused,
 # and the whole verification never ran.
 .run/
+
+# Vite dependency pre-bundle cache (regenerated automatically; not source)
+.vite-stage/
+.vite-test/
+
