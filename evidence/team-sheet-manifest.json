@@ -1,0 +1,72 @@
+{
+  "what": "Provenance for the team-popup captures in this folder.",
+  "status": "complete",
+  "startedAt": "2026-10-10T23:42:40.418Z",
+  "finishedAt": "2026-10-10T23:43:37.285Z",
+  "measuredBy": "node scripts/test-team-sheet-fit.mjs against scripts/team-sheet-harness",
+  "layoutSources": [
+    "src/TeamRail.tsx",
+    "src/TeamMark.tsx",
+    "src/team-marks.mjs",
+    "src/neon-navigation.css",
+    "src/styles.css",
+    "src/theme-palette.mjs",
+    "src/agentRoster.ts",
+    "scripts/team-sheet-harness/main.tsx"
+  ],
+  "layoutFingerprint": "7c0b790522f46e8d",
+  "captures": [
+    {
+      "file": "team-sheet-apppro-1440x900.png",
+      "bytes": 1116024,
+      "sha256": "28a2afbd7a9065b7"
+    },
+    {
+      "file": "team-sheet-moviepro-1440x900.png",
+      "bytes": 1092781,
+      "sha256": "be7d2739bc84671b"
+    },
+    {
+      "file": "team-sheet-blogpro-1440x900.png",
+      "bytes": 750511,
+      "sha256": "4170cf7033fd4af2"
+    },
+    {
+      "file": "team-sheet-stresspro-1440x900.png",
+      "bytes": 1233071,
+      "sha256": "d7a2152cb6319c76"
+    },
+    {
+      "file": "team-sheet-moviepro-1440x700-fallback.png",
+      "bytes": 1076161,
+      "sha256": "1108056b645322d5"
+    },
+    {
+      "file": "team-sheet-moviepro-390x844.png",
+      "bytes": 429128,
+      "sha256": "f4832b1e422cea63"
+    },
+    {
+      "file": "team-sheet-moviepro-390x844-composer.png",
+      "bytes": 414145,
+      "sha256": "43d8689d60bc92fb"
+    },
+    {
+      "file": "team-sheet-investpro-evolution-1440x900.png",
+      "bytes": 318611,
+      "sha256": "ca7ea8b88325ab35"
+    }
+  ],
+  "checksFailed": [],
+  "capturesMissing": [],
+  "clearedBeforeRun": [
+    "team-sheet-apppro-1440x900.png",
+    "team-sheet-moviepro-1440x900.png",
+    "team-sheet-blogpro-1440x900.png",
+    "team-sheet-stresspro-1440x900.png",
+    "team-sheet-moviepro-1440x700-fallback.png",
+    "team-sheet-moviepro-390x844.png",
+    "team-sheet-moviepro-390x844-composer.png",
+    "team-sheet-investpro-evolution-1440x900.png"
+  ]
+}

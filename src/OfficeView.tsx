@@ -1,205 +1,78 @@
-// Office (Hermes3D goal, step 2): the AI company as rooms, drawn from the real Hermes Kanban
-// boards and profiles (/api/office → office.mjs). Rooms follow docs/hermes3d-office-design.md.
-// Step 3 adds voice: "Tell Bigkiji" (VoiceInput.tsx) turns speech into an instruction the owner checks and sends.
-// Step 4: rooms follow Bigkiji's team routing (teams.yaml, read per request); the panel re-reads
-// every 20 s, when the window comes back, and right after an instruction is sent (OFFICE_REFRESH).
-// Step 5: "3D / VR" opens /vr (OfficeVR.tsx), the same rooms in three.js and WebXR headsets.
-// Step 6 (owner 2026-10-02, "とても醜い表示…もっとコンパクトに、詳細がわかるように"): the per-room
-// 3-column mini board squeezed every title into a narrow tile and hid the rest behind "+1 more".
-// A room is now one full-width row — name, count pills, and the card worth reading now — and one
-// click opens the same detail as before: the seated agents, every working/stopped/waiting card with
-// its full title and stop reason, and the shelf. Same data, same refresh, same routing; layout only.
-// Step 6b (repair round, same brief): the first cut put the stopped card *and* its reason back on
-// every room row while the desk above already enumerates every stopped card — so the same text
-// appeared twice, both times cut off (real reasons run 300+ characters). Now each fact has one home:
-// the desk owns "what is stopped and why" in full, a room row owns "what is running here, by whom",
-// and a room with no board at all shrinks to one line instead of a card of zeroes.
-import { useEffect, useState } from 'react';
-import { Building2, ChevronDown, Glasses } from 'lucide-react';
+import { TermsHelp } from './TermsHelp';
+// Read-only Hermes-wide console. Counts come from unique board/card identities in office.mjs.
+import { useEffect, useMemo, useState } from 'react';
+import { Building2, ChevronDown } from 'lucide-react';
 import { memberTone } from './TeamRail';
+import { personaOf } from './agentRoster';
+import { useAgentFlow } from './AgentFlow';
+import { projectOffice, type OfficeCard as Card, type OfficeData as Office, type OfficeFlow, type TeamAssociation } from './office-projection.mjs';
 import { VoiceCommand } from './VoiceInput';
+import { messageSummary, resultLinks, displayTitle, shortTitle, statusLabel } from './owner-console.mjs';
 
-type Card = { id: string; board: string; title: string; status: string; who: string | null; room: string; why: string; reason: string | null; at: number | null; summary?: string; needsYuma?: boolean };
-type Agent = { name: string; profiles: string[]; hermes: boolean; state: 'idle' | 'working' | 'stopped'; card: { id: string; title: string } | null };
-type Room = { id: string; label: string; group: string | null; zone: string | null; shared: boolean; auto?: boolean; teams?: string[]; agents: Agent[]; board: { waiting: Card[]; working: Card[]; stopped: Card[] }; shelf: Card[]; delivered: number };
-type Office = { rooms: Room[]; desk: Card[]; totals?: { waiting: number; working: number; stopped: number; delivered: number; agents: number; profiles: number }; boards?: string[]; days?: number; readAt?: number; error?: string;
-  routing?: { source: string; teams: number; auto: string[]; error?: string | null } };
 export const OFFICE_REFRESH = 'brainbook:office-refresh';
 
-const COLUMNS = [['working', 'Working'], ['stopped', 'Stopped'], ['waiting', 'Waiting']] as const;
-const DESK_SHOWN = 5; // Beyond this the desk becomes a wall; the rest stay one click away, counted.
-// Past this a stop reason gets a "more" toggle. Real reasons run to 300+ characters (office.mjs
-// reads them whole from the card body), so a two-line clamp is the readable default and a toggle is
-// the cue that says there is more — never a silent cut.
-const LONG_REASON = 170;
-const ago = (seconds: number | null) => {
-  if (!seconds) return '';
-  const minutes = Math.max(0, Math.round((Date.now() / 1000 - seconds) / 60));
-  return minutes < 60 ? `${minutes}m` : minutes < 2880 ? `${Math.round(minutes / 60)}h` : `${Math.round(minutes / 1440)}d`;
-};
-const cardKey = (card: Card) => `${card.board}:${card.id}`;
-const cardTip = (card: Card) => [card.title, `${card.board} · ${card.id} · ${card.status}${card.who ? ` · ${card.who}` : ''}`, `room: ${card.why}`, card.reason].filter(Boolean).join('\n');
-const metaOf = (card: Card) => [card.who, card.board, ago(card.at)].filter(Boolean).join(' · ');
-// `who` arrives as "app-dev team · Claude Code". The lane is already on the row, so a row shows the
-// person; a plain name is left exactly as it is.
-const whoShort = (who: string | null) => {
-  const parts = String(who ?? '').split('·').map((part) => part.trim()).filter(Boolean);
-  return parts.length > 1 && parts[parts.length - 1].length <= 28 ? parts[parts.length - 1] : who ?? undefined;
-};
+function TaskDetails({card}:{card:Card}) {
+  return <details className="console-task">
+    <summary>{displayTitle(card.title)} <em>{statusLabel(card.status)}</em></summary>
+    <p>Original title: {card.title}</p>{card.assignmentSource==='latest_report_author' && <p>Latest reporter; current worker not recorded.</p>}
+    {card.reason && <><p>Summary: {messageSummary(card.reason)}</p><details><summary>Original stop reason</summary><p className="source-text">{card.reason}</p></details></>}
+    {card.summary && <p className="source-text">{card.summary}</p>}
+    {resultLinks(`${card.summary || ''} ${card.reason || ''}`).map(url=><a key={url} href={url} target="_blank" rel="noreferrer">Open result</a>)}
+    <details><summary>Source</summary><small>{card.board} · {card.id} · {card.who || 'Worker unknown'}</small></details>
+  </details>;
+}
+export function OfficeView({remote=false, teams=[], selectedTeam=null, onAll=()=>{}}:{remote?:boolean;teams?:TeamAssociation[];selectedTeam?:string|null;onAll?:()=>void}) {
+ const flow=useAgentFlow(false);
+ const [office,setOffice]=useState<Office|null>(null);
+ const [error,setError]=useState('');
+ useEffect(()=>{
+  let alive=true;
+  const load=async()=>{
+   try {
+    const response=await fetch('/api/office',{cache:'no-store'});const data=await response.json();
+    if (!response.ok || data.error || !Array.isArray(data.rooms)) throw new Error('Agent status unavailable.');
+    if(alive){setOffice(data);setError('');}
+   }catch{if(alive)setError('Update failed. Showing the last report.');}
+  };
+  void load();const timer=window.setInterval(load,20000);
+  const visible=()=>{if(document.visibilityState==='visible')void load();};
+  window.addEventListener(OFFICE_REFRESH,load);document.addEventListener('visibilitychange',visible);
+  return()=>{alive=false;window.clearInterval(timer);window.removeEventListener(OFFICE_REFRESH,load);document.removeEventListener('visibilitychange',visible);};
+ },[]);
+ return <OfficeStatus office={office} flow={flow} teams={teams} selectedTeam={selectedTeam} onAll={onAll} remote={remote} error={error}/>;
+}
 
-// What one room row says before it is opened: progress, not blockage. Every stopped card already
-// appears in full in the desk directly above this list, so repeating one here only produced two
-// truncated copies of the same text. The row's own job is "what is running here, by whom".
-type Now = { tone: 'working' | 'idle' | 'stopped'; title: string; who?: string };
-const nowLine = (room: Room): Now => {
-  const run = room.board.working[0];
-  if (run) return { tone: 'working', title: run.title, who: whoShort(run.who) };
-  const next = room.board.waiting[0];
-  if (next) return { tone: 'idle', title: next.title, who: whoShort(next.who) };
-  // Only stopped cards on the board: saying "nothing on the board" next to a red "1 stopped" pill
-  // contradicts the pill. Point at where the reason is written instead.
-  const stuck = room.board.stopped.length;
-  if (stuck) return { tone: 'stopped', title: `${stuck} stopped, nothing running — reason in Yuma’s desk above` };
-  return { tone: 'idle', title: room.shelf.length ? `${room.delivered} delivered, on the shelf` : 'nothing on the board' };
-};
-
-// One dot for every state the panel draws, so all rows share a left edge. `is-yuma` is a ring, not
-// a colour swap, so the two kinds of desk flag are told apart without relying on hue.
-const Flag = ({ yuma = false }: { yuma?: boolean }) => <i className={`office-flag${yuma ? ' is-yuma' : ''}`} aria-hidden="true" />;
-
-const PILL_TEXT = { working: 'working', stopped: 'stopped', waiting: 'waiting' } as const;
-// A zero count is neutral. Tinting every row's "0 stopped" pink is what made pink stop meaning
-// "stopped"; only a real count earns colour.
-const pill = (kind: keyof Room['board'], count: number) => <span className={`office-pill is-${kind} ${count ? 'has-items' : 'is-zero'}`}>{count} {PILL_TEXT[kind]}</span>;
-
-export function OfficeView({ remote = false }: { remote?: boolean }) {
-  const [office, setOffice] = useState<Office | null>(null);
-  const [open, setOpen] = useState(() => localStorage.getItem('brainbook.office') !== 'closed');
-  const [rows, setRows] = useState<string[]>([]);
-  const [reasons, setReasons] = useState<string[]>([]);
-  const [deskAll, setDeskAll] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const response = await fetch('/api/office', { cache: 'no-store' });
-        const data = await response.json() as Office;
-        // A server older than this panel answers 404; never render a half-shaped answer.
-        const error = response.status === 404 ? 'Restart BrainBook to load the Office view.' : data.error || `HTTP ${response.status}`;
-        if (alive) setOffice(Array.isArray(data.rooms) && !data.error ? data : { rooms: [], desk: [], error });
-      } catch { /* keep last */ }
-    };
-    void load();
-    const timer = window.setInterval(load, 20000);
-    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
-    window.addEventListener(OFFICE_REFRESH, load);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { alive = false; window.clearInterval(timer); window.removeEventListener(OFFICE_REFRESH, load); document.removeEventListener('visibilitychange', onVisible); };
-  }, []);
-  const toggle = () => setOpen((value) => { localStorage.setItem('brainbook.office', value ? 'closed' : 'open'); return !value; });
-  const toggleRow = (id: string) => setRows((list) => (list.includes(id) ? list.filter((row) => row !== id) : [...list, id]));
-  const toggleReason = (id: string) => setReasons((list) => (list.includes(id) ? list.filter((row) => row !== id) : [...list, id]));
-  const totals = office?.totals;
-
-  return <section className="office card-shell" aria-labelledby="office-heading">
-    <button type="button" className="office-head" aria-expanded={open} onClick={toggle}>
-      <h3 id="office-heading"><Building2 size={16} strokeWidth={1.8} /> Office</h3>
-      <small>{office?.error ? office.error : totals ? `${totals.working} working · ${totals.stopped} stopped · ${totals.waiting} waiting · ${totals.delivered} delivered in ${office?.days}d · ${totals.profiles} Hermes profiles · boards: ${office?.boards?.join(', ')}${office?.routing ? ` · routing: ${office.routing.source}${office.routing.error ? ` (${office.routing.error})` : ''}` : ''}` : 'Reading Hermes…'}</small>
-      <ChevronDown size={16} className="chat-chevron" />
-    </button>
-    {open && <a className="office-vr-link" href="/vr" target="_blank" rel="noreferrer" title="Walk through the office in 3D, or in a VR headset (OfficeVR.tsx)"><Glasses size={14} strokeWidth={1.8} /> 3D / VR</a>}
-    {open && <VoiceCommand tone={memberTone('Bigkiji')} remote={remote} />}
-    {open && office && !office.error && <>
-      {office.desk.length > 0 && <div className="office-desk" aria-label="Yuma's desk">
-        <b>Yuma’s desk · {office.desk.length} stopped</b>
-        <p className="office-desk-note">Every stopped card, with the reason it stopped.</p>
-        <ul>{office.desk.slice(0, deskAll ? office.desk.length : DESK_SHOWN).map((card) => {
-          const key = cardKey(card);
-          const isLong = (card.reason?.length ?? 0) > LONG_REASON;
-          const isRead = reasons.includes(key);
-          return <li key={key} className={card.needsYuma ? 'is-yuma' : ''}>
-            <p className="desk-title"><Flag yuma={card.needsYuma} /><span>{card.title}</span></p>
-            {card.reason && <p className="desk-reason" id={`desk-reason-${key.replace(/[^\w-]/g, '_')}`} data-read={isRead}>{card.reason}</p>}
-            <small className="desk-meta">
-              {card.needsYuma && <em className="desk-needs">needs you</em>}
-              <span>{office.rooms.find((room) => room.id === card.room)?.label} · {card.board}</span>
-            </small>
-            {isLong && <button type="button" className="desk-reason-more" aria-expanded={isRead} aria-controls={`desk-reason-${key.replace(/[^\w-]/g, '_')}`} onClick={() => toggleReason(key)}>
-              {isRead ? 'less' : 'more'}
-            </button>}
-          </li>;
-        })}</ul>
-        {office.desk.length > DESK_SHOWN && <button type="button" className="office-desk-more" aria-expanded={deskAll} onClick={() => setDeskAll((value) => !value)}>
-          {deskAll ? 'Show fewer' : `Show all ${office.desk.length}`} <ChevronDown size={13} className="chat-chevron" aria-hidden="true" />
-        </button>}
-      </div>}
-      <ul className="office-rows">
-        {office.rooms.map((room) => {
-          const { working, stopped, waiting } = room.board;
-          const busy = working.length + stopped.length + waiting.length;
-          if (room.shared && !room.agents.length && !busy && !room.shelf.length) return null;
-          const isRowOpen = rows.includes(room.id);
-          const detailId = `office-detail-${room.id}`;
-          const now = nowLine(room);
-          // A room with no board and nothing on its shelf has one fact to report — it is empty. Six
-          // of them were spending a card's worth of height (3 zero pills + "nothing on the board")
-          // on that fact, so they get one muted line and keep their chevron.
-          const quiet = !busy && !room.shelf.length;
-          // Meta stays one short line (the old header repeated the room name as the group and
-          // spelled the auto-zone note out in full, which wrapped to a second line on phone).
-          const meta = [
-            room.shared ? 'shared' : room.group && room.group !== room.label ? room.group : null,
-            ...(room.teams ?? []),
-            room.auto ? 'no 3D zone yet' : room.zone,
-          ].filter(Boolean).join(' · ');
-          const lead = now.tone === 'working' ? working[0] : waiting[0];
-          return <li key={room.id} className={`office-row ${stopped.length ? 'has-stopped' : ''} ${working.length ? 'is-live' : ''} ${room.shared ? 'is-shared' : ''} ${quiet ? 'is-quiet' : ''}`} data-zone={room.zone}>
-            <button type="button" className="office-row-head" aria-expanded={isRowOpen} aria-controls={detailId} onClick={() => toggleRow(room.id)}>
-              <span className="office-row-top">
-                <b>{room.label}</b>
-                <small className="office-row-meta" title={[room.teams?.length ? `Bigkiji routes team lane ${room.teams.join(', ')} here` : null, room.auto ? 'new team, no Hermes3D zone yet' : null].filter(Boolean).join(' · ') || undefined}>{meta}</small>
-                {quiet
-                  ? <span className="office-row-empty">{room.agents.length ? `${room.agents.length} seated` : 'empty'}</span>
-                  : <span className="office-row-pills">
-                      {pill('working', working.length)}{pill('stopped', stopped.length)}{pill('waiting', waiting.length)}
-                    </span>}
-                <ChevronDown size={15} className="chat-chevron" aria-hidden="true" />
-              </span>
-              {!quiet && <span className={`office-row-now is-${now.tone}`}>
-                <Flag />
-                <span className="now-title" title={lead ? cardTip(lead) : undefined}>{now.title}</span>
-                {now.who && <span className="now-who">{now.who}</span>}
-              </span>}
-            </button>
-            <div className="office-detail" id={detailId} hidden={!isRowOpen}>
-              <ul className="office-agents">
-                {room.agents.length ? room.agents.map((agent) => <li key={agent.name} className={`is-${agent.state}`} style={{ ['--agent' as string]: memberTone(agent.name) }}
-                  title={`${agent.name}${agent.profiles.length ? ` · Hermes profile ${agent.profiles.join(', ')}` : ' · role (no Hermes profile)'}${agent.card ? `\n${agent.card.title}` : ''}`}>
-                  <i aria-hidden="true">{agent.name.slice(0, 1)}</i>{agent.name}{agent.hermes && <em>H</em>}
-                  {agent.card && <span className="office-bubble">{agent.card.title}</span>}
-                </li>) : <li className="is-empty">No agents seated yet</li>}
-              </ul>
-              <div className="office-lanes">
-                {COLUMNS.filter(([key]) => room.board[key].length > 0).map(([key, label]) => <section key={key} className={`office-lane is-${key}`}>
-                  <h4>{label} <span>{room.board[key].length}</span></h4>
-                  <ul>{room.board[key].map((card) => <li key={cardKey(card)}>
-                    <p className="lane-title" title={cardTip(card)}>{card.title}</p>
-                    {key === 'stopped' && card.reason && <p className="lane-reason"><Flag yuma={card.needsYuma} />{card.reason}</p>}
-                    <small>{metaOf(card)}</small>
-                  </li>)}</ul>
-                </section>)}
-                {room.shelf.length > 0 && <section className="office-lane is-shelf">
-                  <h4>Shelf <span>· {room.delivered} delivered</span></h4>
-                  <ul>{room.shelf.map((card) => <li key={cardKey(card)}>
-                    <p className="lane-title" title={cardTip(card)}>{card.summary}<span className="lane-when"> {ago(card.at)}</span></p>
-                  </li>)}</ul>
-                </section>}
-                {!busy && !room.shelf.length && <p className="lane-empty">Nothing on this room’s board or shelf.</p>}
-              </div>
-            </div>
-          </li>;
-        })}
-      </ul>
-    </>}
-  </section>;
+export function OfficeStatus({office,flow,teams,selectedTeam=null,onAll,remote=false,error=''}:{office:Office|null;flow:OfficeFlow;teams:TeamAssociation[];selectedTeam?:string|null;onAll:()=>void;remote?:boolean;error?:string}) {
+ const [view,setView]=useState<'agents'|'teams'>('agents');
+ const [all,setAll]=useState(false);
+ const [query,setQuery]=useState('');
+ useEffect(()=>{setAll(false);setQuery('');},[selectedTeam]);
+ const projection=useMemo(()=>projectOffice(office,flow,teams,selectedTeam),[office,flow,teams,selectedTeam]);
+ const {agents,rooms}=projection;
+ const filtered=agents.filter(a=>`${a.name} ${personaOf(a.name)} ${a.room} ${a.profiles.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
+ const totals=projection.cardTotals;
+ return <section id="agent-status" className="office card-shell owner-console" aria-labelledby="office-heading">
+  <header className="console-heading"><h3 id="office-heading"><Building2 size={16}/> Agent status <b>{agents.length}</b></h3><small>{office?.readAt ? `${new Date(office.readAt*1000).toLocaleTimeString('en-GB')} read` : 'Loading'}</small></header>
+  <p className="console-totals">Scope: {projection.scopeLabel} (agents and associated room cards){selectedTeam && <button type="button" className="console-more" onClick={onAll}>Reset to ALL</button>}</p>
+  {selectedTeam && <p className="console-totals">Only agent status is filtered. Goals, next work and chat remain company-wide. Shared members show company-wide activity.</p>}
+  {!projection.roomAssociationKnown && <p role="status">Room association unknown. Unassigned cards are not added to this team.</p>}
+  <p className="console-totals" role="status">{projection.activeActors===null?'Activity unknown (loading or update failed)':`Active ${projection.activeActors} (activity record)`}{flow.readAt ? ` · ${new Date(flow.readAt*1000).toLocaleTimeString('en-GB')} read` : ' · Read time unknown'}</p>
+  {error && <p role="status">{error}</p>}
+  {totals && <p className="console-totals">Cards: Working {totals.working} · Queued {totals.waiting} · Stopped {totals.stopped} · Done {totals.delivered} (7 days)</p>}
+  <div className="console-tools"><div role="group" aria-label="Status view"><button type="button" aria-pressed={view==='agents'} onClick={()=>{setView('agents');setAll(false);}}>Agents</button><button type="button" aria-pressed={view==='teams'} onClick={()=>{setView('teams');setAll(false);}}>Teams</button></div><label className="console-search"><span className="sr-only">Search agents</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name or team"/></label></div>
+  {view==='agents' ? <ul className="console-list">{filtered.slice(0,all||query ? undefined : 5).map(agent=><li key={agent.name}>
+   <details className="console-agent"><summary><span className="console-person" style={{color:memberTone(agent.name)}}><b>{personaOf(agent.name)}</b><small>{agent.name===personaOf(agent.name)?agent.room:`${agent.name} · ${agent.room}`}</small></span><span className="console-agent-state"><small>{agent.active===null?'Activity unverified':agent.active?'Active (activity record)':'No activity recorded'}{agent.lastActivityAt ? ` · Last recorded ${new Date(agent.lastActivityAt*1000).toLocaleTimeString('en-GB')}` : ' · Activity time unknown'}{agent.activity.length ? ` · Sessions ${agent.activity.filter(a=>a.kind==='session').length} · Matched cards ${agent.activity.filter(a=>a.kind==='card').length} · Other / unmatched ${agent.activity.filter(a=>a.kind==='router'||a.kind==='unlinked').length}` : ''}</small><small>Set model: {shortTitle(agent.models.find(m=>m.configured)?.configured || "Model unknown",42)} · Seen in session: {shortTitle(agent.models.find(m=>m.observed)?.observed || "Not recorded",42)}</small><span className="console-counts">Cards: Working {agent.counts.working} · Queued {agent.counts.queued} · Stopped {agent.counts.blocked} · Done {agent.counts.done}</span></span><ChevronDown size={14}/></summary>
+   <div className="console-body"><p>Activity comes from the last activity record, not card states or model settings. Shared members show company-wide activity even in a team view.</p>
+    {agent.activity.map(activity=><details key={`${activity.source}:${activity.id}`}><summary>{activity.kind==='session'?'Session outside cards':activity.kind==='card'?'Matched card activity':'Activity without a matched card (GPU or service)'}: {displayTitle(activity.title || 'Work title unknown')}</summary><p>Original title: {activity.title}</p><p>Activity recorded: {activity.at ? new Date(activity.at*1000).toLocaleString('en-GB'):'Time unknown'} · Read: {flow.readAt ? new Date(flow.readAt*1000).toLocaleString('en-GB'):'Time unknown'}{!flow.available?' · Current activity unverified':''}</p><p className="source-text">{activity.source} · {activity.id} · {activity.team || 'Team association unknown'} · {activity.note || ''}</p>{resultLinks(activity.note || '').map(url=><a key={url} href={url} target="_blank" rel="noreferrer">Open result</a>)}</details>)}
+    <p>Card state: {statusLabel(agent.state)}{agent.state==='unknown'?' (Card worker state unknown)':agent.state==='reported'?' (Related card reporter; worker unverified)':''}</p>
+    {agent.models.length ? agent.models.map(model=><div className="console-model" key={model.profile}><p>Set model: {model.configured || 'Model unknown'} <small> (profile: {model.profile})</small></p><p>Seen in session: {model.observed || 'Model unknown'} <small> (No proven link to a particular card)</small></p><details><summary>Model source</summary><p>{model.source || 'Settings source unknown'} · {model.observedSource || 'Session model source unknown'}{model.observedAt ? ` · ${new Date(model.observedAt*1000).toLocaleString('en-GB')}` : ''}</p></details></div>) : <p>No model record.</p>}
+    {agent.tasks.map(card=><TaskDetails key={`${card.board}:${card.id}`} card={card}/>)}
+    {!agent.tasks.length && <p>No assigned cards recorded.</p>}
+   </div></details>
+  </li>)}</ul> : <ul className="console-list">{rooms.filter(r=>`${r.label} ${r.teams?.join(' ')}`.toLowerCase().includes(query.toLowerCase())).slice(0,all||query?undefined:5).map(room=><li key={room.id}><details className="console-team"><summary><b>{room.label}</b><span className="console-counts">Cards: Working {room.board.working.length} · Queued {room.board.waiting.filter(c=>c.room===room.id).length} · Stopped {room.board.stopped.length} · Done {room.delivered}</span><ChevronDown size={14}/></summary><div className="console-body"><p>{room.agents.map(a=>`${personaOf(a.name)} (${a.name})`).join(', ') || 'Worker unknown'}</p>{[...room.board.working,...room.board.stopped,...room.board.waiting.filter(c=>c.room===room.id),...room.shelf].map(card=><TaskDetails key={`${card.board}:${card.id}`} card={card}/>)}</div></details></li>)}</ul>}
+  {!query && (view==='agents'?filtered.length:rooms.length)>5 && <button className="console-more" type="button" aria-expanded={all} onClick={()=>setAll(v=>!v)}>{all?'Show less':`Show all (${view==='agents'?filtered.length:rooms.length})`}</button>}
+  <div className="console-tools"><details className="compose-fold"><summary>Send a request by voice or text</summary><VoiceCommand tone={memberTone('Bigkiji')} remote={remote}/></details><a className="office-vr-link" href="/vr" target="_blank" rel="noreferrer">3D / VR</a></div>
+  <TermsHelp />
+  <details className="console-source"><summary>Count sources</summary><p>Read from Hermes boards, saved profiles, the team roster and /api/agents/flow. Active flags and recipient activity show the last recorded activity; historical count is never a current-job count. Sessions are separate from cards. GPU or service activity without a proven card match stays unmatched. Team filtering uses recorded room/team IDs and member names only. Cards are counted once per board and card ID. Completed counts cover 7 days; team result previews show the last 5 items. Set models and session models are separate evidence, and do not prove the model used for any card.</p></details>
+ </section>;
 }

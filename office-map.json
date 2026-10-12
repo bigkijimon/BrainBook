@@ -1,5 +1,5 @@
 {
-  "_comment": "Hermes3D office: rooms = company groups (docs/hermes3d-office-design.md, 決定 1 and 2). Local operator config, kept outside the Hermes3D repo. scripts/check-office-design.mjs checks it against the design note.",
+  "_comment": "Hermes3D office: rooms = company groups (docs/hermes3d-office-design.md, 決定 1 and 2). Local operator config, kept outside the Hermes3D repo. scripts/check-office-design.mjs checks it against the design note. `teams` maps a Router team (teams.yaml) to the room it works in, so a team that is one company's lane rather than its own department is pointed at that room instead of being auto-given a second one: `movie-pro` is MoviePro's script-fix lane (owner 2026-10-02, \"まとめて\"), not a department beside it.",
   "rooms": [
     { "id": "hq", "group": "HQ", "zone": "z-meeting", "label": "HQ", "was": "Exec Office", "seats": ["Bigkiji", "miro", "Router", "Jev"] },
     { "id": "apppro", "group": "AppPro", "zone": "z-web", "label": "AppPro", "was": "Web Lab", "seats": ["MiMo", "Space Bunny", "Tora"] },
@@ -10,6 +10,7 @@
     { "id": "investpro", "group": "InvestPro", "zone": "z-game", "label": "InvestPro", "was": "Game Studio", "seats": [] },
     { "id": "rentpro", "group": "RentPro", "zone": "z-3d", "label": "RentPro", "was": "3D Studio", "seats": [] },
     { "id": "marketpro", "group": "MarketPro", "zone": "z-phone", "label": "MarketPro", "was": "LINE Booths", "seats": [] },
+    { "id": "securitypro", "group": "SecurityPro", "zone": null, "assignment": "unassigned", "label": "SecurityPro", "seats": ["SecurityPro"] },
     { "id": "qa", "shared": true, "zone": "z-server", "label": "QA", "was": "Server Room", "seats": ["Claude Code", "Kuro", "shiro", "Auto QA", "Vision", "Hana", "Blog QA", "Tech Blog QA", "Pi"] },
     { "id": "gpu", "shared": true, "zone": "z-ops", "label": "GPU Control", "seats": ["Maru", "ComfyUI", "Qwen (local)"] },
     { "id": "audio", "shared": true, "zone": "z-music", "label": "Music Edit", "seats": ["RyūichiSakamoto"] },
@@ -19,15 +20,16 @@
   "inbox": "hq",
   "idle": "idle",
   "gpu": "gpu",
-  "teams": { "app-dev": "apppro", "accountpro": "accountpro", "hs-school-ops": "classpro", "investment": "investpro", "igataya-web": "rentpro", "marketing": "marketpro" },
-  "boards": { "movie": "moviepro" },
+  "teams": { "app-dev": "apppro", "accountpro": "accountpro", "hs-school-ops": "classpro", "investment": "investpro", "igataya-web": "rentpro", "marketing": "marketpro", "movie-pro": "moviepro" },
+  "boards": { "movie": "moviepro", "securitypro": "securitypro" },
   "profiles": {
     "default": "Bigkiji", "hermes": "Bigkiji", "miro": "miro", "router": "Router", "jev": "Jev",
-    "mimo": "MiMo", "opencode": "Space Bunny", "tora": "Tora",
-    "stevenspielberg": "Steve", "mame": "Shimajiro", "ame": "Ame",
-    "sora": "Sora",
-    "claude": "Claude Code", "claudecode": "Claude Code", "kuro": "Kuro", "shiro": "shiro", "vision": "Vision", "hana": "Hana", "pi": "Pi",
-    "maru": "Maru", "qwen": "Qwen (local)",
+    "mimo": "MiMo", "opencode": "Space Bunny", "appdebugpro": "Tora",
+    "moviepro": "Steve", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame",
+    "blogpro": "Sora",
+    "securitypro": "SecurityPro",
+    "claude": "Claude Code", "claudecode": "Claude Code", "kuro": "Kuro", "shiro": "shiro", "vision": "Vision", "hana": "Hana", "supportpro": "Pi",
+    "gpupro": "Maru", "qwen": "Qwen (local)",
     "tama": "tama"
   }
 }

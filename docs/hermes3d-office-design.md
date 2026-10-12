@@ -27,6 +27,9 @@ Goal: [[Projects/Goals/2026-09-30-hermes3dで自分のai会社が見えるよう
 | InvestPro | z-game | Game Studio → InvestPro | VirtualInvestmentTrusts のエージェント |
 | RentPro | z-3d | 3D Studio → RentPro | igataya-web のエージェント |
 | MarketPro | z-phone | LINE Booths → MarketPro | WEB_MARKETING のエージェント |
+| SecurityPro | unassigned | Native security oversight; no physical zone allocated | SecurityPro (registered lead, execution unverified) |
+
+SecurityPro is an existing native oversight department, not a new Router team. Its logical room has `zone: null` and explicit `assignment: unassigned`; its board/profile map there without taking the reserved kitchen/image zones or implying active inference. Assigning a physical zone is a separate design decision. The checker must validate the unique logical room and its unassigned state rather than claim it exists in the physical map.
 
 ## 決定 2: グループをまたぐ役割は共有の部屋に置く
 
@@ -113,10 +116,11 @@ Bigkiji がカードをチームに振り分けると（`queueTaskRun` → `team
 
 - `GET /api/office` は、リクエストのたびに `teams.yaml` を読んで `buildOffice` に `teams` として渡す。読めないときは `office-map.json` の team lane だけで動き、ヘッダーに `routing: office-map.json (teams.yaml not read: …)` と出す。
 - `office.mjs`: `teams.yaml` にあって `office-map.json` の `teams` に無いチームには、自動で部屋（`team-<id>`、名前はチームの label、Hermes3D の zone はまだ無い）を作り、そのチームのカードをそこに置く。チームの Hermes プロフィール（`teams.yaml` の `profiles`）は、`office-map.json` で席が決まっていなければチームの部屋に座る（Lounge に行かない）。`office-map.json` の席が優先（例: Hana は QA から見る）。消えたチームのカードは HQ の受付箱（Bigkiji）に戻る。
+- レジストリのチームがそのまま部門とは限らない: `office-map.json` の `teams` に既存の部屋を指定すれば、部門ではなくその会社のレーンとして扱われる。`movie-pro` は MoviePro の script-fix レーン（オーナー 2026-10-02「まとめて」）なので `moviepro` を指定する。ここが無いと上の自動部屋が `team-movie-pro` を作り、本物の MoviePro の部屋に並んでは同名の部屋が 2 つ出来、`team: movie-pro` のカードも 2 つの部屋に分かれる（agent-feed.py と server.mjs と同じ 1 チームを別の部門として扱ってしまう）。
 - 部屋ごとに、どのチームが Bigkiji からそこへ振り分けられるか（`teams`）を出す。応答の `routing` は `{ source, teams, auto }`。
 - team lane のカードは、今作業しているメンバー（`agent-feed.py cards` の `member` = そのカードに最後にコメントした人。`flow` と同じ判定）の頭の上に出て、ボードには `app-dev team · Pi` のように出る。
 - 画面: 20 秒ごとの読み直しに加えて、ウィンドウに戻ったときと、「Tell Bigkiji」で送った直後にも読み直す（`brainbook:office-refresh`）。送った後の表示に、振り分け先のチーム名も出す。
-- 検証: `node scripts/test-office.mjs`（新しいチーム → 自動の部屋、チームのプロフィールの席、作業中メンバーの頭、消えたチーム → HQ、teams.yaml が無いときの代わりの動き）、`node scripts/test-office.mjs --real`（本物の teams.yaml と本物のボード）、`--smoke` のサーバーで本物の `/api/office` を 1 回呼ぶ（`routing.source = teams.yaml`）。
+- 検証: `node scripts/test-office.mjs`（新しいチーム → 自動の部屋、チームのプロフィールの席、作業中メンバーの頭、消えたチーム → HQ、`movie-pro` → MoviePro の部屋（同名部屋は 1 つだけ）、teams.yaml が無いときの代わりの動き）、`node scripts/test-office.mjs --real`（本物の teams.yaml と本物のボード）、`--smoke` のサーバーで本物の `/api/office` を 1 回呼ぶ（`routing.source = teams.yaml`）。
 
 ## Step 5 で作ったもの（2026-10-01）: 3D と VR ヘッドセットで見る
 

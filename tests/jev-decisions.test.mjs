@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { JEV_CONFIDENCE_FLOOR, JEV_DECISIONS, JEV_PAID_LANES, JEV_SEND_BACK_CODES, JEV_SEND_BACK_MEANING,
-  ROUTER_OWN_DECISION_CONFIDENCE, formatJevSendBack, isFreeLaneId, judgeJevAnswer, judgeRouterLane } from '../jev-decisions.mjs';
+import { JEV_CONFIDENCE_FLOOR, JEV_DECISIONS, JEV_LANE_ID, JEV_PAID_LANES, JEV_SEND_BACK_CODES, JEV_SEND_BACK_MEANING,
+  ROUTER_OWN_DECISION_CONFIDENCE, formatJevSendBack, isFreeLaneId, isPaidLane, judgeJevAnswer, judgeRouterLane } from '../jev-decisions.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => fs.readFile(path.join(root, file), 'utf8');
@@ -128,15 +128,32 @@ test('Jev may name a free lane and never a paid one, in every spelling the Route
     assert.equal(lane({ source: 'jev', status: 'ready', worker: id, jev: { confidence: 0.9 } }).accepted, true,
       `${id} is a free lane and must stay usable`);
   }
-  // The shipped paid id is `claudecode` (server.mjs ROUTER_DIRECT profile, office-map.json
-  // profiles). A word-boundary regex found no boundary inside it and accepted it as a free lane,
-  // so the criterion "never names a paid worker" was not the criterion the code enforced.
-  for (const id of ['claude', 'claude-code', 'claudecode', 'claude.code', 'claude:code', 'codex', 'codex-cli']) {
-    const verdict = lane({ source: 'jev', status: 'ready', worker: id, jev: { confidence: 0.99 } });
-    assert.equal(verdict.accepted, false, `${id} is a paid lane and must be sent back`);
-    assert.equal(verdict.code, 'over_authority');
-    assert.equal(verdict.value, null);
-    assert.match(verdict.reason, /"[^"]*"/, 'the reason names the paid lane that was refused');
+  // The app ships three ids for the paid lane: `claude` (the Router's own worker id, agent-feed.py
+  // ROUTER_WORKERS), `claudecode` (the Hermes profile behind it, server.mjs ROUTER_DIRECT and
+  // office-map.json profiles) and `codex` (retired, files kept). A word-boundary regex found no
+  // boundary inside `claudecode` and accepted it as a free lane, so the criterion "never names a
+  // paid worker" was not the criterion the code enforced. Those shipped ids are held against the rule
+  // from the app's own tables in the next test; here every paid *name* is exercised, with the
+  // spellings the separator-stripped match has to cover, generated rather than written out — so a
+  // name added to JEV_PAID_LANES is covered on the day it is added.
+  //
+  // One rule, one sentence, both branches. Each branch used to write its own copy of "it named the
+  // paid lane …", and a check on either branch alone would pass with either copy in place, because
+  // each copy names the lane it refused. Comparing the two branches against *each other* is the
+  // check that reaches the rule: if either sentence is edited alone, this fails.
+  for (const name of JEV_PAID_LANES) {
+    for (const id of [name, `${name}-code`, `${name}.code`, `${name}:code`, `${name}-cli`]) {
+      const asAdvice = lane({ source: 'jev', status: 'ready', worker: id, jev: { confidence: 0.99 } });
+      assert.equal(asAdvice.accepted, false, `${id} is a paid lane and must be sent back`);
+      assert.equal(asAdvice.code, 'over_authority', `${name} is a paid name, so Jev may not advise ${id}`);
+      assert.equal(asAdvice.value, null);
+      assert.ok(asAdvice.reason.includes(`"${id}"`), `the reason names the paid lane that was refused: ${asAdvice.reason}`);
+      const decided = judgeRouterLane({ source: 'deterministic', worker: id, status: 'ready' });
+      assert.equal(decided.sendBack.code, asAdvice.code, `the Router's own decision is held to the same rule (${id})`);
+      assert.equal(decided.sendBack.reason, asAdvice.reason, `both branches must log the same words about ${id}: ${decided.sendBack.reason}`);
+      assert.equal(decided.worker, null, `${id} must not become the lane`);
+      assert.equal(decided.confidence, null, 'a sent-back answer carries no confidence');
+    }
   }
 });
 
@@ -151,18 +168,35 @@ test('a Router lane answer is judged on both branches: Jev advice and the Router
   assert.equal(own.sendBack, null);
   assert.equal(own.advice, false);
   assert.equal(own.worker, 'hermes');
-  assert.equal(own.confidence, ROUTER_OWN_DECISION_CONFIDENCE, "the Router's own decision carries no confidence Jev reported");
+  assert.equal(own.confidence, ROUTER_OWN_DECISION_CONFIDENCE, "a Router decision that reported no confidence falls back to the one declared number");
   assert.equal(judgeRouterLane({ source: 'deterministic', status: 'ready' }).worker, 'hermes',
     'an answer that names no usable lane falls back to the Router default lane');
   assert.equal(judgeRouterLane({ source: 'deterministic', worker: 42, status: 'ready' }).worker, 'hermes',
     'a lane that is not an id is not a lane');
+
+  // "The Router's own decision is used as it is" is a claim README repeats, so it is checked as a
+  // behaviour and not by comparing the returned number to the exported constant — that comparison
+  // passes whatever the constant is, which is how a stale figure shipped unnoticed: the code replaced
+  // the confidence the Router reported with a flattering 0.76, so a Router that was unsure (0.3) was
+  // shown to the owner as certain while its lane was put to work.
+  assert.equal(judgeRouterLane({ source: 'deterministic', worker: 'hermes', status: 'ready', confidence: 0.3 }).confidence, 0.3,
+    'a confidence the Router reported is kept, below the floor or not: it is the Router\'s own decision');
+  assert.equal(judgeRouterLane({ source: 'deterministic', worker: 'hermes', status: 'ready', confidence: '0.44' }).confidence, 0.44,
+    'a number the Router sent as text is still a number');
+  for (const nonsense of [1.4, -0.2, 'very', '', null]) {
+    assert.equal(judgeRouterLane({ source: 'deterministic', worker: 'hermes', status: 'ready', confidence: nonsense }).confidence,
+      ROUTER_OWN_DECISION_CONFIDENCE, `${JSON.stringify(nonsense)} is not a confidence, so no confidence is shown`);
+  }
+  assert.ok(ROUTER_OWN_DECISION_CONFIDENCE >= JEV_CONFIDENCE_FLOOR,
+    'the fallback is shown next to a lane that is in use, so it can never read as below the floor');
+  assert.ok(ROUTER_OWN_DECISION_CONFIDENCE <= 1, 'and a confidence is a number from 0 to 1');
 
   // Free-only execution is an invariant of the app, not of one branch of a Router answer. The branch
   // that trusts the Router's own decision used to forward whatever worker name it carried, so
   // `claudecode` reached BrainBook without ever meeting the paid-lane criterion.
   for (const [answer, code, named] of [
     [{ source: 'deterministic', worker: 'claudecode', status: 'ready' }, 'over_authority', 'claudecode'],
-    [{ source: 'deterministic', worker: 'claude-code', status: 'ready' }, 'over_authority', 'claude code'],
+    [{ source: 'deterministic', worker: 'claude-code', status: 'ready' }, 'over_authority', 'claude-code'],
     [{ source: 'Jev', worker: 'codex', status: 'ready' }, 'over_authority', 'codex'],
     [{ source: 'deterministic', worker: 'a lane with spaces', status: 'ready' }, 'out_of_range', 'a lane with spaces'],
   ]) {
@@ -174,61 +208,101 @@ test('a Router lane answer is judged on both branches: Jev advice and the Router
     assert.equal(judged.sendBack.code, code, `${named} must be sent back as ${code}`);
     assert.equal(judged.sendBack.fallback, "BrainBook's deterministic stream rules");
     assert.ok(judged.sendBack.reason.startsWith(`Lane advice: ${JEV_SEND_BACK_MEANING[code]}`), judged.sendBack.reason);
-    assert.ok(judged.sendBack.reason.includes(named.replace(/[^A-Za-z0-9]+/g, ' ')),
+    // The reason must quote the lane that was refused, spelled the way the app ships it. A reason
+    // carries the bounded provider token, and that token keeps the separators a real lane id has
+    // (`claude-code`, not `claude code`), so this reads the id verbatim: re-normalising it here
+    // asserted a string no reason can ever contain, which is a check that never reached the rule.
+    assert.ok(judged.sendBack.reason.includes(`"${named}"`),
       `the reason names the lane that was refused: ${judged.sendBack.reason}`);
   }
 });
 
 test('the paid-lane rule is held against the lane ids the app actually ships', async () => {
   // Read the shipped ids out of the app's own tables instead of restating them, so adding a paid
-  // lane to the product fails here rather than becoming advice Jev was allowed to give.
+  // lane to the product fails here rather than becoming advice Jev was allowed to give. The
+  // expectation is the rule, not a second copy of the inventory: this file once pinned
+  // ['claude','claudecode','codex'] next to the same three ids in agent-feed.py, and a list written
+  // twice is a list that drifts — it fails on a rename that changed nothing, and it cannot see a paid
+  // lane added to a table it never learned to read. What has to hold is one thing: the rule refuses
+  // every id the app ships, on both branches, and leaves every other shipped lane usable.
   const feed = await read('agent-feed.py');
   const nameMap = feed.slice(feed.indexOf('AGENT_NAME = {'), feed.indexOf('}', feed.indexOf('AGENT_NAME = {')));
   const paidNames = new Set(['Claude Code', 'Codex']);
   const shippedPaid = new Set([...nameMap.matchAll(/"([a-z0-9._-]+)":\s*"([^"]+)"/g)]
-    .filter(([, , display]) => paidNames.has(display)).map(([id]) => id));
+    .filter(([, , display]) => paidNames.has(display)).map(([, id]) => id));
   const profiles = JSON.parse(await read('office-map.json')).profiles;
-  for (const [id, display] of Object.entries(profiles)) if (paidNames.has(display)) shippedPaid.add(id);
-  for (const id of (await read('server.mjs')).matchAll(/'Claude Code':\s*\{\s*profile:\s*'([a-z0-9._-]+)'/g)) shippedPaid.add(id[1]);
+  const fromProfiles = Object.entries(profiles).filter(([, display]) => paidNames.has(display)).map(([id]) => id);
+  const fromRouterDirect = [...(await read('server.mjs'))
+    .matchAll(/'Claude Code':\s*\{\s*profile:\s*'([a-z0-9._-]+)'/g)].map(([, id]) => id);
+  for (const id of [...fromProfiles, ...fromRouterDirect]) shippedPaid.add(id);
+  // Each reader above must still be reading something. If a display name is renamed or a table is
+  // reformatted, the matching ids go to zero, every loop below iterates over nothing, and the check
+  // turns green while reaching no rule at all — the failure mode this test exists to prevent.
+  assert.ok(shippedPaid.size > 0 && fromProfiles.length > 0 && fromRouterDirect.length > 0,
+    'the paid lane ids must still be readable out of all three tables the app ships them in');
 
-  assert.deepEqual([...shippedPaid].sort(), ['claude', 'claudecode', 'codex'],
-    'the shipped paid lane ids changed, so the criteria in jev-decisions.mjs must change with them');
   assert.ok(JEV_PAID_LANES.length > 0 && JEV_PAID_LANES.every((name) => /^[a-z0-9]+$/.test(name)),
     'JEV_PAID_LANES is the one list, and every entry is a bare name so the separator-stripped match is meaningful');
   for (const id of shippedPaid) {
+    assert.equal(isPaidLane(id), true, `the paid-lane rule must cover the id the app ships, ${id}`);
+    assert.equal(isFreeLaneId(id), false, `${id} is a paid lane, so the Router's own answer may not name it either`);
     assert.equal(lane({ source: 'jev', status: 'ready', worker: id, jev: { confidence: 0.99 } }).code, 'over_authority',
       `Jev must never name the shipped paid lane ${id}`);
-    assert.equal(isFreeLaneId(id), false, `${id} is a paid lane, so the Router's own answer may not name it either`);
     assert.equal(judgeRouterLane({ source: 'deterministic', worker: id, status: 'ready' }).sendBack.code, 'over_authority',
       `the Router's own decision is held to the same free-only rule as Jev's advice (${id})`);
   }
   // The free ids the Router ships are read from the same table, so a paid stem added to the rule
-  // cannot quietly close a free lane either.
+  // cannot quietly close a free lane either. The token rule is the module's own, not a copy written
+  // here: a copy is a second definition of a lane id, and this one used to drop `_`, which silently
+  // removed `human_review` from the very list meant to prove it usable.
   const routerWorkers = feed.slice(feed.indexOf('ROUTER_WORKERS = {'));
-  const free = [...routerWorkers.slice(0, routerWorkers.indexOf('}')).matchAll(/"([a-z0-9._-]+)"/g)]
-    .map(([id]) => id).filter((id) => !shippedPaid.has(id) && /^[a-z0-9][a-z0-9._:-]{0,39}$/.test(id));
+  const workerIds = [...routerWorkers.slice(0, routerWorkers.indexOf('}')).matchAll(/"([a-z0-9._-]+)"/g)]
+    .map(([, id]) => id);
+  const free = workerIds.filter((id) => !shippedPaid.has(id) && JEV_LANE_ID.test(id));
   assert.ok(free.includes('mimo'), 'the default free worker must be in the Router worker set');
+  assert.ok(free.includes('human_review'),
+    'human_review is a shipped free lane and must stay usable: it is the id the token rule has to let through');
   for (const id of free) {
+    assert.equal(isPaidLane(id), false, `${id} ships as a free Router worker`);
     assert.equal(lane({ source: 'jev', status: 'ready', worker: id, jev: { confidence: 0.9 } }).accepted, true,
       `${id} is a free Router worker and must stay usable`);
     assert.equal(isFreeLaneId(id), true, `${id} is a free Router worker, so the Router's own answer may name it`);
   }
+  // Every worker id the Router may pick is decided one way or the other by the loops above, so a
+  // worker the app can route to is never a lane this file left unjudged.
+  assert.deepEqual(workerIds.filter((id) => !free.includes(id) && !shippedPaid.has(id)), [],
+    'a shipped Router worker id must be judged by the free loop or the paid loop, never by neither');
 });
 
 test('a send-back is logged the same way wherever it happened, and carries no answer or task text', async () => {
   const fromJev = judgeJevAnswer('worker-lane', { source: 'jev', status: 'ready', worker: 'claudecode', jev: { confidence: 0.99 } });
   const fromRouter = judgeRouterLane({ source: 'deterministic', worker: 'claudecode', status: 'ready' }).sendBack;
+  // The expected line spells the format and the fallback out of the declaration. Building it from the
+  // verdict's own field would pass whatever formatJevSendBack emitted, so the format was never read.
+  const laneFallback = JEV_DECISIONS.find((point) => point.id === 'worker-lane').fallback;
   for (const verdict of [fromJev, fromRouter]) {
     const line = formatJevSendBack(verdict);
-    assert.equal(line, `decision support sent back: worker-lane/over_authority -> ${verdict.fallback}`);
+    assert.equal(line, `decision support sent back: worker-lane/over_authority -> ${laneFallback}`);
     assert.doesNotMatch(line, /claudecode/, 'the log line carries the code and the fallback, never the answer');
     assert.doesNotMatch(line, /confidence/, 'the log line carries no provider evidence');
   }
   assert.equal(formatJevSendBack(judgeJevAnswer('task-priority', null)),
     `decision support sent back: task-priority/no_answer -> ${JEV_DECISIONS[0].fallback}`);
   // One line, two callers: the priority classifier and the lane adapter must not each write their own.
-  assert.match(await read('server.mjs'), /console\.log\(formatJevSendBack\(verdict\)\)/);
+  const card = await read('server.mjs');
+  assert.match(card, /console\.log\(formatJevSendBack\(verdict\)\)/);
   assert.match(await read('worker-router.mjs'), /onSendBack = \(verdict\) => console\.log\(formatJevSendBack\(verdict\)\)/);
+
+  // The number a routing record shows when nothing routed it was typed into three files, and nothing
+  // held them together: the declaration, the record the server builds, and the client default the UI
+  // uses before the server has answered. A value that moves in one place and not the others shows the
+  // owner two different numbers for the same lane, and no check noticed. The server now imports the
+  // declaration; the client cannot (it is a browser module and the declaration is server-side), so
+  // this check is what keeps its copy honest — it fails the moment either side moves.
+  assert.match(card, /ROUTER_OWN_DECISION_CONFIDENCE/, 'the routing record reads the declared number');
+  assert.doesNotMatch(card, /\|\|\s*0\.76/, 'and no longer a copy of it typed by hand');
+  assert.match(await read('src/App.tsx'), new RegExp(`confidence: ${ROUTER_OWN_DECISION_CONFIDENCE}\\b`),
+    'the client default carries the same number the declaration owns');
 });
 
 test('the declaration is the documentation: every point, code and meaning is owner-visible', async () => {

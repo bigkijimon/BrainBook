@@ -12,6 +12,7 @@ import { launchTestBrowser } from './browser.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { summarize } from '../meeting.mjs';
+import { displayTitle } from '../src/owner-console.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -35,7 +36,7 @@ const DONE_MEETING = {
 };
 const ATTENDEES = { Bigkiji: { persona: 'Bigkiji', group: 'Host', member: false }, MiMo: { persona: 'Linus Torvalds', group: 'AppPro', member: true } };
 
-const server = await createServer({ root, configFile: false, plugins: [react()], logLevel: 'error', server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({ root, cacheDir: new URL('../.vite-test', import.meta.url).pathname, configFile: false, plugins: [react()], logLevel: 'error', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
 const base = `http://127.0.0.1:${server.httpServer.address().port}/scripts/meeting-harness/index.html`;
 const browser = await launchTestBrowser();
@@ -50,16 +51,21 @@ try {
     await route.fulfill({ json: { meetings: [DONE_MEETING], attendees: ATTENDEES } });
   });
   await page.goto(base);
+  await page.locator('.meeting-history > summary').click();
   await page.waitForSelector('.meeting-row');
 
   await check('finished meeting row heading shows the computed theme, not the raw topic', async () => {
     const heading = await page.locator('.meeting-main b').innerText();
-    assert.equal(heading, summary.theme, 'heading must equal summary.theme');
+    assert.equal(heading, displayTitle(summary.theme,60), 'heading must use a concise English caption; the original theme stays in source details');
     assert.notEqual(heading, LONG_TOPIC, 'heading must not be the raw topic');
     assert.doesNotMatch(heading, /補足：既存の無料トライアル導線/, 'the part of the topic past the first sentence must not leak into the heading');
   });
 
-  await check('the single meeting is open by default, surfacing the full raw topic', async () => {
+  await check('meeting is collapsed by default; expansion reveals the full raw topic', async () => {
+    assert.equal(await page.locator('.meeting-row').getAttribute('aria-expanded'),'false');
+    assert.equal(await page.locator('.meeting-summary').count(),0);
+    await page.locator('.meeting-row').click();
+    await page.locator('.meeting-item details > summary').filter({hasText:'Original topic'}).click();
     await page.waitForSelector('.meeting-full-topic');
     const fullTopic = await page.locator('.meeting-full-topic').innerText();
     assert.match(fullTopic, /補足：既存の無料トライアル導線のCVRが低いという報告が先週あった/, 'the part of the topic past the theme must be reachable while expanded');

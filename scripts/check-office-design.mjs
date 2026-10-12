@@ -44,20 +44,25 @@ for (const group of groups) {
 for (const group of designed) assert.ok(groups.includes(group), `room for a group not in SYSTEMS.md: ${group}`);
 
 const owners = new Map();
+const unassigned = new Set();
 for (const [owner, zone] of [...groupRooms, ...sharedRooms]) {
+  if (zone === 'unassigned') { assert.ok(groupRooms.some(([group]) => group === owner), 'A shared resource may not silently become unassigned'); assert.ok(!unassigned.has(owner), `Duplicate unassigned department ${owner}`); unassigned.add(owner); continue; }
   assert.ok(zones.has(zone), `${owner}: zone ${zone} is not in the Hermes3D map`);
   assert.ok(!owners.has(zone), `${zone} is given to both ${owners.get(zone)} and ${owner}`);
   owners.set(zone, owner);
 }
 
-console.log(`PASS ${groups.length} company groups each have one room; ${owners.size} rooms used, all in the Hermes3D map (${zones.size} zones)`);
+console.log(`PASS ${groups.length} company groups each have one logical room; ${owners.size} physical rooms in ${zones.size} map zones; ${unassigned.size} explicitly unassigned departments`);
 
 // office-map.json (what the Office view and later Hermes3D read) must say the same as the note.
 const officeMap = JSON.parse(readFileSync(fileURLToPath(new URL('../office-map.json', import.meta.url)), 'utf8'));
 const mapped = new Map(officeMap.rooms.map((room) => [room.zone, room]));
-for (const [owner, zone] of groupRooms) assert.equal(mapped.get(zone)?.group, groupName(owner), `office-map.json: ${zone} should be ${groupName(owner)}`);
+for (const [owner, zone] of groupRooms) {
+  if (zone === 'unassigned') { const matches = officeMap.rooms.filter((room) => room.group === groupName(owner)); assert.equal(matches.length, 1); assert.equal(matches[0].zone, null); assert.equal(matches[0].assignment, 'unassigned'); continue; }
+  assert.equal(mapped.get(zone)?.group, groupName(owner), `office-map.json: ${zone} should be ${groupName(owner)}`);
+}
 for (const [owner, zone] of sharedRooms) assert.ok(mapped.get(zone)?.shared, `office-map.json: ${zone} (${owner}) should be a shared room`);
-assert.equal(officeMap.rooms.length, owners.size, `office-map.json has ${officeMap.rooms.length} rooms, the note has ${owners.size}`);
+assert.equal(officeMap.rooms.length, owners.size + unassigned.size, `office-map.json logical room count disagrees with the design`);
 for (const key of ['inbox', 'idle', 'gpu', ...Object.values(officeMap.teams), ...Object.values(officeMap.boards)]) {
   const id = officeMap[key] || key;
   assert.ok(officeMap.rooms.some((room) => room.id === id), `office-map.json points at a missing room: ${id}`);

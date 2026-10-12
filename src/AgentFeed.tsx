@@ -1,12 +1,14 @@
 // Agent updates as pop-ups, written for the owner. They slide in from the left like chat messages,
 // stay a few seconds, then leave. The bell keeps the recent history for anything missed.
 // Sources: Hermes Kanban (read-only) + BrainBook's own events (idea finished, level up…).
+import { themePalette } from './theme-palette.mjs';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, X } from 'lucide-react';
 import { memberTone } from './TeamRail';
+import { messageSummary, displayTitle, resultLinks } from './owner-console.mjs';
 
-export type AgentMessage = { id: string; kind: 'done' | 'comment' | 'blocked' | 'failed' | 'progress' | 'new' | 'xp' | 'level'; author: string; title: string; text: string; at: number; board?: string; action?: string; self?: boolean };
+export type AgentMessage = { id: string; kind: 'done' | 'comment' | 'blocked' | 'failed' | 'progress' | 'new' | 'xp' | 'level'; author: string; title: string; text: string; at: number; board?: string; action?: string; link?: string; self?: boolean; raw?: string };
 
 const POLL_MS = 8000;
 // Phone shows one compact pop-up at a time (see styles.css); give it less time in front
@@ -18,31 +20,42 @@ const SEEN_KEY = 'brainbook.feed.seenAt';
 const AUTHOR: Record<string, string> = { worker: 'Worker', 'auto-decomposer': 'Planner', claudecode: 'Claude Code', claude: 'Claude Code', opencode: 'OpenCode', mimo: 'MiMo', pi: 'Pi', jev: 'Jev', 'team-run': 'Bigkiji' };
 // Only the orchestrator wears the owner's chosen character; every other agent
 // gets its own initial and stable colour so voices are distinguishable at a glance.
-const TONES = ['#2be8d9', '#ffc44d', '#8f7bff', '#48f0c8', '#ff7a45', '#5ab0ff', '#e46bff', '#b5e853'];
+const TONES = [themePalette.lavender, themePalette.coral, themePalette.lilac, themePalette.peach, themePalette.coral, themePalette.lavender, themePalette.lilac, themePalette.peach];
 // Same fixed colours as the team rail, so Pi is always amber, MiMo cyan, Claude Code orange.
 const toneFor = (name: string) => memberTone(name) || TONES[[...name].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % TONES.length];
 // Owner 2026-09-29: "show it plainly, with emoji and symbols". Agent updates
 // lead with short emoji lines; anything after a "Details:" line (raw QA text)
 // stays folded until opened, so the feed reads at a glance.
-function AgentText({ text }: { text: string }) {
-  const cut = text.search(/\n\s*Details:\s*\n/);
-  const head = (cut >= 0 ? text.slice(0, cut) : text).trim();
-  const rest = cut >= 0 ? text.slice(cut).replace(/^\s*Details:\s*/, '').trim() : '';
-  const lines = head.split('\n').map((line) => line.trim()).filter(Boolean);
+// One presentation boundary for server history, local events and grouped toasts.
+// Unknown technical prose gets an explicitly generic summary; the complete original stays available.
+function AgentText({ text, action, link, originalTitle }: { text: string; action?: string; link?: string; originalTitle?:string }) {
+  const links = [...new Set([...resultLinks(text), ...resultLinks(action || ''), ...(link ? [link] : [])])];
   return <div className="agent-text">
-    {lines.map((line, index) => <p key={index} className={index === 0 ? 'agent-line lead' : 'agent-line'}>{line}</p>)}
-    {rest && <details className="agent-details"><summary>📄 Details</summary><p>{rest}</p></details>}
+    <p className="agent-line lead">{messageSummary(text)}</p>
+    {action && <p className="agent-action">{messageSummary(action)}</p>}
+    <details className="agent-details"><summary>Original</summary>{originalTitle && <p>Original title: {originalTitle}</p>}<p className="source-text">{text}{action ? `\n${action}` : ''}</p></details>
+    {links.map((url, index) => <a key={url} className="agent-result-link" href={url} target="_blank" rel="noreferrer">Open result{links.length > 1 ? ` ${index + 1}` : ''}</a>)}
   </div>;
 }
 
 const HEADLINE: Record<AgentMessage['kind'], string> = {
-  done: '🎉 Finished', comment: '💬 Update', blocked: '⛔ Waiting on you', failed: '❌ Stopped', progress: '▶️ Started', new: '🆕 New task', xp: 'Idea complete', level: 'Level up',
+  done: 'Done', comment: 'Report', blocked: 'Needs you', failed: 'Stopped', progress: 'Started', new: 'Added', xp: 'Idea complete', level: 'Level up',
 };
 
 // Turn a raw agent note into short plain sentences for the owner:
 // drop sync prefixes, task ids, file paths and job names; keep what happened and what is needed.
+// A finished card is useless to the owner without its deliverable (owner 2026-10-09: "完成された
+// ものがわかりにくい、完成したならLinkを載せるなり…しないと。なにもわからない"). The generic file-path
+// scrub below used to also eat http(s) links ("https://host/path" matches the same pattern one
+// character after the protocol), turning a real deployment/result URL into the word "a file" with
+// no way to open it. Pull any URL out FIRST and hand it back separately as `link`, so a caller can
+// render it as a real clickable "open result" instead of losing it in the text cleanup.
 export function forOwner(raw: string) {
-  const text = String(raw || '')
+  const original = String(raw || '');
+  const linkMatch = original.match(/https?:\/\/[^\s<>()"'`]+/);
+  const link = linkMatch ? linkMatch[0].replace(/[.,;:]+$/, '') : undefined;
+  const withoutLink = link ? original.replace(link, ' ') : original;
+  const text = withoutLink
     .replace(/^board sync\b.*?\([^)]*\):\s*/i, '')
     .replace(/^board sync\b[^:]*(?::\d\d[^:]*)?:\s*/i, '')
     .replace(/\b(\d{4})-(\d{2})-(\d{2})(?:\s+\d{1,2}:\d{2}(?:\s*JST)?)?/g, (_m, _y, mo, d) => `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(mo) - 1]} ${Number(d)}`)
@@ -68,6 +81,7 @@ export function forOwner(raw: string) {
   return {
     text: body.length > 220 ? `${body.slice(0, 218).trimEnd()}…` : body,
     action: needs ? (decision ? `Your call: ${decision}.` : 'Needs your go-ahead.') : undefined,
+    link,
   };
 }
 
@@ -127,7 +141,7 @@ export function AgentFeed({ local, character }: { local: AgentMessage[]; charact
         if (data.items.length) cursor.current = Math.max(cursor.current, ...data.items.map((item) => item.at));
         add(data.items.map((item) => {
           const plain = forOwner(item.text);
-          return { id: item.id, kind: item.kind, self: item.author === 'default', author: item.author === 'default' ? who.current : AUTHOR[item.author] || item.author, title: item.taskTitle, text: plain.text, action: plain.action || (item.kind === 'blocked' ? 'Needs your go-ahead.' : undefined), at: item.at, board: item.boardName };
+          return { id: item.id, kind: item.kind, self: false, author: item.author === 'default' ? 'Bigkiji' : AUTHOR[item.author] || item.author, title: item.taskTitle, raw: item.text, text: messageSummary(item.text), action: item.kind === 'blocked' ? 'Open Original to see the decision needed.' : undefined, link: plain.link, at: item.at, board: item.boardName };
         }));
       } catch { /* offline: try again next tick */ }
     };
@@ -153,27 +167,30 @@ export function AgentFeed({ local, character }: { local: AgentMessage[]; charact
   };
   const authors = Object.entries(history.reduce<Record<string, number>>((acc, message) => ({ ...acc, [message.author]: (acc[message.author] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1]);
   // Consecutive messages from one agent share a single card, like a chat thread.
-  const threads = (list: AgentMessage[]) => list.reduce<AgentMessage[][]>((groups, message) => {
-    const last = groups[groups.length - 1];
-    if (last && last[0].author === message.author) last.push(message); else groups.push([message]);
-    return groups;
-  }, []);
+  const threads = (list: AgentMessage[]) => [...list.reduce((groups, message) => {
+    const group = groups.get(message.author) || []; group.push(message); groups.set(message.author, group); return groups;
+  }, new Map<string, AgentMessage[]>()).values()];
   const avatar = (message: AgentMessage) => (message.self !== false
     ? <img className="agent-avatar" src={character.image} alt="" aria-hidden="true" />
     : <span className="agent-avatar agent-initial" style={{ background: toneFor(message.author) }} aria-hidden="true">{message.author.slice(0, 1).toUpperCase()}</span>);
   const thread = (group: AgentMessage[]) => {
     const head = group[0];
     const tone = head.kind === 'done' ? head.kind : group.find((message) => message.action)?.kind || head.kind;
+    // The most recent link in the thread, so an older "started" line never hides a newer result.
+    const threadLink = group.find((message) => message.link)?.link;
     return <li key={head.id} className={`agent-msg agent-thread kind-${tone} ${head.self === false ? 'agent-framed' : ''}`} style={head.self === false ? { '--agent': toneFor(head.author) } as React.CSSProperties : undefined}>
       {avatar(head)}
       <div className="agent-bubble">
-        <header><b style={head.self === false ? { color: toneFor(head.author) } : undefined}>{head.author}</b>{group.length > 1 && <span className="thread-count">{group.length} updates</span>}<time>{since(head.at)}</time></header>
+        <details className="feed-agent-group"><summary><b style={head.self === false ? { color: toneFor(head.author) } : undefined}>{head.author}</b><span className="thread-count">{group.length} reports</span><time>{since(head.at)}</time><span>{messageSummary(head.raw ?? head.text)}</span></summary>
         <ol className="thread-items">{group.map((message, index) => <li key={message.id}>
           <div className="thread-meta"><span className={`agent-kind kind-${message.kind}`}>{HEADLINE[message.kind]}</span>{index > 0 && <time>{since(message.at)}</time>}</div>
-          {(index === 0 || message.title !== group[index - 1].title) && <p className="agent-title">{message.title}</p>}
-          {message.text && <AgentText text={message.text} />}
-          {message.action && <p className="agent-action">👉 {message.action}</p>}
-        </li>)}</ol>
+          {(index === 0 || message.title !== group[index - 1].title) && <p className="agent-title">{displayTitle(message.title,70)}</p>}
+          <AgentText text={message.raw ?? message.text} originalTitle={message.title} action={message.action} link={message.link} />
+        </li>)}</ol></details>
+        {/* Owner 2026-10-09: a finished card with no visible result reads as "nothing happened".
+            Repeat the newest link once at the bubble's own level, so it is never only inside a
+            scrolled-past thread item. */}
+        {tone === 'done' && threadLink && <a className="agent-result-link agent-result-pinned" href={threadLink} target="_blank" rel="noreferrer">Open result</a>}
       </div>
     </li>;
   };
@@ -181,9 +198,8 @@ export function AgentFeed({ local, character }: { local: AgentMessage[]; charact
     {avatar(message)}
     <div className="agent-bubble">
       <header><b style={message.self === false ? { color: toneFor(message.author) } : undefined}>{message.author}</b><span className="agent-kind">{HEADLINE[message.kind]}</span><time>{since(message.at)}</time></header>
-      <p className="agent-title">{message.title}</p>
-      {message.text && <AgentText text={message.text} />}
-      {message.action && <p className="agent-action">👉 {message.action}</p>}
+      <p className="agent-title">{displayTitle(message.title,70)}</p>
+      <AgentText text={message.raw ?? message.text} originalTitle={message.title} action={message.action} link={message.link} />
     </div>
     {toast && <button type="button" className="agent-dismiss" aria-label="Dismiss" onClick={() => setToasts((current) => current.filter((entry) => entry.id !== message.id))}><X size={12} strokeWidth={1.8} /></button>}
   </li>;

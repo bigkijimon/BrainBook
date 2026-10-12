@@ -2,9 +2,10 @@
 // how far it is toward being achieved". Reads /api/goals, which is built from Projects/Goals/*.md in
 // the vault: the steps are the note's checkboxes, the connections are its "Connected to" list plus
 // any note that links back to it. Nothing here is decorative: progress = ticked steps / all steps.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ArrowUpRight, Check, ChevronDown, Lightbulb, Link2, ListChecks, Play, Target, Trophy } from 'lucide-react';
 import type { VaultTask } from './types';
+import { goalPresentation, goalSummary, stepPresentation, displayTitle, type GoalPresentation } from './owner-console.mjs';
 
 type GoalLink = { kind: string; title: string; why: string; url?: string; status?: string; id?: string };
 export type Goal = {
@@ -12,28 +13,30 @@ export type Goal = {
   words: string; reason: string; progressLog: string[]; steps: (VaultTask & { state?: string; workingOn?: string | null; uses?: { kind: string; title: string; status: string; id?: string; url?: string | null } | null })[]; links: GoalLink[];
   tasks: { id: string; title: string; status: string }[]; done: number; working?: number; waiting?: number; pct?: number; total: number; next: VaultTask | null;
 };
-const KIND_LABEL: Record<string, string> = { goal: 'Goal', idea: 'Idea', task: 'Task', project: 'Project', card: 'Agent card' };
-const RUN_LABEL: Record<string, string> = { ready: 'Handed to an agent', todo: 'Handed to an agent', running: 'An agent is on it', review: 'In review', blocked: 'Needs you', scheduled: 'Scheduled', done: 'Agent finished' };
-type StepState = 'done' | 'working' | 'waiting' | 'todo';
-const STATE_LABEL: Record<StepState, string> = { done: 'Done', working: 'In progress', waiting: 'Needs you', todo: '' };
+const KIND_LABEL: Record<string, string> = { goal: 'Goals', idea: 'Ideas', task: 'Tasks', project: 'Project', card: 'Agent card' };
 type Autopilot = { enabled: boolean; lastTick: string | null; started: { goal: string; step: string; card: string }[] };
 
 export function GoalsPanel({ refreshKey, onToggle, onRun, notify }: { refreshKey: number; onToggle: (step: VaultTask) => Promise<void>; onRun: (step: VaultTask) => Promise<void>; notify: (text: string) => void }) {
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const [problem, setProblem] = useState(false);
+  const [readAt, setReadAt] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [pilot, setPilot] = useState<Autopilot | null>(null);
   const load = useCallback(async () => {
     try {
       const response = await fetch('/api/goals', { cache: 'no-store' });
-      if (response.ok) setGoals((await response.json()).goals);
+      if (!response.ok) throw new Error('goals unavailable');
+      setGoals((await response.json()).goals); setProblem(false); setReadAt(Date.now());
       const auto = await fetch('/api/goals/autopilot', { cache: 'no-store' });
       if (auto.ok) setPilot(await auto.json());
-    } catch { /* keep last */ }
+    } catch { setProblem(true); /* retain previous snapshot, label stale */ }
   }, []);
-  useEffect(() => { void load(); const timer = window.setInterval(load, 30000); return () => window.clearInterval(timer); }, [load, refreshKey]);
-  if (!goals) return null;
-  const active = goals.filter((goal) => goal.status !== 'achieved');
+  useEffect(() => { void load(); const timer = window.setInterval(load, 30000); const visible = () => { if (document.visibilityState === 'visible') void load(); }; document.addEventListener('visibilitychange', visible); return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); }; }, [load, refreshKey]);
+  if (!goals) return problem ? <section className="goals card-shell"><p role="status">Goals unavailable.</p></section> : null;
+  const unarchived = goals.filter((goal) => goal.status !== 'achieved');
+  const active = goalPresentation(unarchived);
   const achieved = goals.filter((goal) => goal.status === 'achieved');
 
   const run = async (step: Goal['steps'][number]) => {
@@ -42,35 +45,47 @@ export function GoalsPanel({ refreshKey, onToggle, onRun, notify }: { refreshKey
   };
 
   const setStatus = async (goal: Goal, status: Goal['status']) => {
-    await fetch('/api/goals/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: goal.path, status }) });
-    notify(status === 'achieved' ? `🏆 Achieved: ${goal.title}` : `Goal ${status}.`);
+    const response = await fetch('/api/goals/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: goal.path, status }) });
+    if (!response.ok) { notify('Could not update goal status.'); return; }
+    notify(status === 'achieved' ? `Achieved: ${displayTitle(goal.title)}` : 'Goal status updated.');
     void load();
   };
 
-  const renderGoal = (goal: Goal) => {
-    const pct = goal.pct ?? (goal.total ? Math.round((goal.done / goal.total) * 100) : 0);
-    const expanded = open === goal.path;
-    const summary = [`${goal.done}/${goal.total} done`, goal.working ? `${goal.working} in progress` : '', goal.waiting ? `${goal.waiting} need you` : '', `${goal.links.length} connected`].filter(Boolean).join(' · ');
+  const renderSource = (goal: Goal) => <GoalSource key={goal.path} goal={goal} busy={busy} onToggle={async step => { await onToggle(step); void load(); }} run={run} setStatus={setStatus} />;
+
+  return <section className="goals card-shell" aria-labelledby="goals-heading">
+    <header className="goals-head">
+      <h3 id="goals-heading"><Target size={16} strokeWidth={1.8} /> Goals <b>{goals.length}</b></h3>
+      <GoalCounts originalCount={goals.length} unarchivedCount={unarchived.length} groupCount={active.groupCount} />
+      <small>{problem ? 'Update failed. Showing the last report.' : readAt ? `${new Date(readAt).toLocaleTimeString('en-GB')} read` : 'Loading'} · {pilot?.enabled ? 'Auto advance on' : 'Auto advance off'}</small>
+
+    </header>
+    {goals.length === 0 && <p className="goals-empty">No goals yet.<b>New request</b> lets you describe what you want to achieve.</p>}
+    <GoalPresentationList presentation={active} open={open} onOpen={setOpen} all={all} renderSource={renderSource} />
+    {active.groupCount>4 && <button type="button" className="console-more" aria-expanded={all} onClick={()=>setAll(v=>!v)}>{all?'Show less':`All display groups (${active.groupCount})`}</button>}
+    {achieved.length > 0 && <details className="goals-archive">
+      <summary><Trophy size={13} /> Achieved / archived ({achieved.length})</summary>
+      <ol className="goals-list">{achieved.map(renderSource)}</ol>
+    </details>}
+  </section>;
+}
+
+export function GoalSource({goal,busy,onToggle,run,setStatus}: {goal:Goal;busy:string|null;onToggle:(step:VaultTask)=>Promise<void>;run:(step:Goal['steps'][number])=>Promise<void>;setStatus:(goal:Goal,status:Goal['status'])=>Promise<void>}) {
+    const {pct} = goalSummary(goal);
+
     return <li key={goal.path} className={`goal is-${goal.status}`}>
-      <button type="button" className="goal-row" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : goal.path)}>
-        <span className="goal-ring" style={{ ['--pct' as string]: `${pct}` }} aria-label={`${pct}% done`}><span>{goal.status === 'achieved' ? <Trophy size={14} /> : `${pct}%`}</span></span>
-        <span className="goal-main">
-          <b>{goal.title}</b>
-          <small>{summary}{goal.next && goal.status === 'active' ? <> · Next: {goal.next.text}</> : null}</small>
-        </span>
-        <ChevronDown size={16} className="goal-chevron" />
-      </button>
-      {expanded && <div className="goal-body">
-        {goal.words && <p className="goal-words">“{goal.words}”</p>}
+      <p className="goal-source-title">Original goal: {goal.title} · {pct}% ({goal.done}/{goal.total} Done)</p><details><summary>Original goal and progress source</summary><p>{goal.path} · Updated record: {goal.updatedAt || "Not recorded"} · Original progress value: {goal.pct ?? "Not recorded"}</p><p>Progress counts completed steps only. Settings or written claims do not prove activity.</p></details>
+      <div className="goal-body">
+        {goal.words && <p className="goal-words">Original purpose: “{goal.words}”</p>}
+        {goal.reason && <p className="goal-words">Original conditions and reason: {goal.reason}</p>}
         <div className="goal-cols">
           <section>
-            <h4><ListChecks size={13} /> Steps to reach it</h4>
+            <h4><ListChecks size={13} /> Original steps to achieve this goal</h4>
             <ol className="goal-steps">{goal.steps.map((step) => {
-              const state = (step.state || (step.done ? 'done' : 'todo')) as StepState;
-              const label = state !== 'done' && step.kanban && RUN_LABEL[step.kanban.status] ? RUN_LABEL[step.kanban.status] : STATE_LABEL[state];
+              const {state, label} = stepPresentation(step);
               const canRun = goal.status !== 'achieved' && state === 'todo' && !(step.uses?.kind === 'card' && step.uses.status !== 'gone');
               return <li key={step.id} className={`is-${state}`}>
-                <button type="button" className="goal-check" aria-pressed={step.done} aria-label={step.done ? 'Mark not done' : 'Mark done'} onClick={async () => { await onToggle(step); void load(); }}>{step.done && <Check size={12} strokeWidth={3} />}</button>
+                <button type="button" className="goal-check" aria-pressed={step.done} aria-label={step.done ? 'Mark unfinished' : 'Mark done'} onClick={async () => { await onToggle(step); }}>{step.done && <Check size={12} strokeWidth={3} />}</button>
                 <span>{step.text}{label && <em className={`goal-run is-${state}`}>{label}</em>}
                   {step.workingOn && <small className="goal-uses">{step.workingOn}</small>}
                   {step.uses && <small className="goal-uses"><em className={`capture-tag is-${step.uses.kind}`}>{KIND_LABEL[step.uses.kind] || step.uses.kind}</em> {step.uses.title}{step.uses.status && <> · <b>{step.uses.status}</b></>}</small>}</span>
@@ -79,38 +94,40 @@ export function GoalsPanel({ refreshKey, onToggle, onRun, notify }: { refreshKey
             })}</ol>
           </section>
           <section>
-            <h4><Link2 size={13} /> How it connects</h4>
-            {goal.links.length === 0 && goal.tasks.length === 0 ? <p className="goals-empty">Nothing connected yet.</p> : <ul className="goal-links">
+            <h4><Link2 size={13} /> Related work</h4>
+            {goal.links.length === 0 && goal.tasks.length === 0 ? <p className="goals-empty">No related records.</p> : <ul className="goal-links">
               {goal.links.map((link, index) => <li key={`${link.title}-${index}`}>
                 <em className={`capture-tag is-${link.kind}`}>{KIND_LABEL[link.kind] || link.kind}</em>
                 <span><b>{link.url ? <a href={link.url}>{link.title} <ArrowUpRight size={11} /></a> : link.title}</b>{link.status && <i> · {link.status}</i>}<small>{link.why}</small></span>
               </li>)}
-              {goal.tasks.map((task) => <li key={task.id}><em className="capture-tag is-task">Task</em><span><b>{task.title}</b><i> · {task.status}</i></span></li>)}
+              {goal.tasks.map((task) => <li key={task.id}><em className="capture-tag is-task">Tasks</em><span><b>{task.title}</b><i> · {task.status}</i></span></li>)}
             </ul>}
           </section>
         </div>
         {goal.progressLog.length > 0 && <p className="goal-log"><Lightbulb size={12} /> {goal.progressLog[goal.progressLog.length - 1]}</p>}
         <div className="goal-actions">
-          <a className="capture-btn" href={goal.url}>Open in Obsidian <ArrowUpRight size={12} /></a>
+          <a className="capture-btn" href={goal.url}>Open original in Obsidian <ArrowUpRight size={12} /></a>
           {goal.status !== 'achieved' ? <button type="button" className="capture-btn" onClick={() => void setStatus(goal, 'achieved')}><Trophy size={12} /> Mark achieved</button>
-            : <button type="button" className="capture-btn" onClick={() => void setStatus(goal, 'active')}>Reopen</button>}
+            : <button type="button" className="capture-btn" onClick={() => void setStatus(goal, 'active')}>Resume</button>}
           {goal.status === 'active' && <button type="button" className="capture-btn" onClick={() => void setStatus(goal, 'paused')}>Pause</button>}
           {goal.status === 'paused' && <button type="button" className="capture-btn" onClick={() => void setStatus(goal, 'active')}>Resume</button>}
         </div>
-      </div>}
+      </div>
     </li>;
-  };
+  }
 
-  return <section className="goals card-shell" aria-labelledby="goals-heading">
-    <header className="goals-head">
-      <h3 id="goals-heading"><Target size={16} strokeWidth={1.8} /> Goals <b>{goals.filter((goal) => goal.status === 'active').length}</b></h3>
-      <small>{pilot?.enabled ? <>🟢 Autopilot on: while BrainBook is open, agents keep one step of every goal moving{pilot.lastTick ? ` · checked ${new Date(pilot.lastTick).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}.</> : 'Write a goal in New task. BrainBook links it to what you already have and breaks it into steps.'}</small>
-    </header>
-    {goals.length === 0 && <p className="goals-empty">No goals yet. Tap <b>New task</b> and write what you want to reach, for example “I want to sell an app and call myself an app engineer”.</p>}
-    <ol className="goals-list">{active.map(renderGoal)}</ol>
-    {achieved.length > 0 && <details className="goals-archive">
-      <summary><Trophy size={13} /> Done · archived ({achieved.length})</summary>
-      <ol className="goals-list">{achieved.map(renderGoal)}</ol>
-    </details>}
-  </section>;
+export function GoalCounts({originalCount,unarchivedCount,groupCount}: {originalCount:number;unarchivedCount:number;groupCount:number}) {
+ return <small>Original goals: {originalCount} (includes archived) · Unachieved: {unarchivedCount} · Display groups: {groupCount}</small>;
+}
+function ObjectiveSummary({group}: {group:{title:string;goals:Goal[]}}) {
+ const goal=group.goals[0], {pct,working,waiting,queued}=goalSummary(goal);
+ return <><span className="goal-compact-pct">{group.goals.length>1?'Per record':`${pct}%`}</span><span className="goal-main"><b>{group.title}</b><small>{group.goals.length>1?`${group.goals.length} equivalent goal records · Steps and progress stay separate`:`${goal.done}/${goal.total} Done${working?` · Working ${working}`:''}${waiting?` · Needs you ${waiting}`:''}${queued?` · Queued ${queued}`:''}${goal.status==='paused'?' · Pause':''}${goal.next?` · Next: ${displayTitle(goal.next.text,40)}`:''}`}</small></span><ChevronDown size={16}/></>;
+}
+export function GoalPresentationList({presentation,open,onOpen,all,renderSource}: {presentation:GoalPresentation<Goal>;open:string|null;onOpen:(key:string|null)=>void;all:boolean;renderSource:(goal:Goal)=>ReactNode}) {
+ return <ol className="goals-list">{presentation.groups.slice(0,all?undefined:4).map(group=> {
+  const expanded=open===group.key;
+  return <li className="goal goal-group" key={group.key}><button type="button" className="goal-row" aria-expanded={expanded} onClick={()=>onOpen(expanded?null:group.key)}>
+   {group.kind==='related' ? <><span className="goal-main"><b>{group.title}</b><small>{group.groups.reduce((count,g)=>count+g.goals.length,0)} distinct goals · Separate progress and conditions; no combined score</small></span><ChevronDown size={16}/></> : <ObjectiveSummary group={group}/>}
+  </button>{expanded && <ul className="goal-sources">{group.kind==='related' ? group.groups.map(member=><li key={member.key}><details className="goal-group"><summary className="goal-row"><ObjectiveSummary group={member}/></summary><ul className="goal-sources">{member.goals.map(renderSource)}</ul></details></li>) : group.goals.map(renderSource)}</ul>}</li>;
+ })}</ol>;
 }

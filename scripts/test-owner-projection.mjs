@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {readFile,mkdir} from 'node:fs/promises';
+import {build} from 'esbuild';
+import {createElement} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {pathToFileURL} from 'node:url';
+Object.defineProperty(globalThis,'localStorage',{value:{getItem:()=>null},configurable:true});
+const oldProjection=(office)=>({rooms:office.rooms,agents:office.rooms.flatMap(r=>r.agents),cardTotals:office.totals,activeActors:0});
+const source=process.env.BRAINBOOK_TEST_SOURCE || process.cwd();
+const {projectOffice}=await import(pathToFileURL(source+'/src/office-projection.mjs')).catch(()=>({projectOffice:oldProjection}));
+const counts={working:0,queued:0,blocked:0,done:0};
+const agent=name=>({name,profiles:name==='Bigkiji'?['default']:[],state:'idle',counts:{...counts},tasks:[],models:[]});
+const card={id:'one',board:'owner',title:'A real room card',status:'ready',who:'MiMo',room:'app',assignmentSource:'assignee'};
+const room=(id,label,teams,agents,cards=[])=>({id,label,teams,agents,board:{working:[],waiting:cards,stopped:[]},shelf:[],delivered:0});
+const office={rooms:[room('hq','HQ',[],[agent('Bigkiji')]),room('app','AppPro',['app-dev'],[{...agent('MiMo'),tasks:[card],counts:{...counts,queued:1}}],[card]),room('movie','MoviePro',['movie-pro'],[agent('Steve'),agent('ComfyUI')])],totals:{working:0,waiting:1,stopped:0,delivered:0,profiles:4},readAt:1000};
+const teams=[{id:'app-dev',name:'AppPro',members:[{name:'MiMo'}]},{id:'movie-pro',name:'MoviePro',members:[{name:'Steve'},{name:'ComfyUI'}]}];
+const flow={available:true,readAt:1005,agents:[{name:'default',active:true,count:35},{name:'ComfyUI',active:true,count:9}],handoffs:[{id:'session:one',source:'session',board:'session',to:'Bigkiji',active:true,at:1004,title:'Native terminal session'},{id:'process:123',source:'kanban',board:'movie',to:'ComfyUI',active:true,at:1003,title:'GPU render'},{id:'old',source:'session',to:'Bigkiji',active:false,at:10}]};
+test('zero running cards still shows real active native-session and service actors, never 35 current jobs',()=>{
+ const original=structuredClone(office);
+ const p=projectOffice(office,flow,teams,null);
+ assert.deepEqual(office,original,'projection must not rewrite any source card/profile record');
+ assert.equal(p.cardTotals.working,0);assert.equal(p.activeActors,2);
+ const hub=p.agents.find(a=>a.name==='Bigkiji');assert.equal(hub.active,true);assert.equal(hub.activity.length,1);assert.equal(hub.activity[0].kind,'session');assert.equal(hub.lastActivityAt,1004);
+ const gpu=p.agents.find(a=>a.name==='ComfyUI');assert.equal(gpu.active,true);assert.equal(gpu.activity[0].kind,'unlinked');assert.equal(gpu.counts.working,0);
+ assert.equal(p.agents.filter(a=>a.name==='Bigkiji').length,1);
+});
+test('AppPro narrows main status and room cards, ALL restores MoviePro and HQ; unknown work never copied to every team',()=>{
+ const all=projectOffice(office,flow,teams,null), app=projectOffice(office,flow,teams,'app-dev'),reset=projectOffice(office,flow,teams,null);
+ assert.deepEqual(app.rooms.map(r=>r.id),['app']);assert.deepEqual(app.agents.map(a=>a.name),['MiMo']);assert.equal(app.cardTotals.waiting,1);
+ assert.ok(all.agents.some(a=>a.name==='Steve')&&all.agents.some(a=>a.name==='Bigkiji'));assert.deepEqual(reset.agents.map(a=>a.name),all.agents.map(a=>a.name));
+ const completed=Array.from({length:6},(_,i)=>({...card,id:'done-'+i,status:'done'}));
+ const withPreview=structuredClone(office);withPreview.rooms[1].agents[0].tasks.push(...completed);withPreview.rooms[1].shelf=completed.slice(0,5);withPreview.rooms[1].delivered=6;
+ assert.equal(projectOffice(withPreview,flow,teams,'app-dev').agents.find(a=>a.name==='MiMo').counts.done,6,'completed counts must use recorded cards, not five-item result preview');
+ const absent=projectOffice(office,flow,teams,'missing-team');assert.equal(absent.agents.length,0);assert.equal(absent.rooms.length,0);
+});
+test('failed flow refresh is unknown, preserves last evidence and does not imply idle; unknown actors appear only ALL',()=>{
+ const withUnknown={...flow,agents:[...flow.agents,{name:'Unmapped service',active:true,count:100}],available:false};
+ const p=projectOffice(office,withUnknown,teams,null);assert.equal(p.activeActors,null);assert.equal(p.agents.find(a=>a.name==='Bigkiji').active,null);
+ assert.ok(p.agents.find(a=>a.name==='Unmapped service').room.includes('unknown'));
+ assert.ok(!projectOffice(office,withUnknown,teams,'app-dev').agents.some(a=>a.name==='Unmapped service'));
+});
+await mkdir('evidence/compiled',{recursive:true});
+await mkdir('evidence/compiled/projection',{recursive:true});
+for(const component of ['OfficeView','ControlCenter']) await build({stdin:{contents:await readFile(source+'/src/'+component+'.tsx','utf8'),sourcefile:component+'.tsx',loader:'tsx',resolveDir:process.cwd()+'/src'},outfile:'evidence/compiled/projection/'+component+'.js',bundle:true,format:'esm',platform:'node',jsx:'automatic',external:['react','react-dom','lucide-react']});
+const officeModule=await import(pathToFileURL(process.cwd()+'/evidence/compiled/projection/OfficeView.js'));
+const {ControlCenter}=await import(pathToFileURL(process.cwd()+'/evidence/compiled/projection/ControlCenter.js'));
+test('actual Office main-content renderer changes with AppPro vs ALL and names flow/card sources separately',async()=>{
+ assert.equal(typeof officeModule.OfficeStatus,'function','pure main-status renderer must be available');
+ const render=selectedTeam=>renderToStaticMarkup(createElement(officeModule.OfficeStatus,{office,flow,teams,selectedTeam,onAll:()=>{},remote:false,error:''}));
+ const all=render(null),app=render('app-dev');
+ const statusRows=html=>html.match(/<ul class="console-list">[\s\S]*?<\/ul>/)?.[0] || '';
+ assert.ok(statusRows(all).includes('Bigkiji')&&statusRows(all).includes('MoviePro'));assert.ok(!statusRows(app).includes('Bigkiji')&&!statusRows(app).includes('MoviePro'));
+ assert.ok(app.includes('Scope: AppPro')&&app.includes('Reset to ALL'));assert.ok(all.includes('Active 2')&&all.includes('Cards: Working 0'));assert.ok(!all.replace(/<[^>]+>/g,'').includes('35'),'historical actor count must not enter readable Office prose');
+ const appSource=await readFile(source+'/src/App.tsx','utf8'),rail=await readFile(source+'/src/TeamRail.tsx','utf8');
+ assert.ok(appSource.includes('selectedTeam={selectedTeam}')&&appSource.includes('onSelectTeam='));
+ assert.ok(rail.includes('onSelect(entry.id)')&&!rail.includes('Open team members')&&rail.includes('setOpen(entry.id)')&&rail.includes('aria-pressed={selectedTeam === entry.id}'));
+});
+test('default ControlCenter ask prose is English, full source and original report timestamp retained',()=>{
+ const raw='Waiting for owner-selected Space Bunny model capacity and external protected-release operator; no alternative model authorized.';
+ const at=1000;
+ const html=renderToStaticMarkup(createElement(ControlCenter,{work:{tasks:[],vaultTasks:[],asks:[{taskId:'external',taskTitle:'UIの作業',boardName:'Legacy board',text:raw,at}],focus:'all'},entry:{open:false,onToggle:()=>{},onSaved:()=>{}},actions:{openTask:()=>{},runTask:()=>{},runVault:()=>{},toggle:()=>{}}}));
+ const visible=html.replace(/<details\b[\s\S]*?<\/details>/g,'').replace(/<span class="sr-only"[\s\S]*?<\/span>/g,'');
+ assert.ok(!visible.includes('Waiting for owner-selected')&&!visible.includes('Legacy board'));
+ assert.ok(visible.includes('Waiting for Space Bunny')&&visible.includes('Report')&&visible.includes('Current activity unverified'));
+ assert.ok(html.includes(raw)&&/datetime="1970-01-01T00:16:40.000Z"/i.test(html));
+});

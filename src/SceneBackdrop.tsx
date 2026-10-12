@@ -1,3 +1,4 @@
+import { themePalette } from './theme-palette.mjs';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
@@ -63,23 +64,32 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     camera.position.set(0, 0.15, 8.2);
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
+    // Premium entrance (owner 2026-10-11): the scene used to pop in at full opacity on first
+    // paint. Ease it in instead -- canvas.style.opacity (not a Three.js uniform) so it layers
+    // cleanly under the existing CSS opacity:0.8 cap in .scene-backdrop.
+    const MOUNT_FADE_MS = 900;
+    const mountedAt = performance.now();
+    const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
+    canvas.style.opacity = '0';
+
+    const hex = (key: keyof typeof themePalette) => Number.parseInt(themePalette[key].slice(1), 16);
 
     const group = new THREE.Group();
     scene.add(group);
-    scene.add(new THREE.AmbientLight(0xaf95b9, 1.1));
-    const key = new THREE.DirectionalLight(0xff5fab, 2.2);
+    scene.add(new THREE.AmbientLight(hex('lavender'), 1.1));
+    const key = new THREE.DirectionalLight(hex('hotGlow'), 2.2);
     key.position.set(3, 4, 5);
     scene.add(key);
-    const rim = new THREE.PointLight(0x2be8d9, 10, 14);
+    const rim = new THREE.PointLight(hex('cyanGlow'), 10, 14);
     rim.position.set(-4, 1, 3);
     scene.add(rim);
 
-    const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xef3f93, transparent: true, opacity: 0.13, wireframe: true });
+    const ringMaterial = new THREE.MeshBasicMaterial({ color: hex('magentaGlow'), transparent: true, opacity: 0.13, wireframe: true });
     const ring = new THREE.Mesh(new THREE.TorusGeometry(2.25, 0.012, 10, 128), ringMaterial);
     ring.rotation.set(0.7, -0.35, 0.2);
     group.add(ring);
 
-    const innerRingMaterial = new THREE.MeshBasicMaterial({ color: 0x86a8ff, transparent: true, opacity: 0.15, wireframe: true });
+    const innerRingMaterial = new THREE.MeshBasicMaterial({ color: hex('cyanGlow'), transparent: true, opacity: 0.15, wireframe: true });
     const innerRing = new THREE.Mesh(new THREE.TorusGeometry(1.34, 0.008, 8, 96), innerRingMaterial);
     innerRing.rotation.set(-0.8, 0.5, -0.2);
     group.add(innerRing);
@@ -90,9 +100,9 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     const coreMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        colorA: { value: new THREE.Color(0x381753) },
-        colorB: { value: new THREE.Color(0xc72a75) },
-        colorC: { value: new THREE.Color(0xf54c9d) },
+        colorA: { value: new THREE.Color(themePalette.night) },
+        colorB: { value: new THREE.Color(themePalette.magentaGlow) },
+        colorC: { value: new THREE.Color(themePalette.cyanGlow) },
       },
       vertexShader: coreVertexShader,
       fragmentShader: coreFragmentShader,
@@ -103,8 +113,8 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     coreAssembly.add(core);
 
     const innerCoreMaterial = new THREE.MeshStandardMaterial({
-      color: 0x9c235d,
-      emissive: 0xd32d7c,
+      color: hex('magentaGlow'),
+      emissive: hex('magentaGlow'),
       emissiveIntensity: 1.8,
       roughness: 0.24,
       metalness: 0.38,
@@ -114,8 +124,8 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     coreAssembly.add(innerCore);
 
     const shellMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x5e4468,
-      emissive: 0x230e36,
+      color: hex('violetGlow'),
+      emissive: hex('night'),
       emissiveIntensity: 0.35,
       roughness: 0.1,
       metalness: 0.08,
@@ -133,12 +143,12 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.92, 2), shellMaterial);
     coreAssembly.add(shell);
 
-    const facetMaterial = new THREE.MeshBasicMaterial({ color: 0xf35da5, transparent: true, opacity: 0.2, wireframe: true, depthWrite: false });
+    const facetMaterial = new THREE.MeshBasicMaterial({ color: hex('cyanGlow'), transparent: true, opacity: 0.2, wireframe: true, depthWrite: false });
     const facets = new THREE.Mesh(new THREE.IcosahedronGeometry(0.965, 2), facetMaterial);
     coreAssembly.add(facets);
 
     const surfaceRings: THREE.Mesh[] = [];
-    const ringColors = [0xf24e9c, 0x2be8d9, 0xffc44d, 0xe15498, 0xf24e9c];
+    const ringColors = [hex('magentaGlow'), hex('cyanGlow'), hex('coral'), hex('lavender'), hex('hotGlow')];
     for (let index = 0; index < 5; index += 1) {
       const material = new THREE.MeshBasicMaterial({ color: ringColors[index], transparent: true, opacity: 0.16 - index * 0.018, depthWrite: false });
       const surfaceRing = new THREE.Mesh(new THREE.TorusGeometry(0.79 + index * 0.035, 0.006, 6, 96), material);
@@ -151,9 +161,9 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     const particleCount = 320 + noteCount * 24;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
-    const lime = new THREE.Color(0xee4797);
-    const blue = new THREE.Color(0x2be8d9);
-    const warm = new THREE.Color(0xffc44d);
+    const lime = new THREE.Color(themePalette.magentaGlow);
+    const blue = new THREE.Color(themePalette.cyanGlow);
+    const warm = new THREE.Color(themePalette.coral);
     const color = new THREE.Color();
     for (let i = 0; i < particleCount; i += 1) {
       const radius = 2.35 + Math.random() * 4.2;
@@ -176,7 +186,7 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     const particles = new THREE.Points(particleGeometry, particleMaterial);
     group.add(particles);
 
-    const haloMaterial = new THREE.SpriteMaterial({ map: glowTexture, color: 0xee4797, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending });
+    const haloMaterial = new THREE.SpriteMaterial({ map: glowTexture, color: hex('magentaGlow'), transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending });
     const halo = new THREE.Sprite(haloMaterial);
     halo.scale.set(4.5, 4.5, 1);
     group.add(halo);
@@ -185,9 +195,9 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     group.add(satelliteGroup);
     const satellites: Array<{ mesh: THREE.Mesh; glow: THREE.Sprite; radius: number; speed: number; phase: number }> = [];
     for (let index = 0; index < 6; index += 1) {
-      const material = new THREE.MeshStandardMaterial({ color: index % 2 ? 0x2be8d9 : 0xff4fa3, emissive: index % 2 ? 0x476cc4 : 0x91124f, emissiveIntensity: 1.7, roughness: 0.25, metalness: 0.25 });
+      const material = new THREE.MeshStandardMaterial({ color: index % 2 ? hex('cyanGlow') : hex('magentaGlow'), emissive: index % 2 ? hex('cyanGlow') : hex('magentaGlow'), emissiveIntensity: 1.7, roughness: 0.25, metalness: 0.25 });
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.045 + (index % 3) * 0.012, 12, 12), material);
-      const glowMaterial = new THREE.SpriteMaterial({ map: glowTexture, color: index % 2 ? 0x2be8d9 : 0xff4fa3, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending });
+      const glowMaterial = new THREE.SpriteMaterial({ map: glowTexture, color: index % 2 ? hex('cyanGlow') : hex('magentaGlow'), transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending });
       const glow = new THREE.Sprite(glowMaterial);
       glow.scale.setScalar(0.16 + (index % 3) * 0.035);
       satelliteGroup.add(mesh, glow);
@@ -195,6 +205,7 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     }
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) canvas.style.opacity = ''; // skip the fade-in entrance entirely, use the CSS 0.8 cap
     let frame = 0;
     const resize = () => {
       const width = canvas.clientWidth || window.innerWidth;
@@ -210,6 +221,12 @@ export function SceneBackdrop({ noteCount = 0 }: { noteCount?: number }) {
     };
     const render = (time: number) => {
       const t = time * 0.00028;
+      const fadeElapsed = performance.now() - mountedAt;
+      if (!reduced && fadeElapsed < MOUNT_FADE_MS) {
+        canvas.style.opacity = String(0.8 * easeOutCubic(Math.min(1, fadeElapsed / MOUNT_FADE_MS)));
+      } else if (canvas.style.opacity !== '') {
+        canvas.style.opacity = ''; // hand back to the CSS .scene-backdrop{opacity:0.8} rule
+      }
       if (!reduced) {
         group.rotation.x += (pointer.y - group.rotation.x) * 0.015;
         group.rotation.y += (pointer.x + t - group.rotation.y) * 0.015;

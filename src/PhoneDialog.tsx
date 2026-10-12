@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import {useModalFocus} from './useModalFocus';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Smartphone, Trash2, X } from 'lucide-react';
 
 type Device = { id: string; name: string; createdAt: string; lastSeenAt: string };
@@ -9,6 +10,7 @@ const when = (value: string) => new Intl.DateTimeFormat('en-GB', { month: 'numer
 
 // Mac-only settings: turn phone access on, pair a phone with a QR code, remove phones.
 export default function PhoneDialog({ onClose }: { onClose: () => void }) {
+  const panel=useRef<HTMLElement>(null);useModalFocus(panel,onClose);
   const [status, setStatus] = useState<RemoteStatus | null>(null);
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [error, setError] = useState('');
@@ -59,7 +61,7 @@ export default function PhoneDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="help-dialog phone-dialog" role="dialog" aria-modal="true" aria-labelledby="phone-title">
+      <section ref={panel} tabIndex={-1} className="help-dialog phone-dialog" role="dialog" aria-modal="true" aria-labelledby="phone-title">
         <div className="help-head">
           <div><span className="eyebrow">BRAINBOOK / PHONE</span><h2 id="phone-title">Use BrainBook on your phone</h2></div>
           <button className="icon-button" type="button" aria-label="Close" onClick={onClose}><X size={17} strokeWidth={1.5} /></button>

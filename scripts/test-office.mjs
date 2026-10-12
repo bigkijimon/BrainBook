@@ -11,16 +11,16 @@ const map = JSON.parse(readFileSync(fileURLToPath(new URL('../office-map.json', 
 const now = 2_000_000_000;
 const card = (id, fields) => ({ id, board: 'owner', title: id, status: 'todo', assignee: null, team: null, result: null, reason: null, createdAt: now - 3600, startedAt: null, completedAt: null, ...fields });
 const office = buildOffice({
-  map, now, boards: ['owner', 'movie'], profiles: ['default', 'kuro', 'stevenspielberg', 'file-editor'],
+  map, now, boards: ['owner', 'movie'], profiles: ['default', 'kuro', 'moviepro', 'file-editor'],
   cards: [
     card('team-app', { assignee: 'team', team: 'app-dev', status: 'running', startedAt: now - 60 }),
     card('team-acct', { assignee: 'team', team: 'accountpro', status: 'blocked', reason: '⛔ Stopped for Yuma: not approved' }),
-    card('steve', { assignee: 'stevenspielberg', status: 'running', board: 'movie' }),
+    card('steve', { assignee: 'moviepro', status: 'running', board: 'movie' }),
     card('kuro-review', { assignee: 'kuro', status: 'blocked', board: 'movie', reason: 'workflow mismatch' }),
     card('movie-orphan', { assignee: 'charref-driver', board: 'movie' }),
     card('nobody', { assignee: null }),
     card('stranger', { assignee: 'momo', board: 'soak' }),
-    card('night', { assignee: 'stevenspielberg', status: 'scheduled', board: 'movie' }),
+    card('night', { assignee: 'moviepro', status: 'scheduled', board: 'movie' }),
     card('old-done', { assignee: 'team', team: 'app-dev', status: 'done', completedAt: now - 8 * 86400 }),
     card('archived', { assignee: 'team', team: 'app-dev', status: 'archived' }),
     ...Array.from({ length: 7 }, (_, i) => card(`done-${i}`, { assignee: 'team', team: 'app-dev', status: 'done', result: `Result ${i}\nmore`, completedAt: now - i * 60 })),
@@ -55,19 +55,24 @@ console.log('PASS office placement: team lane, assignee, board fallback, HQ inbo
 
 // Step 4: the office follows Bigkiji's team routing (AI/router/config/teams.yaml) without editing office-map.json.
 const teams = {
-  'app-dev': { label: 'App Development', profiles: { tora: 'debug' } },
+  'app-dev': { label: 'App Development', profiles: { appdebugpro: 'debug' } },
   accountpro: { label: 'AccountPro (Accounting)' },
   'hs-school-ops': { label: 'ClassPro', profiles: { hana: 'review', yuki: 'lesson planner' } },
   'sales-ops': { label: 'SalesPro (Sales operations)', profiles: { kai: 'sales lead' } },
+  // MoviePro's script lane, not a department beside it (owner 2026-10-02). office-map.json points it
+  // at the MoviePro room, so it must not get an automatic room of its own — the registry alone would
+  // invent `team-movie-pro`, labelled from the team's own label, right beside the real MoviePro room.
+  'movie-pro': { label: 'MoviePro' },
 };
 const routed = buildOffice({
-  map, now, teams, boards: ['owner'], profiles: ['default', 'pi', 'kai', 'yuki'],
+  map, now, teams, boards: ['owner'], profiles: ['default', 'supportpro', 'kai', 'yuki'],
   cards: [
-    card('lane-pi', { assignee: 'team', team: 'app-dev', status: 'running', member: 'pi' }),
+    card('lane-pi', { assignee: 'team', team: 'app-dev', status: 'running', member: 'supportpro' }),
     card('lane-new', { assignee: 'team', team: 'sales-ops', status: 'running', member: 'claude' }),
     card('lane-new-wait', { assignee: 'team', team: 'sales-ops', status: 'ready' }),
     card('lane-retired', { assignee: 'team', team: 'gone-team', status: 'ready' }),
     card('bigkiji-routing', { assignee: 'default', status: 'ready' }),
+    card('lane-script', { assignee: 'team', team: 'movie-pro', status: 'running', member: 'mimo' }),
   ],
 });
 const rroom = (id) => routed.rooms.find((r) => r.id === id);
@@ -88,11 +93,18 @@ assert.equal(rroom('qa').agents.find((a) => a.name === 'Pi').card?.id, 'lane-pi'
 assert.equal(rroom('qa').agents.find((a) => a.name === 'Claude Code').card?.id, 'lane-new');
 assert.ok(ids(rroom('hq').board.waiting).includes('lane-retired'), 'a card for a team that is gone goes back to Bigkiji (HQ inbox)');
 assert.ok(ids(rroom('hq').board.waiting).includes('bigkiji-routing'), 'a card Bigkiji has not routed yet waits in HQ');
-assert.deepEqual(routed.routing, { source: 'teams.yaml', teams: 4, auto: ['sales-ops'] });
+assert.deepEqual(routed.routing, { source: 'teams.yaml', teams: 5, auto: ['sales-ops'] });
+// One team, one room: a lane that office-map.json points at a company room rides in that room, so the
+// office panel and /vr show MoviePro once instead of a real MoviePro room plus a `team-movie-pro`
+// duplicate named from the same label, with the script lane's own cards split across the two.
+assert.equal(routed.rooms.filter((r) => r.label === 'MoviePro').length, 1, 'the office drew more than one MoviePro room');
+assert.ok(!rroom('team-movie-pro'), 'the script lane was given its own room instead of MoviePro\'s');
+assert.deepEqual(rroom('moviepro').teams, ['movie-pro'], 'the MoviePro room lists the lane that works in it');
+assert.deepEqual(ids(rroom('moviepro').board.working), ['lane-script'], "a `team: movie-pro` card belongs in the MoviePro room");
 const fallback = buildOffice({ map, now, cards: [card('t', { assignee: 'team', team: 'app-dev', status: 'running' })] });
 assert.deepEqual(ids(fallback.rooms.find((r) => r.id === 'apppro').board.working), ['t'], 'without teams.yaml the office-map.json lanes still work');
 assert.equal(fallback.routing.source, 'office-map.json');
-console.log('PASS team routing: new team gets a room, team profiles seated, member on head, retired team back to HQ, fallback');
+console.log('PASS team routing: new team gets a room, team profiles seated, member on head, retired team back to HQ, MoviePro lane rides in the MoviePro room, fallback');
 
 if (process.argv.includes('--real')) {
   const raw = JSON.parse(execFileSync('python3', [fileURLToPath(new URL('../agent-feed.py', import.meta.url)), `${os.homedir()}/.hermes`, 'cards', '7'], { encoding: 'utf8' }));

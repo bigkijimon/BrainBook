@@ -1,0 +1,10 @@
+export type OfficeCard={id:string;board:string;title:string;status:string;who:string|null;room:string;reason?:string|null;summary?:string;assignmentSource?:string};
+export type OfficeModel={profile:string;configured:string|null;observed:string|null;source:string|null;observedSource?:string;observedAt?:number};
+export type OfficeAgent={name:string;profiles:string[];state:string;counts:{working:number;queued:number;blocked:number;done:number};tasks:OfficeCard[];models:OfficeModel[]};
+export type OfficeRoom={id:string;label:string;teams?:string[];agents:OfficeAgent[];board:{working:OfficeCard[];waiting:OfficeCard[];stopped:OfficeCard[]};shelf:OfficeCard[];delivered:number};
+export type OfficeData={rooms:OfficeRoom[];totals:{working:number;waiting:number;stopped:number;delivered:number;profiles:number};readAt?:number;error?:string};
+export type TeamAssociation={id:string;name:string;members:{name:string}[]};
+export type FlowActivity={id:string;source:string;to:string;active:boolean;at:number|null;title?:string;board?:string;boardName?:string;team?:string|null;note?:string;recipientKind?:string};
+export type OfficeFlow={agents:{name:string;active:boolean;count:number}[];handoffs:FlowActivity[];available:boolean;readAt?:number|null};
+export type ProjectedAgent=OfficeAgent & {room:string;active:boolean|null;activity:(FlowActivity & {kind:'session'|'card'|'router'|'unlinked'})[];lastActivityAt:number|null};
+export function projectOffice(office:OfficeData|null,flow:OfficeFlow,teams?:TeamAssociation[],selectedTeam?:string|null):{rooms:OfficeRoom[];agents:ProjectedAgent[];cardTotals:OfficeData['totals']|undefined;activeActors:number|null;selected:TeamAssociation|null;scopeLabel:string;roomAssociationKnown:boolean};

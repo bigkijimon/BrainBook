@@ -1,3 +1,4 @@
+import { themePalette } from './theme-palette.mjs';
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -5,17 +6,22 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
-// Dark terminal palette with restrained Hermes teal and magenta accents.
+// Owner 2026-10-11 ("GTA Vice City のカラーとデザインを参考に..."): a terminal is one of the most
+// visible, most-used surfaces in the app, and this palette had drifted almost entirely off the
+// Vice City / synthwave theme — pure black (#050505) instead of the warm night purple, flat
+// grays instead of warm text, and "cyan" silently mapped to lavender (losing the single most
+// iconic Vice City color). Rebuilt on the real palette: hot magenta, neon cyan, coral/peach
+// sunset, warm night purple — nothing left as a flat, untinted gray or pure black/white.
 const theme = {
-  background: '#050505',
-  foreground: '#e8e8e8',
-  cursor: '#31e6d0',
-  cursorAccent: '#050505',
-  selectionBackground: 'rgba(49, 230, 208, 0.28)',
-  black: '#111111', red: '#ff5964', green: '#51e6b0', yellow: '#e8c36a',
-  blue: '#7b9cff', magenta: '#ec4ca6', cyan: '#31e6d0', white: '#e8e8e8',
-  brightBlack: '#777777', brightRed: '#ff7a83', brightGreen: '#79f0c3', brightYellow: '#f3d78e',
-  brightBlue: '#9bb2ff', brightMagenta: '#f278bd', brightCyan: '#78eee0', brightWhite: '#ffffff',
+  background: themePalette.night,
+  foreground: themePalette.text,
+  cursor: themePalette.coral,
+  cursorAccent: themePalette.night,
+  selectionBackground: 'rgba(214, 91, 232, 0.28)',
+  black: themePalette.deep, red: '#ff5964', green: themePalette.peach, yellow: themePalette.coral,
+  blue: themePalette.cyanGlow, magenta: themePalette.magentaGlow, cyan: themePalette.cyanGlow, white: themePalette.text,
+  brightBlack: themePalette.muted, brightRed: '#ff7a83', brightGreen: themePalette.peach, brightYellow: themePalette.coral,
+  brightBlue: themePalette.cyanGlow, brightMagenta: '#f278bd', brightCyan: themePalette.cyanGlow, brightWhite: '#fff6dc',
 };
 
 type Status = 'connecting' | 'live' | 'exited' | 'offline' | 'missing';

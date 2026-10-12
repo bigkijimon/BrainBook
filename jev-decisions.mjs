@@ -6,9 +6,13 @@
 
 export const JEV_CONFIDENCE_FLOOR = 0.72;
 
-// A decision the Router made itself is not Jev advice and carries no confidence of its own. This is
-// the value BrainBook has always shown for one; it lives here so the lane adapter reads one number
-// instead of inventing its own, and it is never passed off as a confidence Jev reported.
+// A decision the Router made itself is not Jev advice, so it does not have to clear the confidence
+// floor — but the figure shown for it must still be one figure, and it must never be a number nobody
+// measured. So the confidence the Router reported is kept exactly as reported, and this is only the
+// fallback for a decision that reported none. Exported because `server.mjs` fills in a routing
+// record from this declaration instead of typing the number again, and because
+// tests/jev-decisions.test.mjs holds every copy of it (this one, `server.mjs` and the client default
+// in `src/App.tsx`) against this value.
 export const ROUTER_OWN_DECISION_CONFIDENCE = 0.76;
 
 // Every way an answer can come back unusable. A caller only ever has to handle accept or send-back.
@@ -32,21 +36,35 @@ export const JEV_SEND_BACK_MEANING = {
 // The lane the Router falls back to when its own decision names none.
 const DEFAULT_ROUTER_WORKER = 'hermes';
 
-const BOUNDED_TOKEN = /^[a-z0-9][a-z0-9._:-]{0,39}$/;
+// What a lane id is allowed to look like. This is part of the interface, not an internal detail: the
+// same rule answers "is this a lane id at all" on Jev's branch, on the Router's own branch, and in a
+// test that has to pick which of the ids the app ships are lanes before it holds the paid-lane rule
+// against them. Exported because the copy a test used to write for itself was a second definition of
+// a lane, and the second definition is the one that drifts (it dropped `_`, so `human_review` was
+// quietly filtered out of the check that was supposed to prove it usable). Not `/g`, so `test` on it
+// carries no state between calls.
+export const JEV_LANE_ID = /^[a-z0-9][a-z0-9._:-]{0,39}$/;
 
 // The paid lanes, as one list, because a hand-written word-boundary regex was not the same set as
-// the lane ids the app actually ships: the Router/BrainBook id for the paid escalation is
-// `claudecode` (server.mjs ROUTER_DIRECT profile, agent-feed.py AGENT_NAME, office-map.json
-// profiles), and `\bclaude\b` has no boundary inside `claudecode`, so the shipped id was accepted as
-// a free lane. A lane id is paid when it *contains* a paid name once separators are dropped, so
-// `claude-code`, `claude.code` and `claudecode` are all the same lane. Exported so a test can hold
-// this list against the ids the app really uses; a new paid lane that is not here fails that test
-// instead of slipping through as advice.
+// the lane ids the app actually ships. The app ships three ids for the paid escalation: `claude`
+// (the Router's own worker id — agent-feed.py ROUTER_WORKERS and AGENT_NAME), `claudecode` (the
+// Hermes profile behind it — server.mjs ROUTER_DIRECT, office-map.json profiles) and `codex`
+// (retired by the owner, files kept, still mapped so its records keep their author). `\bclaude\b`
+// has no boundary inside `claudecode`, so a shipped id was accepted as a free lane. A lane id is
+// paid when it *contains* a paid name once separators are dropped, so `claude-code`, `claude.code`
+// and `claudecode` are all the same lane, and the bare names `claude` and `codex` cover all three
+// shipped ids. Exported so a test can hold this list against the ids the app really ships, read back
+// out of those tables; a new paid lane that is not here fails that test instead of slipping through
+// as advice.
 export const JEV_PAID_LANES = ['claude', 'codex', 'gemini', 'opus', 'sonnet', 'haiku', 'gpt',
   'chatgpt', 'paid', 'premium', 'subscription'];
 
 const laneKey = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
-const isPaidLane = (value) => typeof value === 'string'
+
+// Exported as the paid half of `isFreeLaneId`, and held to the same ids. A test that asks only
+// `isFreeLaneId(id) === false` cannot say *why* a shipped id is paid — a malformed id and a paid
+// lane are the same answer — so the predicate the rule actually runs on is part of the interface.
+export const isPaidLane = (value) => typeof value === 'string'
   && JEV_PAID_LANES.some((paid) => laneKey(value).includes(paid));
 
 // The one free-lane rule. Free-only execution is an invariant of the whole app, not of one branch of
@@ -55,7 +73,24 @@ const isPaidLane = (value) => typeof value === 'string'
 // criterion lived only on the Jev branch. Exported because a test must hold it to the lane ids the
 // app really ships.
 export const isFreeLaneId = (value) => typeof value === 'string'
-  && BOUNDED_TOKEN.test(value.toLowerCase()) && !isPaidLane(value);
+  && JEV_LANE_ID.test(value.toLowerCase()) && !isPaidLane(value);
+
+// One reader and one test for a confidence, wherever it was reported: a real number, a number the
+// provider sent as text, or nothing at all. These were written twice — once for Jev's advice and once
+// for the Router's own decision — and two readers can disagree about what counts as a confidence,
+// which is the one thing the send-back codes exist to say. Locality over a restatement.
+const readConfidence = (reported) => (typeof reported === 'number' ? reported
+  : (typeof reported === 'string' && reported.trim() ? Number(reported) : NaN));
+
+const isUsableConfidence = (value) => Number.isFinite(value) && value >= 0 && value <= 1;
+
+// The confidence a Router decision is reported with. "Used as it is" has to include the number it
+// reported: replacing a Router's 0.3 with a flattering constant would show the owner certainty the
+// Router did not claim, and it is the very failure the floor exists to catch on the other branch.
+const routerOwnDecisionConfidence = (reported) => {
+  const confidence = readConfidence(reported);
+  return isUsableConfidence(confidence) ? confidence : ROUTER_OWN_DECISION_CONFIDENCE;
+};
 
 // An authority claim is an affirmative statement that Jev decided, or may decide, something
 // reserved to the owner. Cost and budget *reporting* is not a claim: the Router tracks the
@@ -125,6 +160,15 @@ const verdictFor = (point, accepted, code, reason, value = null, confidence = nu
 const reasonFor = (point, code, detail) =>
   `${point.label}: ${JEV_SEND_BACK_MEANING[code]}${detail ? ` (${detail})` : ''}`;
 
+// One refusal, one sentence, both branches. Refusing a paid lane is the same rule whether Jev named
+// it in its advice or the Router named it in its own decision, so it is written once here instead of
+// once per branch: two copies of the sentence could drift, and a per-case "does the reason contain
+// the lane id" check would pass either way, because each would still name the lane it refused.
+const paidLaneVerdict = (point, value) => (isPaidLane(value)
+  ? verdictFor(point, false, 'over_authority',
+    reasonFor(point, 'over_authority', `it named the paid lane "${token(value)}"`))
+  : null);
+
 export const judgeJevAnswer = (pointId, answer) => {
   const point = BY_ID.get(pointId);
   if (!point) throw new Error(`Unknown Jev decision point: ${pointId}`);
@@ -149,19 +193,17 @@ export const judgeJevAnswer = (pointId, answer) => {
   }
   const value = answer[point.valueField];
   const answerText = typeof value === 'string' ? value : '';
-  if (isPaidLane(answerText)) {
-    return sendBack('over_authority', `it named the paid lane "${token(answerText)}"`);
-  }
-  const inRange = point.allowed ? point.allowed.includes(value) : BOUNDED_TOKEN.test(answerText.toLowerCase());
+  const paidLane = paidLaneVerdict(point, answerText);
+  if (paidLane) return paidLane;
+  const inRange = point.allowed ? point.allowed.includes(value) : JEV_LANE_ID.test(answerText.toLowerCase());
   if (!inRange) {
     return sendBack('out_of_range', `"${token(answerText)}" is not an allowed answer`);
   }
   // Confidence is read in two steps, because "not confident enough" and "not a confidence" are
   // different failures: a caller triaging a log needs to tell a hesitant provider from a broken one.
   const reported = readPath(answer, point.confidencePath);
-  const confidence = typeof reported === 'number' ? reported
-    : (typeof reported === 'string' && reported.trim() ? Number(reported) : NaN);
-  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+  const confidence = readConfidence(reported);
+  if (!isUsableConfidence(confidence)) {
     const seen = Number.isFinite(confidence) ? `confidence ${token(confidence)} is outside 0 to 1`
       : (reported === undefined || reported === null || (typeof reported === 'string' && !reported.trim())
         ? 'no confidence was reported' : `confidence "${token(reported)}" is not a number`);
@@ -175,7 +217,9 @@ export const judgeJevAnswer = (pointId, answer) => {
 
 // The Router's lane answer, whichever branch produced it. The adapter hands over the raw answer and
 // reads one result: a worker it may use, or a send-back it must log and fall back from. Both branches
-// are judged here so the free-lane rule cannot be bypassed by answering as something other than Jev.
+// are judged here so the free-lane rule cannot be bypassed by answering as something other than Jev,
+// and the paid-lane refusal is the same verdict on both (paidLaneVerdict), so the log cannot say two
+// different things about one lane.
 export const judgeRouterLane = (answer) => {
   const point = BY_ID.get('worker-lane');
   const usable = Boolean(answer) && typeof answer === 'object' && !Array.isArray(answer);
@@ -187,13 +231,14 @@ export const judgeRouterLane = (answer) => {
   }
   const named = usable ? answer[point.valueField] : undefined;
   const worker = typeof named === 'string' && named.trim() ? named : DEFAULT_ROUTER_WORKER;
+  const paidLane = paidLaneVerdict(point, worker);
+  if (paidLane) return { sendBack: paidLane, advice: false, worker: null, confidence: null };
   if (!isFreeLaneId(worker)) {
-    const code = isPaidLane(worker) ? 'over_authority' : 'out_of_range';
-    const detail = isPaidLane(worker) ? `it named the paid lane "${token(worker)}"`
-      : `"${token(worker)}" is not a free lane id`;
+    const code = 'out_of_range';
+    const detail = `"${token(worker)}" is not a free lane id`;
     return { sendBack: verdictFor(point, false, code, reasonFor(point, code, detail)), advice: false, worker: null, confidence: null };
   }
-  return { sendBack: null, advice: false, worker, confidence: ROUTER_OWN_DECISION_CONFIDENCE };
+  return { sendBack: null, advice: false, worker, confidence: routerOwnDecisionConfidence(usable ? answer.confidence : undefined) };
 };
 
 // The one line an unattended run leaves when an answer is sent back: which point, which code, which

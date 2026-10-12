@@ -1,3 +1,4 @@
+import { displayTitle } from './owner-console.mjs';
 // One panel for both chat-style boxes (owner 2026-10-02): "AgentChatとAgentMeetingは一緒に表示して、
 // 例えばMeetingが始まったらChatBoxを切り替えてMeetingにするとか。" One shared card shell, one header
 // that reflects the active mode — agent threads by default, "Meeting: <topic>" while MeetingRoom
@@ -28,11 +29,11 @@ export function AgentChatPanel({ remote }: { remote: boolean }) {
   return <section className="agent-chat card-shell" aria-labelledby="agent-panel-heading">
     <header className={`agent-chat-head ${live ? 'is-meeting' : ''}`}>
       {live ? <>
-        <h3 id="agent-panel-heading"><Users size={16} strokeWidth={1.8} /> Meeting: <span className="panel-topic" title={live.topic}>{live.topic}</span> <b>Live</b></h3>
-        <small>Bigkiji hosts. Every line is the agent’s real reply.</small>
+        <h3 id="agent-panel-heading"><Users size={16} strokeWidth={1.8} /> Meeting: <span className="panel-topic" title={`Original topic: ${live.topic}`}>{displayTitle(live.topic,60)}</span> <b>In progress</b></h3>
+        <small>Bigkiji hosts. Replies shown here are recorded.</small>
       </> : <>
         <h3 id="agent-panel-heading"><MessagesSquare size={16} strokeWidth={1.8} /> Agent chat <b>{activeCount}</b></h3>
-        <small>What the agents say to each other on each job. Last 3 days.</small>
+        <small>Reports by agent, from the last 3 days. Originals and sources stay available.</small>
       </>}
     </header>
     <div className="panel-chat" hidden={Boolean(live)}>
@@ -44,6 +45,6 @@ export function AgentChatPanel({ remote }: { remote: boolean }) {
         the threads out from under the owner, which no native semantic reports — the header text
         changes but the badge count re-renders every 10s, so the header itself cannot be the live
         region without spamming. This announces the switch and nothing else. */}
-    <p className="sr-only" role="status">{live ? `Meeting started: ${live.topic}` : lastTopic ? `Meeting ended: ${lastTopic}. Agent chat is back.` : ''}</p>
+    <p className="sr-only" role="status">{live ? `Meeting started: ${displayTitle(live.topic)}` : lastTopic ? `Meeting ended: ${displayTitle(lastTopic)}. Agent chat is back.` : ''}</p>
   </section>;
 }

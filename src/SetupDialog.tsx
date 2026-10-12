@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import {useModalFocus} from './useModalFocus';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, FolderOpen, Sparkles, X } from 'lucide-react';
 
 export type SetupState = {
@@ -19,6 +20,7 @@ export function SetupDialog({ state, firstRun, onSave, onClose }: {
   onSave: (patch: { ownerName: string; vaultPath: string; create: boolean }) => Promise<string | null>;
   onClose: () => void;
 }) {
+  const panel=useRef<HTMLFormElement>(null);useModalFocus(panel,onClose,!firstRun);
   const [name, setName] = useState(state.ownerName);
   const initial = state.vaultReady ? state.vaultPath : state.vaults[0]?.path || state.suggestedVault;
   const [vault, setVault] = useState(initial);
@@ -37,7 +39,7 @@ export function SetupDialog({ state, firstRun, onSave, onClose }: {
   };
 
   return <div className="setup-backdrop" role="presentation">
-    <form className="setup-dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title" onSubmit={submit}>
+    <form ref={panel} tabIndex={-1} className="setup-dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title" onSubmit={submit}>
       {!firstRun && <button type="button" className="icon-button setup-close" aria-label="Close" onClick={onClose}><X size={16} /></button>}
       <span className="eyebrow">{firstRun ? 'WELCOME TO BRAINBOOK' : 'SETTINGS'}</span>
       <h2 id="setup-title">{firstRun ? 'Let’s set up your idea space' : 'Your idea space'}</h2>

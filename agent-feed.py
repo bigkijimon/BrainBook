@@ -53,7 +53,7 @@ def read_board(path, slug, name, since, limit):
     conn.row_factory = sqlite3.Row
     marks = ",".join("?" * len(KINDS))
     rows = conn.execute(
-        f"""select e.id, e.task_id, e.kind, e.payload, e.created_at, t.title, t.assignee, t.result
+        f"""select e.id, e.task_id, e.kind, e.payload, e.created_at, t.title, t.assignee, t.result, t.created_by
             from task_events e left join tasks t on t.id = e.task_id
             where e.created_at > ? and e.kind in ({marks})
             order by e.created_at desc, e.id desc limit ?""",
@@ -97,7 +97,10 @@ def read_board(path, slug, name, since, limit):
             "kind": KINDS[row["kind"]],
             "event": row["kind"],
             "author": who(author),
-            "text": text[:600],
+            "from": instruction_sender(payload.get("from") or row["created_by"]),
+            "to": who(payload.get("recipient") or payload.get("to")) if (payload.get("recipient") or payload.get("to")) else None,
+            "taskRecipient": "チーム" if row["assignee"] == "team" else who(row["assignee"]) if row["assignee"] else None,
+            "text": text,
             "at": row["created_at"],
         })
     conn.close()
@@ -133,7 +136,7 @@ def live(home):
 SESSION_LIVE_SECONDS = 180
 PROJECT_LABELS = [
     ("/Personal/task-system", "BrainBook app"),
-    ("/EnglishContentOS", "lesson videos (movie-pro)"),
+    ("/EnglishContentOS", "MoviePro (lesson videos)"),
     ("/Character-reference", "character references"),
     ("/Upclass/", "UPCLASS"),
     ("/HSAcademy/", "H&S Academy app"),
@@ -194,7 +197,7 @@ def session_activity(home):
     return out
 
 
-# Film Group work that runs as local processes, not as a running Kanban card
+# MoviePro work that runs as local processes, not as a running Kanban card
 # (owner 2026-09-30: "MoviePro only ever shows Steve and ComfyUI; are QA and the
 # other agents synced?"). Measured the same day: during a lesson-video run the
 # chain spends about 40% of its time in cut QA (Whisper + Vision, 7 min per cut),
@@ -239,11 +242,11 @@ def _movie_title(member, command):
         return "Vision model is looking at frames for Auto QA"
     if "charref" in command:
         return "Character-reference batch"
-    return "movie-pro: lesson video chain" + (f" ({where})" if where else "")
+    return "MoviePro: lesson video chain" + (f" ({where})" if where else "")
 
 
 def movie_activity():
-    """Live Film Group work, one entry per member (read-only process scan)."""
+    """Live MoviePro work, one entry per member (read-only process scan)."""
     rows = _process_table()
     out, seen = [], set()
     for member, markers, kind in MOVIE_PROCESSES:
@@ -304,8 +307,8 @@ AGENT_NAME = {"default": "Bigkiji", "hermes": "Bigkiji", "worker": "Bigkiji", "b
               "team": "Bigkiji", "yuma": "Bigkiji",
               "router": "Router", "auto-decomposer": "Decomposer", "mimo": "MiMo", "claude": "Claude Code",
               "claudecode": "Claude Code", "codex": "Codex", "qwen": "Qwen (local)", "vision": "Vision",
-              "opencode": "OpenCode", "pi": "Pi",
-              "stevenspielberg": "Steve", "kuro": "Kuro", "mame": "Shimajiro", "ame": "Ame", "maru": "Maru", "sora": "Sora"}
+              "opencode": "OpenCode", "supportpro": "Pi",
+              "moviepro": "Steve", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru", "blogpro": "Sora"}
 KANBAN_OUTCOME = {"running": "working", "ready": "queued", "todo": "waiting", "triage": "queued", "scheduled": "scheduled", "blocked": "needs you", "done": "done", "archived": "done", "complete": "done", "completed": "done", "failed": "failed"}
 
 
@@ -320,6 +323,15 @@ def who(name):
     if not key:
         return "unknown"
     return AGENT_NAME.get(key, " ".join((name or "").split()))
+
+
+def instruction_sender(name):
+    key = " ".join((name or "").split()).lower()
+    if not key or key in ("unknown", "team", "probe", "e2e"):
+        return "指示元未記録"
+    if key in ("yuma", "owner", "user", "you"):
+        return "Yuma" if key == "yuma" else "オーナー"
+    return who(name)
 
 
 def flow(home, since, router_jobs):
@@ -348,14 +360,15 @@ def flow(home, since, router_jobs):
         except sqlite3.Error:
             continue
         for tid, title, assignee, status, created_by, body, created_at, started_at, completed_at, outcome, summary, runs in rows:
-            giver = parent_of.get(tid) or created_by
+            giver = created_by  # Issuer is a recorded field, never a parent/hierarchy inference.
             team_short = None
+            reported_by = None
             to_name = who(assignee)
             if assignee == "team":
                 # A team-lane card carries `team: <name>` in its body; the member
                 # actually working is whoever last commented on it.
                 hint = next((line.split(":", 1)[1].strip() for line in (body or "").splitlines() if line.lower().startswith("team:")), None)
-                team_short = TEAM_SHORT.get(hint, hint)
+                team_short = team_short_name(hint)
                 comment = conn.execute(
                     "select payload from task_events where task_id = ? and kind = 'commented' order by created_at desc, id desc limit 1",
                     (tid,),
@@ -366,13 +379,14 @@ def flow(home, since, router_jobs):
                         member = (json.loads(comment[0] or "{}") or {}).get("author")
                     except ValueError:
                         member = None
-                to_name = who(member) if member else "Bigkiji"
+                reported_by = who(member) if member else None
+                to_name = team_short or "チーム（担当者未記録）"
             handoff = {
                 "id": f"{slug}:{tid}", "source": "kanban", "board": slug, "boardName": board_name(directory, slug),
-                "from": who(giver), "to": to_name, "title": (title or "")[:160], "state": KANBAN_OUTCOME.get(status, status),
+                "from": instruction_sender(giver), "to": to_name, "title": (title or ""), "state": KANBAN_OUTCOME.get(status, status),
                 "active": status == "running", "at": completed_at or started_at or created_at,
                 "note": ((summary or "")[:220] if status in ("done", "blocked") else (f"attempt {runs}" if runs and runs > 1 else "")),
-                "outcome": outcome,
+                "activityKind": "card", "cardIdentity": {"board": slug, "id": tid}, "senderBasis": "card.created_by", "outcome": outcome, "recipientKind": "team" if assignee == "team" else "agent", "reportedBy": reported_by,
             }
             if team_short:
                 handoff["team"] = team_short
@@ -403,28 +417,35 @@ def flow(home, since, router_jobs):
                 steps.append({"to": who(nxt[len("retry on "):].strip()), "state": "working" if status == "running" else ("left over" if stale else status or "")})
             handoffs.append({
                 "id": f"router:{job.get('task_id')}", "source": "router", "board": "router", "boardName": "AI Router",
-                "from": who(job.get("source") or "hermes"), "to": steps[-1]["to"], "title": str(job.get("objective") or job.get("task") or "")[:160],
+                "from": instruction_sender(job.get("source")), "to": steps[-1]["to"], "title": str(job.get("objective") or job.get("task") or "")[:160],
                 "state": steps[-1]["state"], "active": status == "running", "at": int(os.path.getmtime(file)),
+                "activityKind": "router", "senderBasis": "router_job.source",
+                "toDepartment": str(job.get("team") or "") if isinstance(job.get("team"), str) else "",
+                **({"progress": {k: job["progress"][k] for k in ("percent", "completed", "total", "unit", "at", "basis") if k in job["progress"] and isinstance(job["progress"][k], (str, int, float))}} if isinstance(job.get("progress"), dict) else {}),
+                **({"eta": {k: job["eta"][k] for k in ("finishAt", "at", "basis") if k in job["eta"] and isinstance(job["eta"][k], (str, int, float))}} if isinstance(job.get("eta"), dict) else {}),
+                **({"stage": job["stage"]} if isinstance(job.get("stage"), str) else {}),
                 "note": ("; ".join(str(f) for f in failures) or (job.get("reason") or ""))[:200], "steps": steps,
             })
     # bin/submit writes a pre-dispatch receipt that keeps status "running" after the worker's own
     # receipt finishes; drop that leftover when a finished receipt for the same objective exists.
     finished = {(item["from"], item["title"]) for item in handoffs if item["source"] == "router" and item["state"] not in ("left over", "working")}
     handoffs = [item for item in handoffs if not (item["source"] == "router" and item["state"] == "left over" and (item["from"], item["title"]) in finished)]
-    # Live Film Group work is team work even when its card is still `ready` (see movie_activity).
-    live_members = {job["member"] for job in movie_activity()}
-    giver = {"Steve": "Bigkiji", "ComfyUI": "Steve", "Auto QA": "Steve", "Vision": "Auto QA" if "Auto QA" in live_members else "Steve"}
+    # Live MoviePro work is team work even when its card is still `ready` (see movie_activity).
     for job in movie_activity():
         queue = comfy_queue() if job["gpu"] else None
         note = (f"ComfyUI :{queue['port']} · {queue['running']} running, {queue['pending']} waiting" if queue else "GPU lease active") if job["gpu"] else "local process"
-        handoffs.append({"id": job["id"], "source": "kanban", "board": "movie", "boardName": "MoviePro", "from": giver.get(job["member"], "Steve"),
+        # No `team` key on purpose: the board above is already named MoviePro, and `handoff.team` wins
+        # over `boardName` wherever a team is printed (the live strip, the hand-off log), so the raw id
+        # `movie` this used to carry is what the owner read instead of the team. The script lane's own
+        # cards arrive with `team: movie-pro` and are named through team_short_name — the same team.
+        handoffs.append({"id": job["id"], "source": "kanban", "board": "movie", "boardName": "MoviePro", "from": "指示元未記録",
                          "to": job["member"], "title": job["title"], "state": "working", "active": True, "at": job["startedAt"],
-                         "note": note, "steps": [{"to": job["member"], "state": "working"}], "team": "movie"})
-    # Live Hermes sessions (terminal, Telegram, Dashboard, profile agents): Yuma → agent.
+                         "activityKind": "gpu" if job["gpu"] else "process", "note": note, "steps": [{"to": job["member"], "state": "working"}]})
+    # Session activity records a recipient, but does not prove who instructed it.
     for job in session_activity(home):
-        handoffs.append({"id": job["id"], "source": "session", "board": "session", "boardName": job["boardName"], "from": "You",
+        handoffs.append({"id": job["id"], "source": "session", "board": "session", "boardName": job["boardName"], "from": "指示元未記録",
                          "to": job["assignee"], "title": job["title"], "state": "working", "active": True, "at": job["startedAt"],
-                         "note": "", "steps": [{"to": job["assignee"], "state": "working"}], "team": None})
+                         "activityKind": "session", "note": "", "steps": [{"to": job["assignee"], "state": "working"}], "team": None})
     seen, out = set(), []
     for item in sorted(handoffs, key=lambda item: (not item["active"], -(item["at"] or 0))):
         if item["id"] in seen:
@@ -434,41 +455,64 @@ def flow(home, since, router_jobs):
     agents = {}
     for item in out:
         for name in [item["from"], item["to"], *[step["to"] for step in item.get("steps", [])]]:
-            if name == "You":   # the owner as sender of a live Hermes session, not an agent
+            if name == item["to"] and item.get("recipientKind") == "team":
+                continue
+            if name in ("You", "Yuma", "オーナー", "指示元未記録", "担当者未記録", "unknown"):   # the owner as sender of a live Hermes session, not an agent
                 continue
             agents.setdefault(name, {"name": name, "active": False, "count": 0})
             agents[name]["count"] += 1
-        if item["active"]:
+        if item["active"] and item["to"] in agents:
             agents[item["to"]]["active"] = True
     print(json.dumps({"handoffs": out[:40], "agents": sorted(agents.values(), key=lambda a: (not a["active"], -a["count"]))}, ensure_ascii=False))
 
 
 # Short team names for the left menu (owner 2026-09-29: "MoviePro, AppPro, ClassPro...").
+# `movie-pro` sits beside `movie` on purpose. That Router team is MoviePro's script-fix lane, not a
+# department of its own (owner 2026-10-02, "まとめて"; MOVIE_SCRIPT_TEAM below), so a feed that names
+# the team a piece of work belongs to has to be able to print the lane as MoviePro. It cannot bring a
+# second card back: `teams()` skips the lane before it ever reads this table, so the name here is only
+# ever reached through team_short_name.
 TEAM_SHORT = {"app-dev": "AppPro", "accountpro": "AccountPro", "hs-school-ops": "ClassPro",
-              "investment": "InvestPro", "igataya-web": "RentPro", "marketing": "MarketPro", "movie": "MoviePro"}
+              "investment": "InvestPro", "igataya-web": "RentPro", "marketing": "MarketPro",
+              "movie": "MoviePro", "movie-pro": "MoviePro", "securitypro": "SecurityPro"}
+
+
+def team_short_name(team_id):
+    """What a team is called on screen, for any feed that names the team a piece of work is in.
+
+    One function, so a lane id cannot reach the live strip or the hand-off log. MoviePro's own work
+    used to be announced as `movie` and its script lane as `movie-pro` — two raw ids for one team, on
+    the two surfaces where every other team read "AppPro" — which is the split this closes. An id the
+    table has not seen keeps its own text, so a team added to the Router registry tomorrow is still
+    shown rather than blanked, and `None` stays `None` so a card with no team hint adds no team name.
+    """
+    return TEAM_SHORT.get(team_id, team_id)
+
+
 # Every team has the same crew; the role says what each one does there.
 TEAM_CREW = [("Bigkiji", "routes and reports"), ("Pi", "support: brief + checks"), ("MiMo", "builder"),
              ("Space Bunny", "UI"), ("Claude Code", "debug first (reproduce + root cause), then QA; difficult"), ("Jev", "decision support")]
 # Hierarchy inside a Router team, as bin/team-run runs it: Bigkiji routes; Pi briefs and
 # checks; MiMo / Space Bunny build; Claude Code runs QA and debug; Jev advises Bigkiji.
 TEAM_PARENT = {"Bigkiji": None, "Pi": "Bigkiji", "Jev": "Bigkiji", "MiMo": "Pi", "Space Bunny": "Pi", "Claude Code": "Bigkiji"}
-# Film Group: Steve directs; the scenario/audio departments run on Steve's profile; Auto QA
+# MoviePro: Steve directs; the scenario/audio departments run on Steve's profile; Auto QA
 # drives the Vision check; ComfyUI is operated by Maru's GPU lane.
 MOVIE_PARENT = {"Steve": None, "HideoKojima": "Steve", "RyūichiSakamoto": "Steve", "Kuro": "Steve", "Shimajiro": "Steve",
                 "Ame": "Shimajiro", "Maru": "Steve", "Auto QA": "Steve", "ComfyUI": "Maru",
                 "MiMo": "Steve", "Space Bunny": "Steve"}
-ROUTER_TO_MEMBER = {"mimo": "MiMo", "claude": "Claude Code", "hermes": "Bigkiji", "pi": "Pi"}
+ROUTER_TO_MEMBER = {"mimo": "MiMo", "claude": "Claude Code", "hermes": "Bigkiji", "supportpro": "Pi"}
 # Owner 2026-10-02 ("まとめて"): MoviePro is ONE team. The Router team `movie-pro` is MoviePro's
-# script-fix lane, not a separate department, so its card is folded into the Film Group card
-# instead of being emitted a second time. Nothing in the Router config changes — display only.
+# script-fix lane, not a separate department, so its crew and its live jobs are folded into the one
+# MoviePro card below instead of being emitted a second time. Nothing in the Router config changes —
+# display only.
 MOVIE_SCRIPT_TEAM = "movie-pro"
 # The lane's two members, in the order they read under Steve. Which model each one really runs is
 # read from the Router config (workers.yaml mimo, adapters/mimo ui), never written here.
-MOVIE_SCRIPT_CREW = [("MiMo", "builds scripts"), ("Space Bunny", "checks scripts")]
+MOVIE_SCRIPT_CREW = [("MiMo", "Builds scripts through Router"), ("Space Bunny", "Script review through Router; qualification required")]
 # MiMo is the lane's build entry point and stays directly instructable from this card; Space Bunny
 # only checks, and was never a direct target on the lane card. Must match directTarget in server.mjs.
 MOVIE_SCRIPT_DIRECT = ["MiMo"]
-# Film Group leadership (ComfyUI/MovieProduction/AGENTS.md) and its department skills.
+# MoviePro's production crew (ComfyUI/MovieProduction/AGENTS.md) and its department skills.
 MOVIE_CREW = [("Steve", "production director"), ("HideoKojima", "scenario and world"),
               ("RyūichiSakamoto", "audio"), ("Kuro", "independent review"), ("Shimajiro", "education brief"),
               ("Ame", "education research"), ("Maru", "GPU operation"), ("Auto QA", "automatic QA: cut, keyframe, unit gate"),
@@ -477,24 +521,34 @@ MOVIE_CREW = [("Steve", "production director"), ("HideoKojima", "scenario and wo
 # name -> Hermes profile mapping). HideoKojima and RyūichiSakamoto are
 # departments that run under Steve's profile, so they are reached through Steve.
 MOVIE_DIRECT = ["Steve", "Kuro", "Ame", "Shimajiro", "Maru"]
-MOVIE_PROFILE = {"stevenspielberg": "Steve", "kuro": "Kuro", "mame": "Shimajiro", "ame": "Ame", "maru": "Maru"}
+MOVIE_PROFILE = {"moviepro": "Steve", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru"}
 # BlogPro (owner 2026-09-29): blogs, SNS and AI influencer. Lead is the `sora` profile.
 # Publication always waits for Yuma, so this group is shown but never auto-dispatched.
 BLOG_CREW = [("Sora", "lead: content and SNS"), ("Coco", "AI influencer"), ("Blog QA", "H&S blog 95-point gate"),
              ("Tech Blog QA", "tech blog 95-point gate")]
-BLOG_PROFILE = {"sora": "Sora"}
+BLOG_PROFILE = {"blogpro": "Sora"}
 BLOG_SKILLS = ["blog pipeline", "sns studio", "influencer studio", "blog qa", "tech blog qa"]
 BLOG_QUEUE = os.path.expanduser("~/Documents/AI/AgentsDB/Admin/SNSStudioSora/_queue")
 MOVIE_SKILLS = ["film scenario", "film preproduction", "film identity", "movie character reference",
                 "movie video generation", "film review"]
+# MoviePro's own chain, beside the crew it names (owner 2026-10-02, "まとめて"). It is the film
+# production line with the script lane inside it, because MoviePro is one team: the lane is where the
+# lesson script is built and checked, between the departments that write it and the GPU that renders it.
+# This used to be the Router lane's chain behind a "Script work only:" prefix, so the one card that had to
+# speak for both halves of the team headlined the smaller half's process while its own label and its
+# fifteen members said something else. Length here is a layout fact, not a writing preference: the band
+# is pinned above the crew in a sheet that must not scroll, so it stays one line at 1440
+# (scripts/test-team-sheet-fit.mjs measures it at 1440x700 and 390x844).
+MOVIE_WORKFLOW = ("Steve directs → brief and research → scenario and audio → MiMo builds the script, "
+                  "Space Bunny checks it → keyframes and video on the GPU → Auto QA gate → final unit")
 
 
 # Which model each member really runs (owner 2026-09-30: "write the LLM under each name").
 # Read live from the owning configs so the label follows a config change: Hermes profile
 # config.yaml (model.default), Router config/workers.yaml, Router adapters/mimo (UI lane).
 # Members with no config of their own (tools, departments) name the files that prove it.
-PROFILE_OF = {"Bigkiji": None, "Steve": "stevenspielberg", "Kuro": "kuro", "Ame": "ame", "Shimajiro": "mame",
-              "Maru": "maru", "Sora": "sora", "Tora": "tora", "Hana": "hana"}
+PROFILE_OF = {"Bigkiji": None, "Steve": "moviepro", "Kuro": "kuro", "Ame": "eduresearchpro", "Shimajiro": "eduleadpro",
+              "Maru": "gpupro", "Sora": "blogpro", "Tora": "appdebugpro", "Hana": "hana"}
 
 
 def _profile_model(home, profile):
@@ -512,7 +566,8 @@ def _profile_model(home, profile):
         if in_model and line and not line.startswith(" "):
             break
         if in_model and line.strip().startswith("default:"):
-            return line.split(":", 1)[1].strip().strip("'\"")
+            raw = line.split(":", 1)[1].strip()
+            return None if raw in ("", "null", "Null", "NULL", "~") else raw.strip("'\"") or None
     return None
 
 
@@ -541,7 +596,12 @@ def member_models(home, router_config):
     except (OSError, ValueError):
         workers = {}
     mimo = workers.get("mimo") or {}
-    out["MiMo"] = _pretty(mimo.get("model")) + (f" (backup {_pretty(mimo.get('backup_model'))})" if mimo.get("backup_model") else "")
+    build, backup = _pretty(mimo.get("model")), _pretty(mimo.get("backup_model"))
+    # MoviePro's script lane runs on this worker's configured model, so the text is read here and
+    # never written in the display. An absent `mimo` worker therefore leaves the lane with no model
+    # line (as `vision` below does) instead of raising on `None + str`, which failed the whole
+    # command and emptied the team list — the one card the owner is looking for.
+    out["MiMo"] = f"{build} (backup {backup})" if build and backup else build
     ui = None
     try:
         with open(os.path.join(os.path.dirname(router_config), "adapters", "mimo"), encoding="utf-8") as handle:
@@ -565,6 +625,22 @@ def member_models(home, router_config):
     return {name: model for name, model in out.items() if model}
 
 
+def role_labels(team):
+    """One team's own role files as the short chips the sheet shows, in registry order.
+
+    Read from the Router registry, so a role file added or renamed there follows on the next read.
+    Every card goes through here rather than writing its own list: MoviePro is one card but two
+    registry entries (the film unit and the `movie-pro` script lane), and a per-card literal would
+    have dropped the lane's role files from the display without anyone noticing (codebase-design:
+    one implementation pays back across every caller).
+    """
+    out = []
+    for rel in team.get("roles") or []:
+        base = rel if str(rel).startswith("/") else os.path.join(team.get("root") or "", rel)
+        out.append(os.path.splitext(os.path.basename(base))[0].split("-", 1)[-1].replace("-", " "))
+    return out
+
+
 def team_jobs(team, live_by_root):
     """Live Router jobs under one registry team's roots. Empty when the team has none."""
     roots = {os.path.realpath(team["root"])} | {os.path.realpath(r) for r in (team.get("roots") or {}).values()}
@@ -575,6 +651,11 @@ def team_jobs(team, live_by_root):
 # Organizational display only. Worker selection remains exclusively in Router.
 # InvestPro is excluded while its owner rebuilds that team separately.
 REVIEWED_TEAM_IDS = {"app-dev", "accountpro", "hs-school-ops", "igataya-web", "marketing", "movie"}
+# The chain every Router lane shows. MoviePro is the one reviewed card that does not run this one, and it
+# carries MOVIE_WORKFLOW instead: a chain is a claim about the whole team it heads, so a card may not
+# borrow another team's chain and qualify the difference with a prefix (see MOVIE_WORKFLOW).
+ROUTER_WORKFLOW = ("Bigkiji → Pi preparation → Router selection → implementation → Pi checks → "
+                   "qualified review → bounded repair or delivery → task cleanup")
 
 
 def reviewed_structure(team):
@@ -603,7 +684,7 @@ def reviewed_structure(team):
         # A queued/running card does not establish which support process ran.
         member["live"] = bool(previous.get(name, {}).get("live")) if name in ("MiMo", "Space Bunny") else False
         member["description"] = role
-        if model is not None:
+        if model is not None and name == "QA / Debug":
             member["model"] = model
         team["members"].append(member)
     if not film:
@@ -611,7 +692,7 @@ def reviewed_structure(team):
             if name not in {"Bigkiji", "Pi", "Router", "MiMo", "Space Bunny", "QA / Debug", "Jev", "Claude Code"}:
                 team["members"].append(dict(member, parent="Bigkiji", role=member["role"] + " (configured specialist role; task dispatch is separate)"))
         team["direct"] = [name for name in team.get("direct", []) if name != "Claude Code"]
-    team["workflow"] = ("Script work only: " if film else "") + "Bigkiji → Pi preparation → Router selection → implementation → Pi checks → qualified review → bounded repair or delivery → task cleanup"
+    team["workflow"] = MOVIE_WORKFLOW if film else ROUTER_WORKFLOW
     team["workflow_note"] = "Structure describes the workflow. Each task still needs successful preparation, skill-load, check and review receipts. Role files are instructions, not additional running employees."
 
 
@@ -655,9 +736,14 @@ def teams(home, router_config, router_jobs):
     # folded into the MoviePro card below rather than emitted as a card of its own.
     script_team = registry.get(MOVIE_SCRIPT_TEAM)
     script_jobs = team_jobs(script_team, live_by_root) if script_team else []
+    # The lane's Kanban cards are collected here too, not only its Router jobs: `team: movie-pro` is
+    # the body tag server.mjs writes, and those cards used to show on the `movie-pro` card. Skipping
+    # the team in the loop below must not make a card the owner just sent to MiMo disappear from the
+    # team it was sent to, so the merged MoviePro card is given the cards as well as the jobs.
+    script_cards = live_team_cards.get(MOVIE_SCRIPT_TEAM, []) if script_team else []
     script_names = {member for member, _role in MOVIE_SCRIPT_CREW}
     for name, team in registry.items():
-        if name == MOVIE_SCRIPT_TEAM:
+        if name in (MOVIE_SCRIPT_TEAM, "movie", "securitypro"):
             continue
         jobs = team_jobs(team, live_by_root)
         cards = live_team_cards.get(name, [])
@@ -667,10 +753,7 @@ def teams(home, router_config, router_jobs):
         members = [{"name": member, "role": role, "live": member in busy, "parent": TEAM_PARENT.get(member)} for member, role in TEAM_CREW]
         for profile, role in (team.get("profiles") or {}).items():
             members.append({"name": profile.capitalize(), "role": role, "live": False, "parent": "Claude Code"})
-        roles = []
-        for rel in team.get("roles", []):
-            base = rel if rel.startswith("/") else os.path.join(team["root"], rel)
-            roles.append(os.path.splitext(os.path.basename(base))[0].split("-", 1)[-1].replace("-", " "))
+        roles = role_labels(team)
         out.append({"id": name, "name": TEAM_SHORT.get(name, team.get("label", name)), "label": team.get("label", name),
                     "live": bool(jobs) or any(c["state"] == "working" for c in cards), "members": members,
                     "specialists": roles[:16], "work": [{"title": j["title"], "member": j["member"]} for j in jobs][:5] + cards[:5],
@@ -699,25 +782,37 @@ def teams(home, router_config, router_jobs):
     # A script-lane job belongs to the lane's own members only. Pi / Bigkiji / Claude Code also
     # run there, but they are not on this card, so they must not light it up.
     script_busy = {job["member"] for job in script_jobs if job["member"] in script_names}
+    # A running lane card makes the card live without naming a member: the hint says which team lane
+    # took the card, not who inside it, so no member badge is invented here.
+    script_live = any(card["state"] == "working" for card in script_cards)
     members = [{"name": member, "role": role, "live": member in movie_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_CREW]
     if script_team:  # the lane exists only while the Router config keeps it
         members += [{"name": member, "role": role, "live": member in script_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_SCRIPT_CREW]
     out.append({"id": "movie", "name": "MoviePro", "label": "Lesson videos, scripts and GPU",
-                "live": bool(movie_busy) or bool(script_busy),
+                "live": bool(movie_busy) or bool(script_busy) or script_live,
                 "members": members,
-                "specialists": MOVIE_SKILLS,
-                "work": ([{"title": j["title"], "state": "working", "member": j["member"]} for j in script_jobs] + movie_cards)[:6],
+                # The film unit's own six department skills plus the script lane's role files, read from
+                # the Router registry like every other team. Before this the lane's roles were emitted
+                # nowhere (its card was folded into this one) and the merged card quietly showed less
+                # than the two cards it replaced. `dict.fromkeys` keeps registry order and drops a name
+                # both sides list; `[:16]` is the same ceiling every other team gets.
+                "specialists": list(dict.fromkeys([*MOVIE_SKILLS, *(role_labels(script_team) if script_team else [])]))[:16],
+                "work": ([{"title": j["title"], "state": "working", "member": j["member"]} for j in script_jobs]
+                         + script_cards + movie_cards)[:6],
                 "board": "movie" if conn is not None else None,
                 # MiMo reaches the same Router team lane as before (directTarget maps the MoviePro
                 # card's MiMo to the `movie-pro` lane), so folding the cards in loses no route.
                 "direct": list(dict.fromkeys([*MOVIE_DIRECT, *(MOVIE_SCRIPT_DIRECT if script_team else [])]))})
     out.append(blog_team(home))
+    out.append(security_team(home))
+    for team in out:
+        reviewed_structure(team)
     models = member_models(home, router_config)
     for team in out:
         for member in team["members"]:
-            member["model"] = models.get(member["name"])
-    for team in out:
-        reviewed_structure(team)
+            model = models.get(member["name"])
+            if model:
+                member["model"] = model
         if team.get("id") in REVIEWED_TEAM_IDS and os.path.isfile(os.path.join(home, "state", "team-lane", "repair-hold.json")):
             team["workflow_note"] = "Automatic worker execution is held pending verification. " + team.get("workflow_note", "")
         if team.get("id") == "blog":
@@ -748,6 +843,55 @@ def blog_team(home):
     return {"id": "blog", "name": "BlogPro", "label": "Blogs, SNS, AI influencer (publication needs Yuma)", "live": bool(busy),
             "members": [{"name": member, "role": role, "live": member in busy, "parent": None if member == "Sora" else "Sora"} for member, role in BLOG_CREW],
             "specialists": BLOG_SKILLS, "work": cards[:6], "board": None, "direct": ["Sora"]}
+
+
+def security_team(home):
+    """Existing native oversight department, not a Router lane or activation request."""
+    profile_present = os.path.isdir(os.path.join(home, "profiles", "securitypro"))
+    db = os.path.join(home, "kanban", "boards", "securitypro", "kanban.db")
+    conn = connect(db) if os.path.isfile(db) else None
+    board_present = conn is not None
+    work = []
+    if conn is not None:
+        try:
+            rows = conn.execute("select title, status from tasks where status in ('running','ready','blocked','todo','review','scheduled') order by created_at desc limit 6")
+            work = [{"title": str(title or "")[:120], "state": KANBAN_OUTCOME.get(status, status)} for title, status in rows]
+        except sqlite3.Error:
+            board_present = False
+        finally:
+            conn.close()
+    evidence = profile_model_evidence(home, ["securitypro"])["securitypro"] if profile_present else {}
+    configured = evidence.get("configured")
+    observed = evidence.get("observed")
+    inference = "observed_session" if observed else "configured_not_verified" if configured else "unbound"
+    return {"id": "securitypro", "name": "SecurityPro", "label": "Security oversight (execution connection unverified)",
+            "live": bool(observed), "members": [{"name": "SecurityPro", "role": "Security oversight lead; registration is not execution admission", "parent": None, "live": bool(observed), **({"model": observed} if observed else {})}],
+            "specialists": ["securitypro-operations"], "work": work, "board": "securitypro" if board_present else None,
+            "direct": [], "registration": {"profilePresent": profile_present, "boardPresent": board_present, "inference": inference, "configuredModel": configured, "observedModel": observed, "routerAdmission": "unverified", "independentSecurityQA": "unverified"},
+            "workflow": "Bigkiji → SecurityPro triage → existing owning-team implementation → Pi checks → independent qualified review → Bigkiji verification and delivery",
+            "workflow_note": "Registered oversight department. No new worker or direct dispatch is enabled. Missing/unbound inference and pending SEC findings are not a security PASS."}
+
+
+def profile_model_evidence(home, profiles):
+    out = {}
+    for profile in profiles:
+        base = home if profile == "default" else os.path.join(home, "profiles", profile)
+        configured = _profile_model(home, None if profile == "default" else profile)
+        observed, at = None, None
+        db = os.path.join(base, "state.db")
+        if os.path.isfile(db):
+            try:
+                conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=0.3)
+                row = conn.execute("select model, coalesce(last_activity_at, started_at) from sessions where ended_at is null and coalesce(last_activity_at, started_at) > ? and model is not null order by coalesce(last_activity_at, started_at) desc limit 1", (time.time() - SESSION_LIVE_SECONDS,)).fetchone()
+                if row:
+                    observed, at = row
+                conn.close()
+            except sqlite3.Error:
+                pass
+        out[profile] = {"configured": configured, "source": "config.yaml:model.default" if configured else None,
+                        "observed": observed, "observedAt": at, "observedSource": "state.db:sessions.model" if observed else None,
+                        "association": "Session model only; card model association unrecorded"}
+    return out
 
 
 def cards(home, days):
@@ -781,12 +925,12 @@ def cards(home, days):
                     row = conn.execute("select payload from task_events where task_id = ? and kind = 'blocked' order by created_at desc, id desc limit 1", (task_id,)).fetchone()
                     try:
                         payload = json.loads(row[0] or "{}") if row else {}
-                        reason = str(payload.get("reason") or "").strip()[:300] or None
+                        reason = str(payload.get("reason") or "").strip() or None
                     except ValueError:
                         pass
-                out.append({"id": task_id, "board": slug, "title": (title or task_id)[:160], "status": status,
+                out.append({"id": task_id, "board": slug, "title": (title or task_id), "status": status,
                             "assignee": (assignee or "").strip().lower() or None, "team": team, "member": member,
-                            "result": ((result or "").strip().splitlines() or [""])[0][:200] or None, "reason": reason,
+                            "result": (result or "").strip() or None, "reason": reason,
                             "createdAt": created, "startedAt": started, "completedAt": completed})
             read.append(slug)
         except sqlite3.Error:
@@ -796,7 +940,7 @@ def cards(home, days):
         profiles = sorted(name for name in os.listdir(os.path.join(home, "profiles")) if os.path.isdir(os.path.join(home, "profiles", name)))
     except OSError:
         profiles = []
-    print(json.dumps({"cards": out, "boards": read, "profiles": ["default"] + profiles}, ensure_ascii=False))
+    print(json.dumps({"cards": out, "boards": read, "profiles": ["default"] + profiles, "profileModels": profile_model_evidence(home, ["default"] + profiles)}, ensure_ascii=False))
 
 
 def main():

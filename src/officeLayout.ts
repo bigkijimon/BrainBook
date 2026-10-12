@@ -3,6 +3,8 @@
 // at the origin facing -z, with Yuma's desk just ahead; the rooms fill the space behind it.
 // Pure functions only, so the layout can be checked without a GPU.
 
+import { themePalette } from './theme-palette.mjs';
+
 export type OfficeCard = { id: string; board: string; title: string; status: string; who: string | null; room: string; why: string; reason: string | null; at: number | null; summary?: string; needsYuma?: boolean };
 export type OfficeAgent = { name: string; profiles: string[]; hermes: boolean; state: 'idle' | 'working' | 'stopped'; card: { id: string; title: string } | null };
 export type OfficeRoom = { id: string; label: string; group: string | null; zone: string | null; shared: boolean; auto?: boolean; teams?: string[]; agents: OfficeAgent[]; board: { waiting: OfficeCard[]; working: OfficeCard[]; stopped: OfficeCard[] }; shelf: OfficeCard[]; delivered: number };
@@ -39,4 +41,4 @@ export function layoutOffice(office: Office): PlacedRoom[] {
   });
 }
 
-export const roomTone = (room: OfficeRoom) => room.board.working.length ? '#2fd6a3' : room.board.stopped.length ? '#ff6b82' : room.shared ? '#8f86b8' : '#7ff3e8';
+export const roomTone = (room: OfficeRoom) => room.board.working.length ? themePalette.peach : room.board.stopped.length ? themePalette.danger : room.shared ? themePalette.mauve : themePalette.lavender;

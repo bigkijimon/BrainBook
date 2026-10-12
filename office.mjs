@@ -10,6 +10,10 @@
 //   known team; a team only teams.yaml knows gets its own room, and a team's own Hermes profiles sit
 //   in its room unless office-map.json seats them elsewhere. A team-lane card shows on the head of the
 //   member working it now (`member`, the card's last commenter in agent-feed.py).
+//   A team is not automatically a department: office-map.json may point a lane at an existing room,
+//   which is how `movie-pro` stays MoviePro's script lane (owner 2026-10-02) instead of becoming a
+//   second room labelled MoviePro beside the real one. Without that mapping the fallback below reads
+//   the registry alone and invents the room, so this rule is read from the map, not re-derived here.
 // - Board columns: waiting (inbox/triage/todo/ready/scheduled), working (running),
 //   stopped (blocked/failed). Scheduled cards also show on the GPU room board (night window).
 // - Every stopped card is also on Yuma's desk in HQ.
@@ -22,7 +26,7 @@ const COLUMN = {
 };
 const SHELF = 5;
 
-export function buildOffice({ cards = [], profiles = [], boards = [], teams = null, map, now = Date.now() / 1000, days = 7 }) {
+export function buildOffice({ cards = [], profiles = [], profileModels = {}, boards = [], teams = null, map, now = Date.now() / 1000, days = 7 }) {
   const nameOf = (profile) => map.profiles[profile] || profile;
   const teamRoom = { ...map.teams };
   const auto = [];
@@ -48,7 +52,7 @@ export function buildOffice({ cards = [], profiles = [], boards = [], teams = nu
   }]));
   const seat = (name, profile) => {
     const room = rooms.get(roomOfAgent(name));
-    const agent = room.agents.get(name) || { name, profiles: [], state: 'idle', card: null };
+    const agent = room.agents.get(name) || { name, profiles: [], state: 'idle', card: null, counts: { working: 0, queued: 0, blocked: 0, done: 0 }, tasks: [] };
     if (profile && !agent.profiles.includes(profile)) agent.profiles.push(profile);
     room.agents.set(name, agent);
     return agent;
@@ -66,16 +70,23 @@ export function buildOffice({ cards = [], profiles = [], boards = [], teams = nu
 
   const desk = [];
   const sorted = [...cards].sort((a, b) => (b.startedAt || b.createdAt || 0) - (a.startedAt || a.createdAt || 0) || String(a.id).localeCompare(String(b.id)));
+  const seenCards = new Set();
   for (const card of sorted) {
+    const sourceKey = `${card.board}:${card.id}`;
+    if (seenCards.has(sourceKey)) continue;
+    seenCards.add(sourceKey);
     if (card.status === 'archived') continue;
     const place = placeOf(card);
     const room = rooms.get(place.room) || rooms.get(map.inbox);
     const member = card.assignee === 'team' && card.member ? nameOf(card.member) : null;
     const who = card.assignee && card.assignee !== 'team' ? nameOf(card.assignee) : card.team ? `${card.team} team${member ? ` · ${member}` : ''}` : null;
-    const item = { id: card.id, board: card.board, title: card.title, status: card.status, who, room: room.id, why: place.why, reason: card.reason || null, at: card.startedAt || card.createdAt || null };
+    const item = { id: card.id, board: card.board, title: card.title, status: card.status, who, room: room.id, why: place.why, reason: card.reason || null, assignmentSource: card.assignee === 'team' ? 'latest_report_author' : 'assignee', at: card.startedAt || card.createdAt || null };
+    const worker = card.assignee === 'team' ? card.member : card.assignee;
+    const agent = worker ? seat(nameOf(worker), profiles.includes(worker) ? worker : null) : null;
     if (card.status === 'done') {
       if ((card.completedAt || card.createdAt || 0) < now - days * 86400) continue;
       room.delivered += 1;
+      if (agent) { agent.counts.done += 1; agent.tasks.push({ ...item, summary: card.result || card.title }); }
       room.shelf.push({ ...item, summary: card.result || card.title, at: card.completedAt || card.createdAt || null });
       continue;
     }
@@ -84,16 +95,18 @@ export function buildOffice({ cards = [], profiles = [], boards = [], teams = nu
     if (card.status === 'scheduled' && room.id !== map.gpu && rooms.has(map.gpu)) rooms.get(map.gpu).board.waiting.push(item);
     if (column === 'stopped') desk.push({ ...item, needsYuma: /yuma|owner|オーナー/i.test(card.reason || '') });
     // The agent's head shows its current card: working beats stopped beats idle.
-    const worker = card.assignee === 'team' ? card.member : card.assignee;
-    if (worker && column !== 'waiting') {
-      const agent = seat(nameOf(worker), worker);
-      if (column === 'working' || agent.state === 'idle') { agent.state = column; agent.card = { id: card.id, title: card.title }; }
+    if (agent) {
+      agent.counts[column === 'working' ? 'working' : column === 'stopped' ? 'blocked' : 'queued'] += 1;
+      agent.tasks.push(item);
+    }
+    if (agent && column !== 'waiting') {
+      if (column === 'working' || agent.state === 'idle') { agent.state = card.assignee === 'team' ? 'reported' : column; agent.card = { id: card.id, title: card.title }; }
     }
   }
 
   const out = [...rooms.values()].map((room) => ({
     ...room,
-    agents: [...room.agents.values()].map((agent) => ({ ...agent, hermes: agent.profiles.some((p) => profiles.includes(p)) })),
+    agents: [...room.agents.values()].map((agent) => ({ ...agent, models: agent.profiles.map(profile => ({ profile, configured: profileModels[profile]?.configured || null, observed: profileModels[profile]?.observed || null, observedAt: profileModels[profile]?.observedAt || null, observedSource: profileModels[profile]?.observedSource || null, source: profileModels[profile]?.source || null })), hermes: agent.profiles.some((p) => profiles.includes(p)) })),
     shelf: room.shelf.sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, SHELF),
   }));
   const count = (column) => out.reduce((sum, room) => sum + (room.id === map.gpu ? room.board[column].filter((c) => c.room === room.id).length : room.board[column].length), 0);

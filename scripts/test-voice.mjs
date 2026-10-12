@@ -34,7 +34,7 @@ const FAKE = `
   window.__fail = (error) => { const r = window.__voice.instances.at(-1); r.onerror({ error }); r.onend(); };
 `;
 
-const server = await createServer({ root, configFile: false, plugins: [react()], logLevel: 'error', server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({ root, cacheDir: path.join(root, '.vite-test'), configFile: false, plugins: [react()], logLevel: 'error', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
 const base = `http://127.0.0.1:${server.httpServer.address().port}/scripts/voice-harness/index.html`;
 const browser = await launchTestBrowser();
@@ -212,7 +212,16 @@ try {
   const team = await open('', 'team');
   await check('team sheet: the direct-member mic fills that box, and Send instructs the picked member', async () => {
     const sheet = team.page.locator('.team-sheet');
-    await sheet.locator('.direct-to button:has-text("Linus Torvalds")').click();
+    // The recipient is read out of the sheet the roster actually rendered rather than typed in here:
+    // a display name in this file goes stale the moment agentRoster.ts renames a persona, and the
+    // last chip is used so the click itself is what moves the instruction to a different member.
+    const member = await team.page.evaluate(() => {
+      const chips = [...document.querySelectorAll('.direct-to button[data-member]')];
+      return chips.length > 1 ? chips.at(-1).dataset.member : null;
+    });
+    assert.ok(member, 'the team sheet drew no direct-member chips to pick from');
+    await sheet.locator(`.direct-to button[data-member="${member}"]`).click();
+    assert.equal(await sheet.locator('.direct-to button.on').getAttribute('data-member'), member, 'the clicked chip is the selected one');
     await sheet.locator('.voice-mic').click();
     assert.equal(await team.page.evaluate(() => window.__voice.instances.at(-1).lang), 'ja-JP');
     await team.page.evaluate(() => { window.__say('テストを', true); window.__say('直して', true); });
@@ -222,7 +231,7 @@ try {
     await settle(async () => assert.equal(await sheet.locator('.voice-mic').getAttribute('aria-pressed'), 'false'));
     await sheet.locator('.direct-send').click();
     await team.page.waitForSelector('.team-sheet .direct-state.is-sent');
-    assert.deepEqual(team.posts, [{ url: '/api/agents/instruct', body: { team: 'app-dev', member: 'MiMo', text: 'テストを直して' } }]);
+    assert.deepEqual(team.posts, [{ url: '/api/agents/instruct', body: { team: 'app-dev', member, text: 'テストを直して' } }]);
     assert.match(await sheet.locator('.direct-state').innerText(), /card t_direct1 \(ready\)/);
     assert.equal(await sheet.locator('textarea').inputValue(), '');
   });

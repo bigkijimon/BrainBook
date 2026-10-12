@@ -16,6 +16,6 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "scripts/*-harness/**/*"],
+  "include": ["src", "release", "scripts/*-harness/**/*"],
   "references": []
 }

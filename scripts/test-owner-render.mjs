@@ -1,0 +1,23 @@
+// Server-rendered DOM regression. This does not measure a browser, layout, focus or click behavior.
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import {createElement} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {mkdir,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+const root=process.cwd();const source=path.resolve(process.env.BRAINBOOK_TEST_SOURCE || root);
+await mkdir('evidence/compiled',{recursive:true});
+const outfile=path.join(root,'evidence/compiled',process.env.BRAINBOOK_TEST_SOURCE?'baseline-control.mjs':'control.mjs');
+await build({entryPoints:[path.join(source,'src/ControlCenter.tsx')],outfile,bundle:true,format:'esm',platform:'node',jsx:'automatic',external:['react','react-dom','lucide-react']});
+const {ControlCenter}=await import(pathToFileURL(outfile));
+const tasks=Array.from({length:6},(_,i)=>({id:`task-${i}`,title:`作業 ${i}：${'全文を保持する長い依頼。'.repeat(8)}`,description:'説明',status:'inbox',lifeArea:i===0?'health':'work',source:'owner',priority:'normal',notes:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}));
+const html=renderToStaticMarkup(createElement(ControlCenter,{work:{tasks,vaultTasks:[],asks:[],focus:'all'},entry:{open:false,onToggle:()=>{},onSaved:()=>{}},actions:{openTask:()=>{},runTask:()=>{},runVault:()=>{},toggle:()=>{}}}));
+await writeFile(`evidence/${process.env.BRAINBOOK_TEST_SOURCE?'red':'green'}-render.html`,html);
+assert.equal((html.match(/<li class="rank-/g)||[]).length,3,'default preview must contain only three summary rows');
+assert.ok(html.includes(tasks[0].title),'all-focus must retain personal-area work');
+assert.ok(html.includes('owner-source'),'full original title must have a native details control');
+assert.ok(html.includes('aria-describedby='),'full text must be tied to the keyboard-focusable row');
+assert.ok(html.includes('作業を検索'),'the aggregate must have search');
+assert.ok(!html.includes('[object Object]'));
+console.log('PASS 6 DOM assertions: compact preview, all areas, full source details, description, search, no object labels (no browser geometry claimed)');

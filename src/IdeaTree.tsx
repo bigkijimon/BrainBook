@@ -3,6 +3,7 @@
 //   gold, solid   = done            magenta, pulsing ring = in progress (with "next step")
 //   cyan outline  = shaped (has requirements / TODO)      dim = seed (just an idea)
 // Branches come from the tree (parent → child); ideas with no parent sit in their shelf's ring.
+import { themePalette } from './theme-palette.mjs';
 import React, { useMemo, useState } from 'react';
 import { CheckCircle2, CircleDashed, FileText, Folder, FolderOpen, GitBranch, LayoutList, Network, Play, Sparkles } from 'lucide-react';
 import type { BrainData, BrainNode, IdeaStage } from './BrainScene';
@@ -138,7 +139,7 @@ export function IdeaTree({ character, brain, area, selected, onSelect, onStart, 
       {ideas.length === 0 ? <p className="tree-empty">No ideas here yet. Press <b>Dump</b> (D) to get them out of your head.</p> :
       <svg viewBox={`${-extent} ${-extent} ${extent * 2} ${extent * 2}`} role="img" aria-label={`${ideas.length} ideas`}>
         <defs>
-          <radialGradient id="tree-done" cx="50%" cy="40%" r="60%"><stop offset="0" stopColor="#fff6dc" /><stop offset="1" stopColor="#ffc44d" /></radialGradient>
+          <radialGradient id="tree-done" cx="50%" cy="40%" r="60%"><stop offset="0" stopColor="#fff6dc" /><stop offset="1" stopColor={themePalette.coral} /></radialGradient>
           <filter id="tree-glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
         </defs>
         {[118, 180, 242, 304, 366].map((r) => <circle key={r} r={r} className="tree-ring" />)}

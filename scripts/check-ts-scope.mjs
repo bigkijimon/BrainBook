@@ -8,6 +8,12 @@
 // TypeScript source the repo ships is missing from it. A new harness added without a matching
 // tsconfig entry fails here instead of nowhere.
 //
+// It covers `.ts`/`.tsx`/`.mts`/`.cts` only, because those are the only extensions tsc reads with
+// `allowJs: false`. The shipped `.mjs` — the browser-driven measurement scripts, and the harness pages
+// those tests serve — is not in any tsc program, and `vite build` builds index.html rather than them,
+// so scripts/check-harness-build.mjs is where that half is covered: it parses every shipped `.mjs` and
+// compiles every harness page, and `npm run build` runs it.
+//
 // Usage: node scripts/check-ts-scope.mjs
 import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';

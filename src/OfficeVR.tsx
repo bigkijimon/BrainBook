@@ -7,6 +7,7 @@
 // - VR headset (WebXR immersive-vr): point a controller at a room and pull the trigger to teleport
 //   there; squeeze to come back to the desk. Viewing only: instructions still go to Bigkiji.
 // WebXR only runs on https:// or this Mac's localhost (a browser rule); the page says so instead of failing.
+import { themePalette } from './theme-palette.mjs';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -58,7 +59,7 @@ function textTexture(lines: Line[], widthPx: number, accent: string, background 
   lines.forEach((line, i) => {
     const size = line.size || 30;
     ctx.font = `${line.bold ? 800 : 500} ${size}px Manrope, "Hiragino Sans", system-ui, sans-serif`;
-    ctx.fillStyle = line.color || '#f6e9ff';
+    ctx.fillStyle = line.color || themePalette.text;
     ctx.textBaseline = 'top';
     ctx.fillText(fit(ctx, line.text, canvas.width - pad * 2), pad, y + size * 0.15);
     y += heights[i];
@@ -96,7 +97,7 @@ function whiteboard(placed: PlacedRoom, tone: string) {
   ctx.strokeStyle = tone;
   ctx.lineWidth = 8;
   ctx.stroke();
-  const columns: [string, OfficeCard[], string][] = [['Working', board.working, '#0f9f74'], ['Stopped', board.stopped, '#d8304e'], ['Waiting', board.waiting, '#6a5a8c']];
+  const columns: [string, OfficeCard[], string][] = [['Working', board.working, themePalette.peach], ['Stopped', board.stopped, '#d8304e'], ['Waiting', board.waiting, '#6a5a8c']];
   columns.forEach(([name, cards, color], col) => {
     const x = 24 + col * 292;
     ctx.fillStyle = color;
@@ -154,7 +155,7 @@ function buildRoom(placed: PlacedRoom, floors: THREE.Object3D[], bobs: Bob[]) {
 
   const title = panel([
     { text: room.label, size: 44, bold: true, color: tone },
-    { text: [room.shared ? 'shared' : room.group, room.teams?.length ? `team ${room.teams.join(', ')}` : null, room.auto ? 'new team' : room.zone].filter(Boolean).join(' · '), size: 24, color: '#c9b3dc' },
+    { text: [room.shared ? 'shared' : room.group, room.teams?.length ? `team ${room.teams.join(', ')}` : null, room.auto ? 'new team' : room.zone].filter(Boolean).join(' · '), size: 24, color: themePalette.secondary },
   ], 3, tone);
   title.position.set(x - 0.7, 2.75, z - half + 0.12);
   group.add(title);
@@ -164,15 +165,15 @@ function buildRoom(placed: PlacedRoom, floors: THREE.Object3D[], bobs: Bob[]) {
   rack.position.set(x + 1.7, 0.55, z - half + 0.35);
   group.add(rack);
   room.shelf.slice(0, 5).forEach((card, i) => {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: '#ffc44d', emissive: '#ff7a45', emissiveIntensity: 0.25 }));
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: themePalette.coral, emissive: themePalette.coral, emissiveIntensity: 0.25 }));
     box.position.set(x + 1.25 + (i % 3) * 0.32, 1.22 + Math.floor(i / 3) * 0.22, z - half + 0.35);
     box.name = `shelf:${card.id}`;
     group.add(box);
   });
   const shelfText = panel([
-    { text: `Shelf · ${room.delivered} delivered`, size: 30, bold: true, color: '#ffc44d' },
+    { text: `Shelf · ${room.delivered} delivered`, size: 30, bold: true, color: themePalette.coral },
     ...(room.shelf.length ? room.shelf.slice(0, 5).map((card) => ({ text: `📦 ${card.summary || card.title}`, size: 22 })) : [{ text: 'Nothing delivered yet', size: 22, color: '#9c88b0' }]),
-  ], 1.3, '#ffc44d');
+  ], 1.3, themePalette.coral);
   shelfText.position.set(x + 1.7, 1.75 + (shelfText.geometry.parameters.height / 2), z - half + 0.2);
   group.add(shelfText);
 
@@ -196,7 +197,7 @@ function buildRoom(placed: PlacedRoom, floors: THREE.Object3D[], bobs: Bob[]) {
     name.position.y = 1.35;
     body.add(name);
     if (agent.card) {
-      const bubble = label([{ text: agent.card.title, size: 26, color: agent.state === 'stopped' ? '#ffb0bc' : '#f6e9ff' }], 1.5, agent.state === 'stopped' ? '#ff4f6e' : '#2fd6a3');
+      const bubble = label([{ text: agent.card.title, size: 26, color: agent.state === 'stopped' ? '#ffb0bc' : themePalette.text }], 1.5, agent.state === 'stopped' ? '#ff4f6e' : themePalette.peach);
       bubble.position.y = 1.68;
       body.add(bubble);
     }
@@ -224,8 +225,8 @@ function buildDesk(office: Office, floors: THREE.Object3D[]) {
   const totals = office.totals;
   const sheet = panel([
     { text: `Yuma’s desk · ${office.desk.length} stopped`, size: 36, bold: true, color: '#ffb0bc' },
-    { text: totals ? `${totals.working} working · ${totals.waiting} waiting · ${totals.delivered} delivered in ${office.days}d · ${totals.profiles} Hermes profiles` : '', size: 22, color: '#c9b3dc' },
-    ...office.desk.slice(0, 8).map((card) => ({ text: `${card.needsYuma ? '⛔' : '🟥'} ${card.title} — ${office.rooms.find((room) => room.id === card.room)?.label || card.room}`, size: 24, color: card.needsYuma ? '#ffb0bc' : '#f6e9ff' })),
+    { text: totals ? `${totals.working} working · ${totals.waiting} waiting · ${totals.delivered} delivered in ${office.days}d · ${totals.profiles} Hermes profiles` : '', size: 22, color: themePalette.secondary },
+    ...office.desk.slice(0, 8).map((card) => ({ text: `${card.needsYuma ? '⛔' : '🟥'} ${card.title} — ${office.rooms.find((room) => room.id === card.room)?.label || card.room}`, size: 24, color: card.needsYuma ? '#ffb0bc' : themePalette.text })),
     ...(office.desk.length > 8 ? [{ text: `+${office.desk.length - 8} more`, size: 22, color: '#9c88b0' }] : []),
   ], 2.6, '#ff8a9a');
   sheet.position.set(0, 0.85 + sheet.geometry.parameters.height / 2, DESK_Z - 0.3);
@@ -396,7 +397,7 @@ export default function OfficeVR() {
 
     // VR: a ray from each controller; trigger = teleport to the room it points at, squeeze = back to the desk.
     let baseSpace: XRReferenceSpace | null = null;
-    const marker = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.32, 32), new THREE.MeshBasicMaterial({ color: '#7ff3e8' }));
+    const marker = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.32, 32), new THREE.MeshBasicMaterial({ color: themePalette.lavender }));
     marker.rotation.x = -Math.PI / 2;
     marker.visible = false;
     scene.add(marker);
@@ -413,7 +414,7 @@ export default function OfficeVR() {
     };
     const controllers = [0, 1].map((index) => {
       const controller = renderer.xr.getController(index);
-      const ray = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]), new THREE.LineBasicMaterial({ color: '#7ff3e8' }));
+      const ray = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]), new THREE.LineBasicMaterial({ color: themePalette.lavender }));
       ray.scale.z = 8;
       controller.add(ray);
       controller.addEventListener('select', () => {

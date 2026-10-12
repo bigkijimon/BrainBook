@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import crypto from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -11,7 +12,7 @@ import { COOKIE, createRemote, findTailscaleAddress } from './remote.mjs';
 import { sortCapture } from './capture.mjs';
 import { createMeetings } from './meeting.mjs';
 import { resolveRouterSubmit, routeTaskLane, submitWorkerText } from './worker-router.mjs';
-import { JEV_CONFIDENCE_FLOOR, JEV_DECISIONS, JEV_SEND_BACK_CODES, formatJevSendBack, judgeJevAnswer } from './jev-decisions.mjs';
+import { JEV_CONFIDENCE_FLOOR, JEV_DECISIONS, JEV_SEND_BACK_CODES, ROUTER_OWN_DECISION_CONFIDENCE, formatJevSendBack, judgeJevAnswer } from './jev-decisions.mjs';
 import { AREA_IDS, classifyArea, createAreaOverrides, normalizeArea, classifyNoteKind, createKindOverrides } from './areas.mjs';
 import { buildBrain } from './brain.mjs';
 import { handleEvolutionRequest } from './investment-evolution.mjs';
@@ -19,6 +20,7 @@ import { createIdeaStore } from './ideas.mjs';
 import { describeStreams, loadStreams } from './streams.mjs';
 import { computeProgress } from './progress.mjs';
 import { buildOffice } from './office.mjs';
+import { collectManagedApps } from './managed-apps.mjs';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
@@ -419,7 +421,9 @@ const buildRouting = async (task, input, existing = null) => {
     worker: router?.worker || base.worker,
     routeSource: router?.routeSource || base.routeSource || 'deterministic',
     routeStatus: router?.routeStatus || base.routeStatus || 'ready',
-    confidence: router?.confidence || base.confidence || 0.76,
+    // The confidence a routing record shows when nothing routed it: the one number the Jev
+    // declaration owns (jev-decisions.mjs), not a copy typed here that could drift from it.
+    confidence: router?.confidence || base.confidence || ROUTER_OWN_DECISION_CONFIDENCE,
     keywords: base.keywords || [],
   };
 };
@@ -455,18 +459,23 @@ const fallbackPlan = (task) => {
 
 const normalizePlan = (value, answer) => {
   if (!value || !Array.isArray(value.phases)) throw new Error('Router returned an invalid plan.');
-  const phases = value.phases.slice(0, 8).map((phase, index) => ({
-    name: trim(phase.name, 100) || `Phase ${index + 1}`,
-    intent: trim(phase.intent, 240) || 'Clarify the goal',
-    steps: Array.isArray(phase.steps) ? phase.steps.map((step) => trim(step, 240)).filter(Boolean).slice(0, 8) : ['Identify the next step'],
-    owner: trim(phase.owner, 80) || 'Agent',
-    exitCriteria: trim(phase.exitCriteria, 240) || 'A verifiable result exists',
+  if (JSON.stringify(value).length > 262144) throw new Error('Task plan exceeds the accepted size; no instructions were truncated.');
+  const text = (s) => typeof s === 'string' ? s : '';
+  const metadata = (entry) => Object.fromEntries(['department','actor','skills','scope','validation','dependencies','deliverables','topAgent'].filter((key) => Object.hasOwn(entry, key)).map((key) => [key, entry[key]]));
+  const phases = value.phases.map((phase, index) => ({
+    ...metadata(phase),
+    name: text(phase.name) || `Phase ${index + 1}`,
+    intent: text(phase.intent) || 'Clarify the goal',
+    steps: Array.isArray(phase.steps) ? phase.steps.map(text).filter(Boolean) : ['Identify the next step'],
+    owner: text(phase.owner) || 'Agent',
+    exitCriteria: text(phase.exitCriteria) || 'A verifiable result exists',
   }));
   return {
-    summary: trim(value.summary, 500) || 'Work plan generated.',
+    summary: text(value.summary) || 'Work plan generated.',
     phases,
-    risks: Array.isArray(value.risks) ? value.risks.map((risk) => trim(risk, 240)).filter(Boolean).slice(0, 8) : [],
-    nextAction: trim(value.nextAction, 500) || phases[0]?.intent || 'Start Phase 01 first.',
+    assignments: Array.isArray(value.assignments) ? value.assignments.map((entry) => metadata(entry)) : [],
+    risks: Array.isArray(value.risks) ? value.risks.map(text).filter(Boolean) : [],
+    nextAction: text(value.nextAction) || phases[0]?.intent || 'Start Phase 01 first.',
     source: 'router',
     model: answer.model,
     worker: answer.worker,
@@ -480,7 +489,8 @@ const generateTaskPlan = async (task) => {
     'You are the planning agent inside BrainBook, a local personal task system.',
     'Analyze the task below and return ONLY valid JSON. Do not use markdown fences.',
     'Do not modify files, run commands, publish anything, or invent completion evidence.',
-    'Return this shape: {"summary":"...","phases":[{"name":"01 / ...","intent":"...","steps":["..."],"owner":"...","exitCriteria":"..."}],"risks":["..."],"nextAction":"..."}',
+    'Return this shape: {"summary":"...","assignments":[{"department":"...","actor":"...","skills":[{"name":"...","source":"..."}],"scope":{"read":[],"write":[]},"validation":[],"dependencies":[]}],"phases":[{"name":"01 / ...","intent":"...","steps":["..."],"owner":"...","department":"...","skills":[],"exitCriteria":"..."}],"risks":["..."],"nextAction":"..."}',
+    'Reuse confirmed existing Skills; do not invent source paths, actor admission or Top receipt. Unknown assignments remain explicitly UNKNOWN. A model-generated Plan is not owner authority or evidence of execution.',
     'Create 3 to 6 clear phases. Make each phase actionable, understandable to a non-technical owner, and include concrete verification steps.',
     `Domain: ${task.routing?.domainLabel || 'Other'}`,
     `Route worker: ${task.routing?.worker || 'hermes'}`,
@@ -522,8 +532,10 @@ const jevRule = () => {
 const kanbanBody = (task, gpu) => [
   `Owner task from BrainBook (priority: ${task.priority}, stream: ${task.routing?.domainLabel || 'Other'}).`,
   '', '## Task', task.title, '', task.description || '(no extra notes)', '',
+  '## Task Plan (metadata, not authority or execution evidence)', JSON.stringify(task.plan || null), '',
   '## Rules for this run',
-  '- You are Bigkiji. Define the finish line, then route engineering work through the AI Router (`AI/router/bin/submit`): Retain the free-only worker policy for implementation, QA, debugging and retries. Select a capable reviewer through Router using verified model availability; do not treat a failed free attempt as spending authority. Claude Code is the coordinating brain. Do NOT use Codex (retired by the owner; keep its files).',
+  '- Bigkiji is the owner-selected Hermes main-model coordinator, not a fixed provider/model. Preserve the recorded Plan, authenticated intent and task/revision. Router/Themis selects ordinary workers under the applicable free-only policy; failure is not spending authority. Worker-route retirement is not a ban on an owner-selected coordinator. Independent qualified review and installed admission remain separate.',
+  '- At specialist dispatch, send the same complete instruction/Plan/source identity to the responsible existing department Top as a supervisory copy; verify its receive acknowledgment. Do not create another implementation or invent a Top/inbox/receipt. Missing Top delivery is an unresolved dependency, not completed fan-out.',
   jevRule(),
   gpu ? '- This task needs the GPU. It was released inside the night GPU window. Use `gpu-job` / movie-pro only; never start ComfyUI directly; stop if `movie-pro.operator-hold` exists.' : '- Do not start or wake the GPU / local models for this task. If it turns out to need the GPU, block the card with the reason instead.',
   '- Publication, deployment, spending, credentials, or production-data changes need the owner: block the card and state the exact decision needed.',
@@ -532,12 +544,12 @@ const kanbanBody = (task, gpu) => [
 // Members the owner can instruct directly (display name -> Hermes profile and board).
 // Must match MOVIE_DIRECT / "direct" in agent-feed.py.
 const DIRECT_MEMBERS = {
-  Steve: { profile: 'stevenspielberg', board: 'movie', team: 'movie' },
+  Steve: { profile: 'moviepro', board: 'movie', team: 'movie' },
   Kuro: { profile: 'kuro', board: 'movie', team: 'movie' },
-  Ame: { profile: 'ame', board: 'movie', team: 'movie' },
-  Shimajiro: { profile: 'mame', board: 'movie', team: 'movie' },
-  Maru: { profile: 'maru', board: 'movie', team: 'movie' },
-  Sora: { profile: 'sora', board: 'owner', team: 'blog' },
+  Ame: { profile: 'eduresearchpro', board: 'movie', team: 'movie' },
+  Shimajiro: { profile: 'eduleadpro', board: 'movie', team: 'movie' },
+  Maru: { profile: 'gpupro', board: 'movie', team: 'movie' },
+  Sora: { profile: 'blogpro', board: 'owner', team: 'blog' },
 };
 // Router teams (AppPro, AccountPro, ClassPro, VIT, Igataya; owner 2026-10-01: "各グループにオーナーが
 // 直接指示できる項目ですが、Movieproにしか反映されていない"). Every team gets the same three members:
@@ -576,6 +588,9 @@ const teamFor = async (text) => {
 };
 const queueTaskRun = async (task) => {
   if (task.kanban && !['done', 'archived'].includes(task.kanban.status)) return task; // already queued
+  const assigned = (plan) => plan && plan.source !== 'fallback' && Array.isArray(plan.phases) && plan.phases.length > 0 && Array.isArray(plan.assignments) && plan.assignments.length > 0 && plan.assignments.every((entry) => entry && typeof entry.department === 'string' && entry.department && !/unknown/i.test(entry.department) && typeof entry.actor === 'string' && entry.actor && !/unknown/i.test(entry.actor) && Array.isArray(entry.skills) && entry.skills.length > 0 && entry.skills.every((skill) => skill && typeof skill.name === 'string' && skill.name && typeof skill.source === 'string' && skill.source && !/unknown/i.test(skill.source)) && entry.scope && Array.isArray(entry.scope.write) && Array.isArray(entry.validation) && entry.validation.length > 0);
+  if (!assigned(task.plan)) task = { ...task, plan: await generateTaskPlan(task) };
+  if (!assigned(task.plan)) throw new Error('PLAN_ASSIGNMENT_INCOMPLETE: no task was dispatched; department, actor, confirmed Skill sources, exclusive scope and verification are required before Run.');
   const gpu = task.routing?.worker === 'qwen' || GPU_WORDS.test(`${task.title} ${task.description}`);
   const key = `brainbook-${crypto.createHash('sha256').update(`${task.id}:${task.updatedAt}`).digest('hex').slice(0, 24)}`;
   // Specialist team first (owner 2026-09-29): Bigkiji routes, it does not do the work.
@@ -1143,6 +1158,28 @@ const handleApi = async (req, res, url) => {
     await saveSettings({ character: next });
     return json(res, { name: next.name, image: next.image ? `/api/character/image?v=${next.updatedAt}` : '/character-default.svg', custom: Boolean(next.image) });
   }
+  if (url.pathname === '/api/managed-apps' && req.method === 'GET') {
+    try { return json(res, await collectManagedApps()); }
+    catch { return json(res, {error:'Managed app inventory unavailable'}, 502); }
+  }
+  // Product metrics proxy (avoids CORS when BrainBook fetches from StudyAbroadOS /api/admin/metrics)
+  if (url.pathname === '/api/product-metrics/studyabroados' && req.method === 'GET') {
+    const targetUrl = 'https://studyabroad.hsacademy202404.site/api/admin/metrics';
+    const adminToken = process.env.STUDYABROADOS_ADMIN_TOKEN || settings.studyabroadosAdminToken;
+    if (!adminToken) return json(res, { error: 'studyabroadosAdminToken not configured in config.json' }, 500);
+    try {
+      const response = await fetch(targetUrl, { 
+        cache: 'no-store', 
+        signal: AbortSignal.timeout(8000),
+        headers: { 'x-admin-token': adminToken }
+      });
+      if (!response.ok) throw new Error(`Upstream ${response.status}`);
+      const data = await response.json();
+      return json(res, data);
+    } catch (error) {
+      return json(res, { error: `Failed to fetch metrics: ${String(error.message || error).slice(0, 200)}` }, 502);
+    }
+  }
   if (url.pathname === '/api/agents/flow' && req.method === 'GET') {
     const since = Math.max(0, Number(url.searchParams.get('since')) || 0);
     const hermesHome = expandHome(process.env.HERMES_HOME || settings.hermesHome || '~/.hermes');
@@ -1151,7 +1188,7 @@ const handleApi = async (req, res, url) => {
       const { stdout } = await execFileAsync(process.env.ASTER_PYTHON || '/usr/bin/python3', [path.join(root, 'agent-feed.py'), hermesHome, 'flow', String(since), jobs], { timeout: 6000, maxBuffer: 2 * 1024 * 1024 });
       return json(res, JSON.parse(stdout));
     } catch {
-      return json(res, { handoffs: [], agents: [] });
+      return json(res, { handoffs: [], agents: [], error: '稼働状況を取得できません' }, 502);
     }
   }
   if (url.pathname === '/api/agents/teams' && req.method === 'GET') {
@@ -1353,7 +1390,7 @@ const handleApi = async (req, res, url) => {
   if (url.pathname === '/api/hermes/idea' && req.method === 'POST') {
     // Native BrainBook pastes into the already-running dashboard PTY; the paired-phone terminal remains separate.
     const { path: notePath, target = 'terminal' } = await readBody(req);
-    if (!['terminal', 'dashboard'].includes(target)) return json(res, { error: 'Unknown Hermes target' }, 400);
+    if (!['terminal', 'dashboard', 'copy'].includes(target)) return json(res, { error: 'Unknown Hermes target' }, 400);
     if (target === 'dashboard' && req.remoteDevice) return json(res, { error: 'The local Hermes Dashboard is not available to paired phones' }, 403);
     const note = ideaStore.resolveNote(notePath);
     if (!note) return json(res, { error: 'Not a vault note' }, 400);
@@ -1375,7 +1412,7 @@ const handleApi = async (req, res, url) => {
       ? ` It is in progress${where?.lastDid ? `; last done: “${where.lastDid}”` : ''}${where?.next ? `; next step: “${where.next}”` : ''}. Continue from there.`
       : self?.stage === 'done' ? ' It is marked done; check whether anything is left.' : '';
     const text = `I want to ${self?.stage === 'active' ? 'continue' : 'start'} the idea “${self?.title || path.basename(note.relative, '.md')}”. Note: ${note.absolute}.${resume}${related} Read the note${neighbours.length ? ' and the connected ideas' : ''} first. When you stop, record progress in the note under “## Progress” as “- YYYY-MM-DD HH:MM — what you did → next: the next step”, and set next_step in the frontmatter.`;
-    if (target === 'dashboard') return json(res, { ok: true, prompt: cleanPasteText(text), related: neighbours.length });
+    if (target === 'dashboard' || target === 'copy') return json(res, { ok: true, prompt: cleanPasteText(text), related: neighbours.length });
     const result = terminalFor(req).paste(text); // an idea opened on the phone goes to the phone's Hermes
     return json(res, { ...result, related: neighbours.length }, result.ok ? 200 : 503);
   }
@@ -1506,15 +1543,30 @@ process.on('exit', () => { terminal.stop(); phoneTerminal.stop(); });
 let vite;
 if (dev) {
   const { createServer } = await import('vite');
-  vite = await createServer({ root, server: { middlewareMode: true }, appType: 'spa' });
+  vite = await createServer({ root, configLoader: 'runner', cacheDir: path.join(root, '.vite-stage'), server: { middlewareMode: true }, appType: 'spa' });
 }
 
 // Local window: only this Mac (loopback) and only pages served by BrainBook itself.
 const localHosts = () => { const actual = server.address()?.port || port; return new Set([`127.0.0.1:${actual}`, `localhost:${actual}`]); };
 const localRequestAllowed = (req) => {
-  if (!localHosts().has(req.headers.host)) return false; // blocks DNS-rebinding pages
+  if (!localHosts().has(req.headers.host)) return false;
+  const peer = req.socket?.remoteAddress || '';
+  const ipVersion = isIP(peer);
+  if (!(ipVersion === 4 && peer.startsWith('127.')) &&
+      !(ipVersion === 6 && (peer === '::1' || peer.startsWith('::ffff:127.')))) return false;
   const origin = req.headers.origin;
-  return !origin || origin === 'null' || localHosts().has(origin.replace(/^https?:\/\//, ''));
+  if (origin === undefined) {
+    // Browser cross/same-site requests cannot fall through the native CLI lane.
+    return !['cross-site', 'same-site'].includes(req.headers['sec-fetch-site']);
+  }
+  if (typeof origin !== 'string' || !origin || origin === 'null') return false;
+  try {
+    const parsed = new URL(origin);
+    return parsed.protocol === 'http:' && !parsed.username && !parsed.password &&
+      parsed.pathname === '/' && !parsed.search && !parsed.hash && localHosts().has(parsed.host);
+  } catch {
+    return false;
+  }
 };
 // Phones: only paired devices. Unpaired phones may load the pairing page and nothing else.
 const PAIR_OPEN_PATHS = [/^\/pair$/, /^\/api\/pair\/claim$/, /^\/assets\//, /^\/favicon/, /^\/manifest\.webmanifest$/, /^\/icon-\d+\.png$/];

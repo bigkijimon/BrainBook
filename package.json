@@ -5,14 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "node server.mjs --dev",
-    "build": "node scripts/sync-loading.mjs && vite build",
+    "build": "node scripts/sync-theme-palette.mjs && node scripts/sync-loading.mjs && node scripts/check-harness-build.mjs && vite build",
     "start": "node server.mjs",
     "smoke": "node server.mjs --smoke",
-    "test:criteria": "node --test tests/jev-decisions.test.mjs tests/worker-router.test.mjs tests/next-work.test.mjs",
+    "test:criteria": "node --test tests/jev-decisions.test.mjs tests/worker-router.test.mjs tests/next-work.test.mjs tests/live-work.test.mjs",
     "test:log": "node scripts/test-server-log.mjs",
     "test:browser": "node scripts/test-browser.mjs",
+    "test:control-center": "node scripts/test-control-center.mjs",
     "test:voice": "node scripts/test-voice.mjs",
+    "test:team-sheet": "node scripts/test-team-sheet-fit.mjs",
+    "verify:popup": "npm run test:team-sheet && npm run test:voice",
     "check:ts-scope": "node scripts/check-ts-scope.mjs",
+    "check:harness": "node scripts/check-harness-build.mjs",
     "check:release": "node scripts/check-release-info.mjs"
   },
   "dependencies": {

@@ -5,44 +5,42 @@
 // and onLiveChange reports the running meeting up so the panel can switch its own header/body.
 // This poll stays the single source of "is a meeting running" — the panel deliberately does not
 // fetch /api/meetings itself.
+import { themePalette } from './theme-palette.mjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Loader2, Play, Users } from 'lucide-react';
 import { memberTone } from './TeamRail';
+import { messageSummary, resultLinks, displayTitle } from './owner-console.mjs';
 
 type Line = { kind: 'say' | 'absent'; who: string; text: string; at: number; seconds?: number };
 type Summary = { theme: string; decision: string; actions: string; ideas: string; raw: string | null; rawFallback: boolean; isError: boolean };
 type Meeting = { id: string; topic: string; members: string[]; status: 'running' | 'done' | 'failed'; startedAt: number; endedAt: number | null; speaking: string | null; lines: Line[]; error?: string; summary?: Summary };
 type Attendee = { persona: string; group: string; member: boolean };
 
-// A long decision clamps to ~4 lines; "全文" reveals the rest. ~110 chars is roughly 4 lines
+// A long decision clamps to ~4 lines; "Full text" reveals the rest. ~110 chars is roughly 4 lines
 // at the summary card's width, so shorter text never shows a toggle with nothing to expand.
 const CLAMP_THRESHOLD = 110;
 
 function SummaryCard({ summary }: { summary: Summary }) {
   const [expanded, setExpanded] = useState(false);
-  const resultLabel = summary.isError ? '結果（エラー）' : summary.rawFallback ? '結果（発言の全文）' : '結果';
+  const resultLabel = summary.isError ? 'Result (error)' : summary.rawFallback ? 'Result (original replies)' : 'Result (original report)';
   const canExpand = summary.decision.length > CLAMP_THRESHOLD;
   return <dl className="meeting-summary">
     <div className="meeting-summary-row">
-      <dt>テーマ</dt>
-      <dd>{summary.theme}</dd>
-    </div>
-    <div className="meeting-summary-row">
       <dt>{resultLabel}</dt>
       <dd>
-        <p className={`meeting-summary-decision ${expanded ? 'is-expanded' : ''} ${summary.isError ? 'is-error' : ''}`}>{summary.decision}</p>
-        {canExpand && <button type="button" className="meeting-summary-more" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? '閉じる' : '全文'}</button>}
+        <p className={`meeting-summary-decision ${expanded ? 'is-expanded' : ''} ${summary.isError ? 'is-error' : ''}`}>{summary.isError ? messageSummary(summary.decision) : summary.decision}</p>
+        {canExpand && <button type="button" className="meeting-summary-more" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Close' : 'Full text'}</button>}
       </dd>
     </div>
     {!summary.isError && !summary.rawFallback && summary.actions && <div className="meeting-summary-row">
-      <dt>次のアクション</dt>
+      <dt>Next actions (original report)</dt>
       <dd><p className="meeting-summary-actions">{summary.actions}</p></dd>
     </div>}
   </dl>;
 }
 
 const when = (seconds: number) => new Intl.DateTimeFormat('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(seconds * 1000));
-const HOST_TONE = '#ff4fa3';
+const HOST_TONE = themePalette.pink;
 
 export function MeetingRoom({ remote, embed = false, onLiveChange }: { remote: boolean; embed?: boolean; onLiveChange?: (live: { id: string; topic: string } | null) => void }) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -52,6 +50,7 @@ export function MeetingRoom({ remote, embed = false, onLiveChange }: { remote: b
   const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
+  const [all, setAll] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -94,7 +93,7 @@ export function MeetingRoom({ remote, embed = false, onLiveChange }: { remote: b
 
   const nameOf = (who: string) => attendees[who]?.persona || who;
   const toneOf = (who: string) => (who === 'Bigkiji' ? HOST_TONE : memberTone(who));
-  const current = openId ?? meetings[0]?.id ?? null;
+  const current = openId ?? live?.id ?? null;
   const members = Object.entries(attendees).filter(([, who]) => who.member);
 
   // embed + running: AgentChatPanel's own header already reads "Meeting: <topic>", so this
@@ -103,13 +102,13 @@ export function MeetingRoom({ remote, embed = false, onLiveChange }: { remote: b
   const showIntro = !embed || !live;
   const content = <>
     {showIntro && <header className="meeting-head">
-      <h3 id="meeting-heading"><Users size={16} strokeWidth={1.8} /> Meeting room</h3>
-      <small>Bigkiji hosts. The group leads brainstorm on your topic. Every line is the agent’s real reply.</small>
+      <h3 id="meeting-heading"><Users size={16} strokeWidth={1.8} /> Meeting</h3>
+      <small>Bigkiji hosts. Check recorded replies and results.</small>
     </header>}
 
-    {!remote && showIntro && <form className="meeting-form" onSubmit={start}>
+    {!remote && showIntro && <details className="compose-fold"><summary>Start a meeting</summary><form className="meeting-form" onSubmit={start}>
       <textarea rows={2} value={topic} maxLength={600} disabled={Boolean(live)} aria-label="Meeting topic"
-        placeholder={live ? 'A meeting is in progress…' : 'Topic, e.g. “How do we sell Mr.INV to the first 10 car shops?”'} onChange={(event) => setTopic(event.target.value)} />
+        placeholder={live ? 'A meeting is in progress…' : 'Enter a topic'} onChange={(event) => setTopic(event.target.value)} />
       <div className="meeting-invite" role="group" aria-label="Who joins">
         <span className="meeting-chip is-host" style={{ ['--agent' as string]: HOST_TONE }}>🎙️ Bigkiji <small>host</small></span>
         {members.map(([name, who]) => <label key={name} className={`meeting-chip ${picked.has(name) ? 'on' : ''}`} style={{ ['--agent' as string]: toneOf(name) }}>
@@ -118,34 +117,34 @@ export function MeetingRoom({ remote, embed = false, onLiveChange }: { remote: b
         </label>)}
       </div>
       <div className="meeting-foot">
-        <small>{live ? `Running since ${when(live.startedAt)}.` : 'Two rounds, then Bigkiji sums up. Nothing is started without you.'}</small>
+        <small>{live ? `Running since ${when(live.startedAt)}.` : 'Bigkiji sums up after two rounds.'}</small>
         <button className="submit-button" type="submit" disabled={!topic.trim() || !picked.size || starting || Boolean(live)}>{starting ? <Loader2 size={14} className="spin" /> : <Play size={14} />}Start meeting</button>
       </div>
       {error && <p className="capture-error" role="alert">{error}</p>}
-    </form>}
+    </form></details>}
 
-    <ol className="meeting-list">
-      {meetings.map((meeting) => {
+    <details className="meeting-history" open={Boolean(live) || undefined}><summary>Meeting history ({meetings.length})</summary><ol className="meeting-list">
+      {meetings.slice(0,all?undefined:3).map((meeting) => {
         const expanded = current === meeting.id;
         const said = meeting.lines.filter((line) => line.kind === 'say').length;
         return <li key={meeting.id} className={`meeting-item is-${meeting.status}`}>
           <button type="button" className="meeting-row" aria-expanded={expanded} onClick={() => setOpenId(expanded ? '' : meeting.id)}>
             <span className="meeting-main">
-              <b>{meeting.status !== 'running' && meeting.summary ? meeting.summary.theme : meeting.topic}</b>
-              <small>{meeting.status === 'running' ? <em className="chat-state is-moving">🟢 Live</em> : meeting.status === 'done' ? <em className="chat-state is-done">✅ Finished</em> : <em className="chat-state is-stopped">❌ Stopped</em>} {when(meeting.startedAt)} · {said} lines · {['Bigkiji', ...meeting.members].map(nameOf).join(', ')}</small>
+              <b>{displayTitle(meeting.status !== 'running' && meeting.summary ? meeting.summary.theme : meeting.topic,60)}</b>
+              <small>{meeting.status === 'running' ? <em className="chat-state is-moving">In progress</em> : meeting.status === 'done' ? <em className="chat-state is-done">Done</em> : <em className="chat-state is-stopped">Stopped</em>} {when(meeting.startedAt)} · {said} replies · {['Bigkiji', ...meeting.members].map(nameOf).join(', ')}</small>
             </span>
             <ChevronDown size={16} className="chat-chevron" />
           </button>
-          {meeting.status !== 'running' && meeting.summary && <SummaryCard summary={meeting.summary} />}
-          {expanded && <p className="meeting-full-topic"><b>トピック</b> {meeting.topic}</p>}
+          {expanded && meeting.status !== 'running' && meeting.summary && <><SummaryCard summary={meeting.summary} />{resultLinks(meeting.summary.decision).map(url=><a key={url} href={url} target="_blank" rel="noreferrer">Open result</a>)}<details><summary>Original result and source</summary><p className="source-text">{meeting.summary.raw || meeting.summary.decision}</p><small>{meeting.id}</small></details></>}
+          {expanded && <details><summary>Original topic</summary><p className="meeting-full-topic">{meeting.topic}</p></details>}
           {expanded && <ol className="chat-messages meeting-lines" ref={(node) => { if (node && meeting.status === 'running') node.scrollTop = node.scrollHeight; }}>
             {meeting.lines.map((line, index) => line.kind === 'absent'
-              ? <li key={index} className="meeting-absent">🚪 {nameOf(line.who)} could not join: {line.text}</li>
+              ? <li key={index} className="meeting-absent">🚪 {nameOf(line.who)} could not join: {messageSummary(line.text)}<details><summary>Original</summary><p>{line.text}</p></details></li>
               : <li key={index} className={`chat-message ${line.who === 'Bigkiji' ? 'is-host' : ''}`} style={{ ['--agent' as string]: toneOf(line.who) }}>
                 <i className="chat-avatar" aria-hidden="true">{nameOf(line.who).slice(0, 1)}</i>
                 <div className="chat-bubble">
                   <header><b>{nameOf(line.who)}</b><span>{line.who === 'Bigkiji' ? 'host' : attendees[line.who]?.group}</span>{line.seconds !== undefined && <time>{line.seconds}s</time>}</header>
-                  <p className="meeting-text">{line.text}</p>
+                  <p className="meeting-text">Original reply: {line.text}</p><time>{when(line.at)}</time>
                 </div>
               </li>)}
             {meeting.speaking && <li className="meeting-typing" style={{ ['--agent' as string]: toneOf(meeting.speaking) }}><Loader2 size={13} className="spin" /> {nameOf(meeting.speaking)} is thinking…</li>}
@@ -153,7 +152,7 @@ export function MeetingRoom({ remote, embed = false, onLiveChange }: { remote: b
           </ol>}
         </li>;
       })}
-    </ol>
+    </ol>{meetings.length>3 && <button className="console-more" type="button" aria-expanded={all} onClick={()=>setAll(v=>!v)}>{all?'Show less':'Show all meetings'}</button>}</details>
   </>;
 
   if (embed) return <div className="meeting-embed">{content}</div>;

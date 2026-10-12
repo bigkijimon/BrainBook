@@ -150,9 +150,18 @@ try {
     // clamp hides words with no sign that anything is missing. And squeezed text: a label
     // that does end in an ellipsis but has been pushed down to a few characters
     // ("UPCLAS…", "Wh…") is unreadable even though nothing technically overflows.
+    //
+    // `.sr-only` is exempt here and nowhere else: it is a 1px clipped node whose only reader is a
+    // screen reader, so it has no visible line to cut and no owner-facing text to hide. It is not a
+    // general "small or hidden element" escape hatch - a visible 90px label that clips its own words
+    // still fails below. AgentChatPanel's `role="status"` line is the reason this exemption is
+    // needed rather than merely tidy: it is a 1px nowrap clip by definition, so without the skip it
+    // would be reported as cut text on every run. The sr-only notes in ControlCenter and TeamRail
+    // exist so that text which IS cut visually has a description carrying it; the description itself
+    // must not be mistaken for the cut.
     const SQUEEZED_PX = 96;
     for (const el of all) {
-      if (el.closest('[aria-hidden="true"], .toast-stack')) continue;
+      if (el.closest('[aria-hidden="true"], .sr-only, .toast-stack')) continue;
       const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
       if (!hasText) continue;
       const cs = getComputedStyle(el);

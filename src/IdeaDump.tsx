@@ -1,3 +1,4 @@
+import {useModalFocus} from './useModalFocus';
 // Dump: get every idea out of your head fast. One idea per line; indent a line to make it a
 // branch of the line above. Each line becomes its own Obsidian note, wired into the brain.
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -32,6 +33,7 @@ type Props = {
 };
 
 export function IdeaDump({ parent, area, onClose, onSubmit }: Props) {
+  const panel=useRef<HTMLElement>(null);useModalFocus(panel,onClose);
   const [raw, setRaw] = useState('');
   const [chosen, setChosen] = useState<LifeArea | 'auto'>(area === 'all' ? 'auto' : area);
   const [busy, setBusy] = useState(false);
@@ -66,7 +68,7 @@ export function IdeaDump({ parent, area, onClose, onSubmit }: Props) {
   };
 
   return <div className="dialog-backdrop dump-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="dump" role="dialog" aria-modal="true" aria-labelledby="dump-title">
+    <section ref={panel} tabIndex={-1} className="dump" role="dialog" aria-modal="true" aria-labelledby="dump-title">
       <header className="dump-head">
         <div>
           <span className="eyebrow">STEP 1 · DUMP</span>

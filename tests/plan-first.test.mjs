@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import vm from 'node:vm';import crypto from 'node:crypto';
+const source=await fs.readFile(new URL('../server.mjs',import.meta.url),'utf8');const from=source.indexOf('const queueTaskRun =');const code=source.slice(from,source.indexOf('let kanbanCache',from));
+test('actual queue refuses fallback/unassigned Plan before any dispatcher call',async()=>{
+ const calls=[];const ctx=vm.createContext({crypto,now:()=> 'fixture',GPU_WORDS:/gpu/i,KANBAN_BOARD:'owner',kanbanStatusToTask:{ready:'working'},teamFor:async()=> 'app-dev',kanbanBody:()=> 'fixture',generateTaskPlan:async()=>({source:'fallback',phases:[{steps:['verify']}],assignments:[]}),runHermesKanban:async(args)=>{calls.push(args);return JSON.stringify({id:'synthetic',status:'ready'});}});
+ vm.runInContext(code+'\nthis.queue=queueTaskRun;',ctx);await assert.rejects(()=>ctx.queue({id:'fixture',title:'Local code',updatedAt:'fixture'}),/PLAN_ASSIGNMENT_INCOMPLETE/);assert.equal(calls.length,0);
+});
+test('assigned Plan reaches one queue boundary and a linked retry is idempotent',async()=>{
+ const calls=[];const plan={source:'router',phases:[{steps:['verify']}],assignments:[{department:'app-dev',actor:'synthetic',skills:[{name:'test-driven-development',source:'synthetic-confirmed-source'}],scope:{write:['none']},validation:['synthetic-read-only-check']}]};
+ const ctx=vm.createContext({crypto,now:()=> 'fixture',GPU_WORDS:/gpu/i,KANBAN_BOARD:'owner',kanbanStatusToTask:{ready:'working'},teamFor:async()=> 'app-dev',kanbanBody:t=>JSON.stringify(t.plan),generateTaskPlan:async()=>{throw new Error('No regeneration for a complete Plan');},runHermesKanban:async(args)=>{calls.push(args);return JSON.stringify({id:'synthetic-not-created',status:'ready'});}});
+ vm.runInContext(code+'\nthis.queue=queueTaskRun;',ctx);const result=await ctx.queue({id:'fixture',title:'Local code',updatedAt:'fixture',plan});assert.equal(calls.length,1);assert.ok(calls[0][calls[0].indexOf('--body')+1].includes('test-driven-development'));await ctx.queue(result);assert.equal(calls.length,1);
+});

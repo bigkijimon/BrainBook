@@ -2,6 +2,7 @@
 // Every Obsidian idea/project note is a neuron, grouped by life area around the core.
 // Real links (Obsidian [[wikilinks]], Graphify, shared subjects) are the wiring, and signals travel along them.
 // Background mode: slow, dim, never catches clicks. Focus mode (Brain button): orbit, hover, click a neuron.
+import { themePalette } from './theme-palette.mjs';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -13,7 +14,7 @@ export type BrainNode = { id: string; title: string; kind: string; lifeArea: Lif
 export type BrainLink = { source: string; target: string; kind: 'branch' | 'wikilink' | 'graphify' | 'related'; weight: number };
 export type BrainData = { nodes: BrainNode[]; links: BrainLink[]; sources: { obsidian: { notes: number }; graphify: { available: boolean; builtAt: string | null; notesCovered: number; noteLinks: number }; counts: Record<string, number> } };
 
-export const AREA_COLOR: Record<LifeArea, number> = { finance: 0xffc44d, learning: 0x2be8d9, 'mental-health': 0x48f0c8, work: 0xff4fa3, play: 0xff7a45 };
+export const AREA_COLOR: Record<LifeArea, number> = { finance: Number.parseInt(themePalette.coral.slice(1), 16), learning: Number.parseInt(themePalette.lavender.slice(1), 16), 'mental-health': Number.parseInt(themePalette.peach.slice(1), 16), work: Number.parseInt(themePalette.pink.slice(1), 16), play: Number.parseInt(themePalette.coral.slice(1), 16) };
 const AREA_ANCHOR: Record<LifeArea, [number, number, number]> = {
   work: [0.9, 0.35, 1.9],
   finance: [2.0, 0.85, 0.3],
@@ -140,14 +141,14 @@ export function BrainScene({ data, area, focus, selected, pulse, onHover, onSele
     scene.add(world);
 
     // Core: the hub every area reports to.
-    const coreMaterial = new THREE.MeshBasicMaterial({ color: 0xff4fa3, wireframe: true, transparent: true, opacity: 0.22, depthWrite: false });
+    const coreMaterial = new THREE.MeshBasicMaterial({ color: Number.parseInt(themePalette.pink.slice(1), 16), wireframe: true, transparent: true, opacity: 0.22, depthWrite: false });
     const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.62, 2), coreMaterial);
-    const innerMaterial = new THREE.MeshBasicMaterial({ color: 0x7b2ff7, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
+    const innerMaterial = new THREE.MeshBasicMaterial({ color: Number.parseInt(themePalette.lilac.slice(1), 16), transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
     const inner = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 3), innerMaterial);
-    const haloMaterial = new THREE.SpriteMaterial({ map: texture, color: 0xff4fa3, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
+    const haloMaterial = new THREE.SpriteMaterial({ map: texture, color: Number.parseInt(themePalette.pink.slice(1), 16), transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
     const halo = new THREE.Sprite(haloMaterial);
     halo.scale.setScalar(3.2);
-    const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x2be8d9, transparent: true, opacity: 0.18, depthWrite: false });
+    const ringMaterial = new THREE.MeshBasicMaterial({ color: Number.parseInt(themePalette.lavender.slice(1), 16), transparent: true, opacity: 0.18, depthWrite: false });
     const rings = [1.0, 1.18].map((radius, i) => { const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.006, 6, 128), ringMaterial); ring.rotation.set(1.1 + i * 0.5, 0.3 - i * 0.6, 0); return ring; });
     world.add(core, inner, halo, ...rings);
 
@@ -157,7 +158,7 @@ export function BrainScene({ data, area, focus, selected, pulse, onHover, onSele
     const dustCol = new Float32Array(dustCount * 3);
     const dustSize = new Float32Array(dustCount);
     const dustGlow = new Float32Array(dustCount).fill(0.28);
-    const palette = [0xff4fa3, 0x2be8d9, 0xffc44d, 0x8a5fa0].map((c) => new THREE.Color(c));
+    const palette = [Number.parseInt(themePalette.pink.slice(1), 16), Number.parseInt(themePalette.lavender.slice(1), 16), Number.parseInt(themePalette.coral.slice(1), 16), 0x8a5fa0].map((c) => new THREE.Color(c));
     for (let i = 0; i < dustCount; i += 1) {
       const r = 3.6 + hash(`d${i}`) * 5; const th = hash(`t${i}`) * Math.PI * 2; const ph = Math.acos(2 * hash(`p${i}`) - 1);
       dustPos.set([r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph) * 0.7, r * Math.sin(ph) * Math.sin(th)], i * 3);
@@ -318,7 +319,7 @@ export function BrainScene({ data, area, focus, selected, pulse, onHover, onSele
       nodes.forEach((node, i) => {
         const k = (active(i) ? (state.focus ? 0.07 : 0.035) : 0.008) * (selectedIndex === i ? 4 : 1);
         c.set(AREA_COLOR[node.lifeArea]).multiplyScalar(k); spokeColor.setXYZ(i * 2, c.r, c.g, c.b);
-        c.set(0xff4fa3).multiplyScalar(k * 0.5); spokeColor.setXYZ(i * 2 + 1, c.r, c.g, c.b);
+        c.set(Number.parseInt(themePalette.pink.slice(1), 16)).multiplyScalar(k * 0.5); spokeColor.setXYZ(i * 2 + 1, c.r, c.g, c.b);
       });
       spokeColor.needsUpdate = true;
       if (!state.focus) { setLabels([]); return; }

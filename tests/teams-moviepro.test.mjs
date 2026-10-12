@@ -6,6 +6,13 @@
 // Everything the command reads is a fixture written under os.tmpdir(): HERMES_HOME, the Router
 // config dir (teams.yaml, workers.yaml, adapters/mimo) and the Router jobs dir. No real config,
 // Kanban board or profile is touched, so the test is deterministic and read-only.
+//
+// The other half of "one team" is the word on the surfaces that print a team without the card — the
+// live strip and the hand-off log — where the lane used to be announced as the raw id `movie-pro`
+// and MoviePro's own work as `movie`. `team_short_name` (agent-feed.py) is the one function both
+// feeds read, and it is pinned in tests/test_reviewed_team_structure.py, next to the other display
+// units. It cannot be pinned here: a hand-off that carries a team name comes out of a Kanban board
+// database, and building one needs a sqlite driver this suite does not have.
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -75,6 +82,11 @@ test('the team list shows MoviePro once, with the script lane inside it', async 
 
   assert.equal(named.length, 1, `expected one MoviePro card, got ${JSON.stringify(body.teams.map((t) => [t.id, t.name, t.label]))}`);
   assert.equal(named[0].id, 'movie');
+  // The one card is *named* MoviePro, and this is load-bearing now that TEAM_SHORT carries the lane
+  // as well as the team (agent-feed.py): a lane card that stopped being skipped would be named the
+  // same word, so the count and the id above are the only things standing between the owner and two
+  // identically named cards. The card must answer to the team, never to the Router lane's own label.
+  assert.equal(named[0].name, 'MoviePro', `the MoviePro card is named ${named[0].name}, not the team`);
   assert.doesNotMatch(JSON.stringify(body.teams), /Film Group/, 'the Film Group card is the duplicate this replaces');
   assert.ok(!body.teams.some((team) => team.id === 'movie-pro'), 'the script lane is not its own card');
 
@@ -104,10 +116,29 @@ test('the team list shows MoviePro once, with the script lane inside it', async 
   assert.equal(movie.live, true);
   assert.ok(movie.work.some((item) => item.member === 'MiMo' && /cut 04/.test(item.title)), 'the script job is listed under Now');
 
+  // One card means one chain. The band above the crew is the loudest sentence on the sheet, and it used
+  // to be the `movie-pro` lane's own chain behind a "Script work only:" prefix: it described two of the
+  // card's fifteen members and contradicted the label directly above it. The merged card has to speak for
+  // both halves it now holds - the film departments and the script lane inside them - so the router lane's
+  // chain must not survive anywhere in it.
+  assert.doesNotMatch(movie.workflow, /Script work only/, 'the two-department headline came back');
+  assert.doesNotMatch(movie.workflow, /Router selection/, `the router lane's chain is another team's workflow: ${movie.workflow}`);
+  assert.match(movie.workflow, /Steve.*scenario.*audio.*MiMo.*Space Bunny.*GPU.*Auto QA/,
+    `the chain must name the production departments and the script lane it carries: ${movie.workflow}`);
+
   // The instruct row must only offer members server.mjs directTarget can really file a card for,
   // otherwise the button answers "This member cannot take direct instructions."
   assert.deepEqual(movie.direct, ['Steve', 'Kuro', 'Ame', 'Shimajiro', 'Maru', 'MiMo']);
   assert.ok(movie.direct.every((name) => byName.has(name)), 'never offer a target the card does not show');
+
+  // The merged card must not be less informative than the two cards it replaces. The film unit's six
+  // department skills used to be hard-coded here and the lane's `roles` were emitted nowhere at all,
+  // because the lane's card is this card now — so reading only MOVIE_SKILLS quietly dropped something
+  // the owner could see before.
+  assert.deepEqual(movie.specialists.slice(0, 6), ['film scenario', 'film preproduction', 'film identity',
+    'movie character reference', 'movie video generation', 'film review']);
+  assert.ok(movie.specialists.includes('AGENTS'),
+    `the script lane's role file is missing from the merged card: ${JSON.stringify(movie.specialists)}`);
 });
 
 test('an idle script lane shows no live member', async () => {
