@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "FF9FB427E51B6588862C6FA3"
+               BlueprintIdentifier = "BDDB1C51-616B-4B1C-ABA8-7BDB110FC529"
                BuildableName = "BrainBook.app"
                BlueprintName = "BrainBook"
                ReferencedContainer = "container:BrainBook.xcodeproj">
@@ -27,15 +27,6 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
-      <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FF9FB427E51B6588862C6FA3"
-            BuildableName = "BrainBook.app"
-            BlueprintName = "BrainBook"
-            ReferencedContainer = "container:BrainBook.xcodeproj">
-         </BuildableReference>
-      </MacroExpansion>
       <Testables>
       </Testables>
    </TestAction>
@@ -53,7 +44,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FF9FB427E51B6588862C6FA3"
+            BlueprintIdentifier = "BDDB1C51-616B-4B1C-ABA8-7BDB110FC529"
             BuildableName = "BrainBook.app"
             BlueprintName = "BrainBook"
             ReferencedContainer = "container:BrainBook.xcodeproj">
@@ -70,7 +61,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FF9FB427E51B6588862C6FA3"
+            BlueprintIdentifier = "BDDB1C51-616B-4B1C-ABA8-7BDB110FC529"
             BuildableName = "BrainBook.app"
             BlueprintName = "BrainBook"
             ReferencedContainer = "container:BrainBook.xcodeproj">
@@ -78,7 +69,8 @@
       </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
-      buildConfiguration = "Debug">
+      buildConfiguration = "Debug"
+      shouldUseLaunchSchemeArgsEnv = "YES">
    </AnalyzeAction>
    <ArchiveAction
       buildConfiguration = "Release"

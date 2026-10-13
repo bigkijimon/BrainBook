@@ -3,7 +3,7 @@ import {NavigationHints} from './NavigationHints';
 import { TermsHelp } from './TermsHelp';
 import {ActivityPanel} from './ActivityPanel';
 import {ManagedApps,useManagedApps} from './ManagedApps';
-import {ProductMetrics} from './ProductMetrics';
+import {ProductsOverview} from './ProductsOverview';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -776,7 +776,11 @@ function App() {
             <span><strong>{taskProblem ? 'Tasks could not be loaded.' : 'Your vault could not be read.'}</strong> {taskProblem || vaultProblem}</span>
             <button type="button" onClick={() => { void loadTasks(); void loadVault(); }}>Retry</button>
           </div>}
-          {page === 'home' && <ProductMetrics productName="StudyAbroadOS" apiUrl="/api/product-metrics/studyabroados" refreshIntervalMs={30000} />}
+          {page === 'home' && <ProductsOverview products={[
+            { productName: 'StudyAbroadOS', apiUrl: '/api/product-metrics/studyabroados' },
+            { productName: 'EikenPrep', apiUrl: '/api/product-metrics/eikenprep' },
+            { productName: '予約SaaS', apiUrl: '/api/product-metrics/reservation-saas' },
+          ]} refreshIntervalMs={30000} />}
           {page === 'home' && <ActivityPanel
             teams={teams} workOpen={workOpen} onCloseWork={()=>{setWorkOpen(false);setComposerOpen(false);}} onOpenWork={openControl}
             problem={Boolean(taskProblem || vaultProblem)}

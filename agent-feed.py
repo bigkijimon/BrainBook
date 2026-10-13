@@ -198,7 +198,7 @@ def session_activity(home):
 
 
 # MoviePro work that runs as local processes, not as a running Kanban card
-# (owner 2026-09-30: "MoviePro only ever shows Steve and ComfyUI; are QA and the
+# (owner 2026-09-30: "MoviePro only ever shows MovieProTop-Mame and ComfyUI; are QA and the
 # other agents synced?"). Measured the same day: during a lesson-video run the
 # chain spends about 40% of its time in cut QA (Whisper + Vision, 7 min per cut),
 # which BrainBook never showed. Each rule maps a process to the member that owns
@@ -208,7 +208,7 @@ MOVIE_PROCESSES = [
     ("ComfyUI", ("gpu_job_supervisor", "bku-gpu-run", "face_turnaround.py", "hero_portrait.py", "master_sheet.py"), "gpu"),
     ("Auto QA", ("cut_qa.py", "keyframe_qa.py", "unit_gate.py", "whisper-cli"), "qa"),
     ("Vision", ("llama-mtmd-cli", "/bin/ai-see"), "vision"),
-    ("Steve", ("campaign28_chain.sh", "campaign28_generate.py", "charref_finish.sh"), "chain"),
+    ("MovieProTop-Mame", ("campaign28_chain.sh", "campaign28_generate.py", "charref_finish.sh"), "chain"),
 ]
 GPU_RUNNERS = MOVIE_PROCESSES[0][1]
 
@@ -308,7 +308,10 @@ AGENT_NAME = {"default": "Bigkiji", "hermes": "Bigkiji", "worker": "Bigkiji", "b
               "router": "Router", "auto-decomposer": "Decomposer", "mimo": "MiMo", "claude": "Claude Code",
               "claudecode": "Claude Code", "codex": "Codex", "qwen": "Qwen (local)", "vision": "Vision",
               "opencode": "OpenCode", "supportpro": "Pi",
-              "moviepro": "Steve", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru", "blogpro": "Sora"}
+              "moviepro": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru", "blogpro": "BlogProTop-Momo",
+              "apppro": "AppProTop-Sora", "accountpro": "AccountProTop-Riku", "classpro": "ClassProTop-Nana",
+              "investment": "InvestProTop-Rin", "igataya-web": "RentProTop-Kai", "marketing": "MarketProTop-Yui",
+              "securitypro": "SecurityProTop-Taiga"}
 KANBAN_OUTCOME = {"running": "working", "ready": "queued", "todo": "waiting", "triage": "queued", "scheduled": "scheduled", "blocked": "needs you", "done": "done", "archived": "done", "complete": "done", "completed": "done", "failed": "failed"}
 
 
@@ -495,38 +498,38 @@ TEAM_CREW = [("Bigkiji", "routes and reports"), ("Pi", "support: brief + checks"
 # Hierarchy inside a Router team, as bin/team-run runs it: Bigkiji routes; Pi briefs and
 # checks; MiMo / Space Bunny build; Claude Code runs QA and debug; Jev advises Bigkiji.
 TEAM_PARENT = {"Bigkiji": None, "Pi": "Bigkiji", "Jev": "Bigkiji", "MiMo": "Pi", "Space Bunny": "Pi", "Claude Code": "Bigkiji"}
-# MoviePro: Steve directs; the scenario/audio departments run on Steve's profile; Auto QA
+# MoviePro: MovieProTop-Mame directs; the scenario/audio departments run on MovieProTop-Mame's profile; Auto QA
 # drives the Vision check; ComfyUI is operated by Maru's GPU lane.
-MOVIE_PARENT = {"Steve": None, "HideoKojima": "Steve", "RyūichiSakamoto": "Steve", "Kuro": "Steve", "Shimajiro": "Steve",
-                "Ame": "Shimajiro", "Maru": "Steve", "Auto QA": "Steve", "ComfyUI": "Maru",
-                "MiMo": "Steve", "Space Bunny": "Steve"}
+MOVIE_PARENT = {"MovieProTop-Mame": None, "HideoKojima": "MovieProTop-Mame", "RyūichiSakamoto": "MovieProTop-Mame", "Kuro": "MovieProTop-Mame", "Shimajiro": "MovieProTop-Mame",
+                "Ame": "Shimajiro", "Maru": "MovieProTop-Mame", "Auto QA": "MovieProTop-Mame", "ComfyUI": "Maru",
+                "MiMo": "MovieProTop-Mame", "Space Bunny": "MovieProTop-Mame"}
 ROUTER_TO_MEMBER = {"mimo": "MiMo", "claude": "Claude Code", "hermes": "Bigkiji", "supportpro": "Pi"}
 # Owner 2026-10-02 ("まとめて"): MoviePro is ONE team. The Router team `movie-pro` is MoviePro's
 # script-fix lane, not a separate department, so its crew and its live jobs are folded into the one
 # MoviePro card below instead of being emitted a second time. Nothing in the Router config changes —
 # display only.
 MOVIE_SCRIPT_TEAM = "movie-pro"
-# The lane's two members, in the order they read under Steve. Which model each one really runs is
+# The lane's two members, in the order they read under MovieProTop-Mame. Which model each one really runs is
 # read from the Router config (workers.yaml mimo, adapters/mimo ui), never written here.
 MOVIE_SCRIPT_CREW = [("MiMo", "Builds scripts through Router"), ("Space Bunny", "Script review through Router; qualification required")]
 # MiMo is the lane's build entry point and stays directly instructable from this card; Space Bunny
 # only checks, and was never a direct target on the lane card. Must match directTarget in server.mjs.
 MOVIE_SCRIPT_DIRECT = ["MiMo"]
 # MoviePro's production crew (ComfyUI/MovieProduction/AGENTS.md) and its department skills.
-MOVIE_CREW = [("Steve", "production director"), ("HideoKojima", "scenario and world"),
+MOVIE_CREW = [("MovieProTop-Mame", "production director"), ("HideoKojima", "scenario and world"),
               ("RyūichiSakamoto", "audio"), ("Kuro", "independent review"), ("Shimajiro", "education brief"),
               ("Ame", "education research"), ("Maru", "GPU operation"), ("Auto QA", "automatic QA: cut, keyframe, unit gate"),
               ("ComfyUI", "image and video generation (GPU)")]
 # Members the owner can instruct directly from BrainBook (server.mjs owns the
 # name -> Hermes profile mapping). HideoKojima and RyūichiSakamoto are
-# departments that run under Steve's profile, so they are reached through Steve.
-MOVIE_DIRECT = ["Steve", "Kuro", "Ame", "Shimajiro", "Maru"]
-MOVIE_PROFILE = {"moviepro": "Steve", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru"}
-# BlogPro (owner 2026-09-29): blogs, SNS and AI influencer. Lead is the `sora` profile.
+# departments that run under MovieProTop-Mame's profile, so they are reached through MovieProTop-Mame.
+MOVIE_DIRECT = ["MovieProTop-Mame", "Kuro", "Ame", "Shimajiro", "Maru"]
+MOVIE_PROFILE = {"moviepro": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru"}
+# BlogPro (owner 2026-09-29): blogs, SNS and AI influencer. Lead is the `blogpro` profile.
 # Publication always waits for Yuma, so this group is shown but never auto-dispatched.
-BLOG_CREW = [("Sora", "lead: content and SNS"), ("Coco", "AI influencer"), ("Blog QA", "H&S blog 95-point gate"),
+BLOG_CREW = [("BlogProTop-Momo", "lead: content and SNS"), ("Coco", "AI influencer"), ("Blog QA", "H&S blog 95-point gate"),
              ("Tech Blog QA", "tech blog 95-point gate")]
-BLOG_PROFILE = {"blogpro": "Sora"}
+BLOG_PROFILE = {"blogpro": "BlogProTop-Momo"}
 BLOG_SKILLS = ["blog pipeline", "sns studio", "influencer studio", "blog qa", "tech blog qa"]
 BLOG_QUEUE = os.path.expanduser("~/Documents/AI/AgentsDB/Admin/SNSStudioSora/_queue")
 MOVIE_SKILLS = ["film scenario", "film preproduction", "film identity", "movie character reference",
@@ -539,7 +542,7 @@ MOVIE_SKILLS = ["film scenario", "film preproduction", "film identity", "movie c
 # fifteen members said something else. Length here is a layout fact, not a writing preference: the band
 # is pinned above the crew in a sheet that must not scroll, so it stays one line at 1440
 # (scripts/test-team-sheet-fit.mjs measures it at 1440x700 and 390x844).
-MOVIE_WORKFLOW = ("Steve directs → brief and research → scenario and audio → MiMo builds the script, "
+MOVIE_WORKFLOW = ("MovieProTop-Mame directs → brief and research → scenario and audio → MiMo builds the script, "
                   "Space Bunny checks it → keyframes and video on the GPU → Auto QA gate → final unit")
 
 
@@ -547,8 +550,11 @@ MOVIE_WORKFLOW = ("Steve directs → brief and research → scenario and audio �
 # Read live from the owning configs so the label follows a config change: Hermes profile
 # config.yaml (model.default), Router config/workers.yaml, Router adapters/mimo (UI lane).
 # Members with no config of their own (tools, departments) name the files that prove it.
-PROFILE_OF = {"Bigkiji": None, "Steve": "moviepro", "Kuro": "kuro", "Ame": "eduresearchpro", "Shimajiro": "eduleadpro",
-              "Maru": "gpupro", "Sora": "blogpro", "Tora": "appdebugpro", "Hana": "hana"}
+PROFILE_OF = {"Bigkiji": None, "MovieProTop-Mame": "moviepro", "Kuro": "kuro", "Ame": "eduresearchpro", "Shimajiro": "eduleadpro",
+              "Maru": "gpupro", "BlogProTop-Momo": "blogpro", "Tora": "appdebugpro", "Hana": "hana",
+              "AppProTop-Sora": "apppro", "AccountProTop-Riku": "accountpro", "ClassProTop-Nana": "classpro",
+              "InvestProTop-Rin": "investment", "RentProTop-Kai": "igataya-web", "MarketProTop-Yui": "marketing",
+              "SecurityProTop-Taiga": "securitypro"}
 
 
 def _profile_model(home, profile):
@@ -619,9 +625,9 @@ def member_models(home, router_config):
     out["Jev"] = "jev-1.13.0 (typesafe.ai)"                             # adapters/typesafe-jev
     out["Auto QA"] = "Whisper large-v3-turbo + Qwen2.5-VL 7B"           # media/scripts/cut_qa.py
     out["ComfyUI"] = "Qwen-Image-Edit 2511 + LTX-2.5 22B"               # gen_keyframe.py, ltx25-golden.json
-    out["HideoKojima"] = out["RyūichiSakamoto"] = out.get("Steve")      # departments on Steve's profile
-    for name in ("Coco", "Blog QA", "Tech Blog QA"):                    # skills run by the sora profile
-        out[name] = out.get("Sora")
+    out["HideoKojima"] = out["RyūichiSakamoto"] = out.get("MovieProTop-Mame")      # departments on MovieProTop-Mame's profile
+    for name in ("Coco", "Blog QA", "Tech Blog QA"):                    # skills run by the blogpro profile
+        out[name] = out.get("BlogProTop-Momo")
     return {name: model for name, model in out.items() if model}
 
 
@@ -665,7 +671,7 @@ def reviewed_structure(team):
     if film and not any(m["name"] == "MiMo" for m in team["members"]):
         return  # No registered script lane: do not invent one.
     previous = {m["name"]: m for m in team["members"]}
-    leader = "Steve" if film else "Bigkiji"
+    leader = "MovieProTop-Mame" if film else "Bigkiji"
     crew = [
         ("Pi", leader, "Prepares context, runs checks and cleans up task processes", "Local scripts; no model selection"),
         ("Router", "Pi", "Selects workers by task, tools, current free eligibility and capability", "Router / Themis"),
@@ -816,19 +822,19 @@ def teams(home, router_config, router_jobs):
         if team.get("id") in REVIEWED_TEAM_IDS and os.path.isfile(os.path.join(home, "state", "team-lane", "repair-hold.json")):
             team["workflow_note"] = "Automatic worker execution is held pending verification. " + team.get("workflow_note", "")
         if team.get("id") == "blog":
-            team["workflow_note"] = "Sora owns drafts and publication approval. Universal Pi support and Router dispatch are not yet verified for this native profile path."
+            team["workflow_note"] = "BlogProTop-Momo owns drafts and publication approval. Universal Pi support and Router dispatch are not yet verified for this native profile path."
     print(json.dumps({"teams": out, "models": models}, ensure_ascii=False))
 
 
 def blog_team(home):
-    """BlogPro: sora's Kanban cards on any board plus the SNS approval queue (read-only)."""
+    """BlogPro: blogpro's Kanban cards on any board plus the SNS approval queue (read-only)."""
     cards, busy = [], set()
     for path in glob.glob(os.path.join(home, "kanban", "boards", "*", "kanban.db")):
         conn = connect(path)
         if conn is None:
             continue
         try:
-            for title, status, assignee in conn.execute("select title, status, assignee from tasks where assignee = 'sora' and status in ('running','ready','blocked','todo') order by created_at desc limit 5"):
+            for title, status, assignee in conn.execute("select title, status, assignee from tasks where assignee = 'blogpro' and status in ('running','ready','blocked','todo') order by created_at desc limit 5"):
                 cards.append({"title": (title or "")[:120], "state": KANBAN_OUTCOME.get(status, status)})
                 if status == "running":
                     busy.add(BLOG_PROFILE.get(assignee, assignee))
@@ -841,8 +847,8 @@ def blog_team(home):
     if waiting:
         cards.append({"title": f"{len(waiting)} post(s) in the SNS queue waiting for your approval", "state": "waiting"})
     return {"id": "blog", "name": "BlogPro", "label": "Blogs, SNS, AI influencer (publication needs Yuma)", "live": bool(busy),
-            "members": [{"name": member, "role": role, "live": member in busy, "parent": None if member == "Sora" else "Sora"} for member, role in BLOG_CREW],
-            "specialists": BLOG_SKILLS, "work": cards[:6], "board": None, "direct": ["Sora"]}
+            "members": [{"name": member, "role": role, "live": member in busy, "parent": None if member == "BlogProTop-Momo" else "BlogProTop-Momo"} for member, role in BLOG_CREW],
+            "specialists": BLOG_SKILLS, "work": cards[:6], "board": None, "direct": ["BlogProTop-Momo"]}
 
 
 def security_team(home):

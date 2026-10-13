@@ -3044,6 +3044,87 @@ body:has([role="dialog"]) .toast-stack { display: none; }
   margin: 0;
   word-break: break-word;
 }
+/* Compact multi-product overview box (owner 2026-10-13: "もっとコンパクトに1つの箱に") */
+.products-overview.card-shell {
+  padding: 14px 16px;
+  border-radius: 18px 18px 10px 10px;
+  margin: 0 0 16px;
+  min-width: 0;
+  border-top: 3px solid var(--theme-pink);
+}
+.products-overview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.products-overview-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.products-overview-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.products-overview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.products-overview-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(14, 7, 24, 0.4);
+}
+.products-overview-row + .products-overview-row { margin-top: 6px; }
+.products-overview-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 110px;
+}
+.products-overview-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+.products-overview-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.products-overview-legend {
+  margin: 8px 2px 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+@media (max-width: 560px) {
+  .products-overview-row { flex-direction: column; align-items: flex-start; }
+  .products-overview-stats { gap: 10px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .product-metric-card { transition: none; }
   .animate-spin { animation: none; }

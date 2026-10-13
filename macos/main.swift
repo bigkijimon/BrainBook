@@ -1,6 +1,5 @@
 // BrainBook — idea and task companion for Hermes. Native macOS shell (Apple silicon).
-// Starts the bundled Node server on 127.0.0.1:4183, shows BrainBook and the existing Hermes dashboard,
-// opens obsidian:// and external links in their own apps, and stops the server on quit.
+// Connects to the launchd-managed Node server on 127.0.0.1:4183, shows BrainBook.
 // Per-user data: ~/Library/Application Support/BrainBook (tasks.json, config.json, paired phones).
 import Cocoa
 import WebKit
@@ -8,7 +7,6 @@ import WebKit
 let port = 4183
 let baseURL = URL(string: "http://127.0.0.1:\(port)/")!
 let healthURL = URL(string: "http://127.0.0.1:\(port)/api/health")!
-let hermesURL = DashboardConnection.dashboardURL
 let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("BrainBook")
 // One place decides where the server log lives, so the rotation, the child process and the
 // "where to look" message can never disagree. BRAINBOOK_LOG_DIR exists for test runs that
@@ -31,14 +29,9 @@ func logLine(_ handle: FileHandle?, _ text: String) {
     try? handle.write(contentsOf: Data("\(formatter.string(from: Date())) \(text)\n".utf8))
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var webView: WKWebView!
-    var hermesView: WKWebView!
-    var split: NSSplitView!
-    var hermesLoaded = false
-    var server: Process?
-    var logHandle: FileHandle?
     var terminating = false
 
     // Only the signals a Node server actually dies from; anything else keeps its number.
@@ -52,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         buildMenu()
         let config = WKWebViewConfiguration()
         // Native window chrome: keep the brand clear of the traffic-light buttons.
-        let css = ".topbar{padding-left:92px !important}"
+        let css = ".topbar{padding-left:20px !important}"
         let js = "const s=document.createElement('style');s.textContent='\(css)';document.documentElement.appendChild(s);document.documentElement.classList.add('native-app');"
         // Voice input (src/voice.ts) only when this build declares the microphone/speech usage
         // strings; without them macOS terminates the app on first microphone use.
@@ -60,7 +53,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             && Bundle.main.object(forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") != nil
         config.userContentController.addUserScript(WKUserScript(source: "window.brainbookVoice=\(voice);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.userContentController.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
-        config.userContentController.add(self, name: "hermes")
         config.websiteDataStore = .default()
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
@@ -68,54 +60,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         webView.setValue(false, forKey: "drawsBackground")
 
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 920),
-                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
         window.title = "BrainBook"
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.isMovable = true
         window.backgroundColor = NSColor(red: 0.07, green: 0.02, blue: 0.12, alpha: 1)
         window.minSize = NSSize(width: 900, height: 600)
-        hermesView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
-        hermesView.navigationDelegate = self
-        hermesView.uiDelegate = self
-        hermesView.setValue(false, forKey: "drawsBackground")
-        split = NSSplitView()
-        split.isVertical = true
-        split.dividerStyle = .thin
-        split.addArrangedSubview(webView)
-        split.addArrangedSubview(hermesView)
-        // Neither pane may be squeezed to a sliver (2026-09-29: a window resize left the
-        // Hermes panel ~20 pt wide and it looked gone). A hidden arranged subview is
-        // removed from layout, so these do not apply while ⌘J has the panel closed.
-        webView.widthAnchor.constraint(greaterThanOrEqualToConstant: 480).isActive = true
-        hermesView.widthAnchor.constraint(greaterThanOrEqualToConstant: 380).isActive = true
-        window.contentView = split
+        window.contentView = webView
         window.center()
         window.setFrameAutosaveName("BrainBookMainWindow")
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        // Hermes panel is open by default (BrainBook is a Hermes companion); ⌘J remembers the choice.
-        hermesView.isHidden = true
-        let panelOpen = UserDefaults.standard.object(forKey: "hermesPanelOpen") as? Bool ?? true
-        if panelOpen { hermesPending = true } else { split.adjustSubviews() }
-
         webView.loadHTMLString(loadingPage("Starting BrainBook"), baseURL: nil)
         startServerIfNeeded()
     }
 
-    var hermesPending = false
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationWillTerminate(_ notification: Notification) {
         terminating = true
-        // Never hang on quit: give the server 2 s to exit, then force it (a stuck file read ignores SIGTERM).
-        if let server, server.isRunning {
-            server.terminate()
-            let deadline = Date().addingTimeInterval(2)
-            while server.isRunning && Date() < deadline { usleep(50_000) }
-            if server.isRunning { kill(server.processIdentifier, SIGKILL) }
-        }
+        // Server is now managed by launchd (com.bigkiji.brainbookserver).
+        // Do NOT kill it — the phone must still be able to connect after the Mac app quits.
     }
 
     // MARK: server
@@ -134,215 +102,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         isHealthy { [weak self] ok in
             guard let self else { return }
             if ok { self.serverReady(); return }
-            self.stopStaleServer()
-            self.launchServer()
+            // Server not healthy — ask launchd to start it via kickstart.
+            self.kickstartLaunchdServer()
             self.waitForServer(attempts: 60)
         }
     }
 
-    // A BrainBook server that holds the port but does not answer (left over from a crash) is ours to stop.
-    // Only the pid it recorded is touched, and only if that process is really BrainBook's server.
-    func stopStaleServer() {
-        let pidFile = supportDir.appendingPathComponent("server.pid")
-        guard let text = try? String(contentsOf: pidFile, encoding: .utf8), let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0 else { return }
-        let check = Process()
-        check.executableURL = URL(fileURLWithPath: "/bin/ps")
-        check.arguments = ["-o", "command=", "-p", String(pid)]
-        let pipe = Pipe()
-        check.standardOutput = pipe
-        guard (try? check.run()) != nil else { return }
-        check.waitUntilExit()
-        let command = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        guard command.contains("BrainBook.app/Contents/Resources/app/server.mjs") else { return }
-        kill(pid, SIGTERM)
-        for _ in 0..<20 { usleep(100_000); if kill(pid, 0) != 0 { break } }
-        if kill(pid, 0) == 0 { kill(pid, SIGKILL); usleep(300_000) }
+    func kickstartLaunchdServer() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        task.arguments = ["kickstart", "-k", "gui/\(getuid())/com.bigkiji.brainbookserver"]
+        do {
+            try task.run()
+            task.waitUntilExit()
+            logLine(nil, "launchctl kickstart sent for com.bigkiji.brainbookserver (status=\(task.terminationStatus))")
+        } catch {
+            logLine(nil, "launchctl kickstart failed: \(error)")
+        }
     }
 
     func serverReady() {
         webView.load(URLRequest(url: baseURL))
-        if hermesPending { hermesPending = false; setHermesPanel(open: true) }
-        else if !hermesView.isHidden { loadHermes() }
-    }
-
-    func launchServer() {
-        let res = Bundle.main.resourceURL!
-        let node = res.appendingPathComponent("node").path
-        let appDir = res.appendingPathComponent("app")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: node)
-        process.arguments = [appDir.appendingPathComponent("server.mjs").path]
-        process.currentDirectoryURL = appDir
-        var env = ProcessInfo.processInfo.environment
-        env["PORT"] = String(port)
-        env["BRAINBOOK_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
-        // One-time move from the app's old name (Aster) so tasks, areas and paired phones carry over.
-        let oldDir = supportDir.deletingLastPathComponent().appendingPathComponent("Aster")
-        if !FileManager.default.fileExists(atPath: supportDir.path), FileManager.default.fileExists(atPath: oldDir.path) {
-            try? FileManager.default.moveItem(at: oldDir, to: supportDir)
-        }
-        try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
-        env["BRAINBOOK_HOME"] = supportDir.path
-        // Finder-launched apps get a minimal PATH; the server shells out to python3 / opencode.
-        env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + (env["PATH"] ?? "")
-        process.environment = env
-
-        try? FileManager.default.createDirectory(at: logDirURL, withIntermediateDirectories: true)
-        // One previous run survives a restart: over 5 MB, server.log becomes server.log.1.
-        let rotatedURL = logDirURL.appendingPathComponent("server.log.1")
-        if let size = (try? FileManager.default.attributesOfItem(atPath: logURL.path))?[.size] as? NSNumber,
-           size.int64Value > 5 * 1024 * 1024 {
-            try? FileManager.default.removeItem(at: rotatedURL)
-            try? FileManager.default.moveItem(at: logURL, to: rotatedURL)
-        }
-        // O_APPEND creates the file only when missing and never truncates it, so the run that
-        // just ended keeps its last lines (a plain createFile emptied it on every launch).
-        let fd = open(logURL.path, O_WRONLY | O_CREAT | O_APPEND, 0o644)
-        if fd >= 0 {
-            let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
-            logHandle = handle
-            process.standardOutput = handle
-            process.standardError = handle
-        }
-        // Strong capture: the stop line is written even if the app delegate is already gone.
-        let childLog = logHandle
-        process.terminationHandler = { [weak self] proc in
-            // One account of the stop, used for the log line and for what the window says:
-            // a number alone ("exit 9") does not tell the owner anything.
-            var line = "server stopped status=\(proc.terminationStatus)"
-            var shown = "exit \(proc.terminationStatus)"
-            switch proc.terminationReason {
-            case .exit:
-                line += " reason=exit"
-            case .uncaughtSignal:
-                // Here terminationStatus is the signal number, not an exit code, so it is named.
-                let name = AppDelegate.signalNames[Int(proc.terminationStatus)] ?? "signal \(proc.terminationStatus)"
-                line += " reason=uncaughtSignal signal=\(name)"
-                shown = "killed by \(name)"
-            @unknown default:
-                line += " reason=unknown"
-            }
-            logLine(childLog, line)
-            DispatchQueue.main.async {
-                guard let self, !self.terminating else { return }
-                self.webView.loadHTMLString(self.loadingPage("BrainBook server stopped (\(shown)). Log: \(logURL.path) — press ⌘R to restart."), baseURL: nil)
-            }
-        }
-        do {
-            try process.run()
-            server = process
-            logLine(childLog, "server started pid=\(process.processIdentifier)")
-        } catch {
-            webView.loadHTMLString(loadingPage("Could not start server: \(error.localizedDescription)"), baseURL: nil)
-        }
     }
 
     func waitForServer(attempts: Int) {
         isHealthy { [weak self] ok in
             guard let self else { return }
             if ok { self.serverReady(); return }
-            guard attempts > 0, self.server?.isRunning == true else { return }
+            guard attempts > 0 else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { self.waitForServer(attempts: attempts - 1) }
         }
     }
 
     @objc func reloadApp(_ sender: Any?) {
-        if server?.isRunning == true || server == nil { webView.reload() }
-        if server?.isRunning != true { startServerIfNeeded() }
+        if serverRunning() { webView.reload() }
+        if !serverRunning() { startServerIfNeeded() }
     }
 
-    // MARK: Hermes dashboard panel (reuse the existing loopback service; never start a second Hermes UI)
-
-    func loadHermes() {
-        hermesLoaded = true
-        var request = URLRequest(url: DashboardConnection.healthURL)
-        request.timeoutInterval = 2
-        URLSession.shared.dataTask(with: request) { data, response, _ in
-            let body = data.flatMap { String(data: $0, encoding: .utf8) }
-            let up = DashboardConnection.isHealthy(statusCode: (response as? HTTPURLResponse)?.statusCode, body: body)
-            DispatchQueue.main.async {
-                if up { self.hermesView.load(URLRequest(url: hermesURL)) }
-                else {
-                    self.hermesLoaded = false
-                    self.hermesView.loadHTMLString(self.loadingPage("The existing Hermes Dashboard is unavailable at 127.0.0.1:9119. BrainBook will not start a duplicate. Start Hermes Dashboard, then press ⌘J twice to retry."), baseURL: nil)
-                }
-            }
-        }.resume()
-    }
-
-    func setHermesPanel(open: Bool) {
-        if open && !hermesView.isHidden && hermesView.frame.width < 380 {
-            // Already open but collapsed: restore a usable width instead of doing nothing.
-            split.setPosition(split.bounds.width * 0.52, ofDividerAt: 0)
-            return
+    // Best-effort check: ping /api/health to see if the launchd server is alive.
+    private func serverRunning() -> Bool {
+        var ok = false
+        let semaphore = DispatchSemaphore(value: 0)
+        isHealthy { result in
+            ok = result
+            semaphore.signal()
         }
-        guard hermesView.isHidden == open else { return }
-        hermesView.isHidden = !open
-        UserDefaults.standard.set(open, forKey: "hermesPanelOpen")
-        if open {
-            if !hermesLoaded { loadHermes() }
-            split.adjustSubviews()
-            split.setPosition(split.bounds.width * 0.52, ofDividerAt: 0)
-        }
-    }
-
-    @objc func toggleHermes(_ sender: Any?) {
-        let collapsed = !hermesView.isHidden && hermesView.frame.width < 380
-        setHermesPanel(open: hermesView.isHidden || collapsed)
-        if !hermesView.isHidden { focusTerminal() }
-    }
-
-    func focusTerminal() {
-        window.makeFirstResponder(hermesView)
-        hermesView.evaluateJavaScript("document.querySelector('.xterm-helper-textarea')?.focus()")
-    }
-
-    // BrainBook → the existing Hermes dashboard PTY: paste context only; never press Enter or spawn a CLI.
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "hermes", let notePath = message.body as? String, !notePath.isEmpty else { return }
-        setHermesPanel(open: true)
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/api/hermes/idea")!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: ["path": notePath, "target": "dashboard"])
-        URLSession.shared.dataTask(with: request) { data, response, _ in
-            guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  let data,
-                  let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let text = payload["prompt"] as? String else {
-                DispatchQueue.main.async { self.reportDashboardHandoff(false) }
-                return
-            }
-            DispatchQueue.main.async { self.pasteIntoDashboard(text, attempts: 20) }
-        }.resume()
-    }
-
-    func pasteIntoDashboard(_ text: String, attempts: Int) {
-        guard attempts > 0,
-              let encoded = try? JSONSerialization.data(withJSONObject: [text]),
-              let json = String(data: encoded, encoding: .utf8) else { return }
-        let script = """
-        (() => {
-          const text = \(json)[0];
-          const target = document.querySelector('.xterm-helper-textarea');
-          if (!target) return false;
-          const clipboard = new DataTransfer();
-          clipboard.setData('text/plain', text);
-          target.focus();
-          target.dispatchEvent(new ClipboardEvent('paste', { clipboardData: clipboard, bubbles: true, cancelable: true }));
-          return true;
-        })()
-        """
-        hermesView.evaluateJavaScript(script) { result, _ in
-            if (result as? Bool) == true { self.reportDashboardHandoff(true); return }
-            guard attempts > 1 else { self.reportDashboardHandoff(false); return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.pasteIntoDashboard(text, attempts: attempts - 1) }
-        }
-    }
-
-    func reportDashboardHandoff(_ ok: Bool) {
-        let value = ok ? "true" : "false"
-        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('brainbook:hermes-handoff', { detail: { ok: \(value) } }))")
+        _ = semaphore.wait(timeout: .now() + 2)
+        return ok
     }
 
     // MARK: links
@@ -350,11 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { return decisionHandler(.allow) }
-        let surface: DashboardConnection.Surface
-        if webView === self.webView { surface = .brainBook }
-        else if webView === self.hermesView { surface = .hermesDashboard }
-        else { return decisionHandler(.cancel) }
-        let local = DashboardConnection.allowsNavigation(url, in: surface)
+        let local = webView === self.webView && DashboardConnection.allowsNavigation(url, in: .brainBook)
         if local || url.scheme == "about" || url.scheme == "data" { return decisionHandler(.allow) }
         NSWorkspace.shared.open(url)
         decisionHandler(.cancel)
@@ -379,14 +181,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     lazy var loadingCSS: String = (try? String(contentsOf: Bundle.main.url(forResource: "loading", withExtension: "css")!, encoding: .utf8)) ?? ""
     lazy var loadingSVG: String = (try? String(contentsOf: Bundle.main.url(forResource: "loading-svg", withExtension: "html")!, encoding: .utf8)) ?? ""
     func loadingPage(_ message: String) -> String {
-        let safe = message.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
+        let safe = message.replacingOccurrences(of: "&", with: "&").replacingOccurrences(of: "<", with: "<")
         return """
         <html><head><meta charset="utf-8"><style>html,body{margin:0;background:#12061f}\(loadingCSS)</style></head><body>
-        <div id="bb-boot" role="status">\(loadingSVG)<div class="bb-box"><p class="bb-name">BrainBook</p><p class="bb-tag">IDEAS · FOR · HERMES</p><p class="bb-msg">\(safe)</p><div class="bb-bar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div>
+        <div id="bb-boot" role="status">\(loadingSVG)<div class="bb-box"><p class="bb-name">BrainBook</p><p class="bb-tag">IDEAS · FOR · HERMES</p><p class="bb-msg">\(safe)</p><div class="bb-bar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div>
         </body></html>
         """
     }
 
+
+    // MARK: navigation
+
+    func navigate(_ route: String) {
+        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('brainbook:navigate', { detail: '\(route)' }))")
+    }
+    @objc func showHome(_ sender: Any?) { navigate("home") }
+    @objc func showIdeas(_ sender: Any?) { navigate("ideas") }
+    @objc func showAgents(_ sender: Any?) { navigate("agents") }
+    @objc func showTasks(_ sender: Any?) { navigate("tasks") }
 
     // MARK: menu
 
@@ -414,7 +226,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let viewItem = NSMenuItem(); main.addItem(viewItem)
         let view = NSMenu(title: "View")
         view.addItem(withTitle: "Reload", action: #selector(reloadApp(_:)), keyEquivalent: "r")
-        view.addItem(withTitle: "Toggle Hermes Dashboard", action: #selector(toggleHermes(_:)), keyEquivalent: "j")
+        view.addItem(withTitle: "Home", action: #selector(showHome(_:)), keyEquivalent: "1")
+        view.addItem(withTitle: "Ideas", action: #selector(showIdeas(_:)), keyEquivalent: "2")
+        view.addItem(withTitle: "Agents", action: #selector(showAgents(_:)), keyEquivalent: "3")
+        view.addItem(withTitle: "Tasks", action: #selector(showTasks(_:)), keyEquivalent: "4")
         view.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         viewItem.submenu = view
 

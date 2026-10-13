@@ -544,12 +544,19 @@ const kanbanBody = (task, gpu) => [
 // Members the owner can instruct directly (display name -> Hermes profile and board).
 // Must match MOVIE_DIRECT / "direct" in agent-feed.py.
 const DIRECT_MEMBERS = {
-  Steve: { profile: 'moviepro', board: 'movie', team: 'movie' },
+  'MovieProTop-Mame': { profile: 'moviepro', board: 'movie', team: 'movie' },
   Kuro: { profile: 'kuro', board: 'movie', team: 'movie' },
   Ame: { profile: 'eduresearchpro', board: 'movie', team: 'movie' },
   Shimajiro: { profile: 'eduleadpro', board: 'movie', team: 'movie' },
   Maru: { profile: 'gpupro', board: 'movie', team: 'movie' },
-  Sora: { profile: 'blogpro', board: 'owner', team: 'blog' },
+  'BlogProTop-Momo': { profile: 'blogpro', board: 'owner', team: 'blog' },
+  'AppProTop-Sora': { profile: 'apppro', board: 'owner', team: 'app-dev' },
+  'AccountProTop-Riku': { profile: 'accountpro', board: 'owner', team: 'accountpro' },
+  'ClassProTop-Nana': { profile: 'classpro', board: 'owner', team: 'hs-school-ops' },
+  'InvestProTop-Rin': { profile: 'investment', board: 'owner', team: 'investment' },
+  'RentProTop-Kai': { profile: 'igataya-web', board: 'owner', team: 'igataya-web' },
+  'MarketProTop-Yui': { profile: 'marketing', board: 'owner', team: 'marketing' },
+  'SecurityProTop-Taiga': { profile: 'securitypro', board: 'owner', team: 'securitypro' },
 };
 // Router teams (AppPro, AccountPro, ClassPro, VIT, Igataya; owner 2026-10-01: "各グループにオーナーが
 // 直接指示できる項目ですが、Movieproにしか反映されていない"). Every team gets the same three members:
@@ -1206,6 +1213,42 @@ const handleApi = async (req, res, url) => {
     try {
       const response = await fetch(targetUrl, { 
         cache: 'no-store', 
+        signal: AbortSignal.timeout(8000),
+        headers: { 'x-admin-token': adminToken }
+      });
+      if (!response.ok) throw new Error(`Upstream ${response.status}`);
+      const data = await response.json();
+      return json(res, data);
+    } catch (error) {
+      return json(res, { error: `Failed to fetch metrics: ${String(error.message || error).slice(0, 200)}` }, 502);
+    }
+  }
+  // EikenPrep metrics proxy
+  if (url.pathname === '/api/product-metrics/eikenprep' && req.method === 'GET') {
+    const targetUrl = 'https://eikenprep.hsacademy202404.site/api/admin/metrics';
+    const adminToken = process.env.EIKENPREP_ADMIN_TOKEN || settings.eikenprepAdminToken;
+    if (!adminToken) return json(res, { error: 'eikenprepAdminToken not configured in config.json' }, 500);
+    try {
+      const response = await fetch(targetUrl, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+        headers: { 'x-admin-token': adminToken }
+      });
+      if (!response.ok) throw new Error(`Upstream ${response.status}`);
+      const data = await response.json();
+      return json(res, data);
+    } catch (error) {
+      return json(res, { error: `Failed to fetch metrics: ${String(error.message || error).slice(0, 200)}` }, 502);
+    }
+  }
+  // Reservation SaaS metrics proxy
+  if (url.pathname === '/api/product-metrics/reservation-saas' && req.method === 'GET') {
+    const targetUrl = 'https://reservation-saas-omega.vercel.app/api/admin/metrics';
+    const adminToken = process.env.RESERVATIONSAAS_ADMIN_TOKEN || settings.reservationsaasAdminToken;
+    if (!adminToken) return json(res, { error: 'reservationsaasAdminToken not configured in config.json' }, 500);
+    try {
+      const response = await fetch(targetUrl, {
+        cache: 'no-store',
         signal: AbortSignal.timeout(8000),
         headers: { 'x-admin-token': adminToken }
       });

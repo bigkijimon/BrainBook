@@ -1,7 +1,7 @@
 {
   "what": "Provenance for the Control Center / Next Work List captures in this folder.",
   "status": "complete",
-  "startedAt": "2026-10-12T08:35:36.346Z",
+  "startedAt": "2026-10-13T09:04:24.468Z",
   "measuredBy": "node scripts/test-control-center.mjs against scripts/control-center-harness",
   "cardSources": [
     "src/ControlCenter.tsx",
@@ -10,17 +10,17 @@
     "src/theme-palette.mjs",
     "scripts/control-center-harness/main.tsx"
   ],
-  "cardFingerprint": "0a3e3f8d443f38d1",
+  "cardFingerprint": "9263e170e49bb4cf",
   "captures": [
     {
       "file": "control-center-1440x900.png",
-      "bytes": 207735,
-      "sha256": "7746b27ccdaf07d2"
+      "bytes": 207604,
+      "sha256": "306c4a7129e5b299"
     },
     {
       "file": "control-center-390x844.png",
-      "bytes": 180428,
-      "sha256": "325bfa48c72f131d"
+      "bytes": 180182,
+      "sha256": "f34f1231c0e94713"
     }
   ],
   "checks": [],

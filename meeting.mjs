@@ -11,13 +11,13 @@ import { requireWorkerLaneOpen, submitWorkerText } from './worker-router.mjs';
 // Display names are meeting roles, never a request for a particular worker or model.
 export const ATTENDEES = {
   Bigkiji: { persona: 'Bigkiji', group: 'Host · chief orchestrator', profile: null },
-  Steve: { persona: 'Steven Spielberg', group: 'MoviePro (lesson videos)' },
+  'MovieProTop-Mame': { persona: 'Steven Spielberg', group: 'MoviePro (lesson videos)' },
   'Claude Code': { persona: 'Grace Hopper', group: 'Engineering QA' },
   'Space Bunny': { persona: 'Grace Hopper', group: 'Engineering QA' },
   MiMo: { persona: 'Linus Torvalds', group: 'AppPro (app building)' },
-  Sora: { persona: 'Seth Godin', group: 'BlogPro (blogs, social)' },
+  'BlogProTop-Momo': { persona: 'Seth Godin', group: 'BlogPro (blogs, social)' },
 };
-const MEMBERS = ['Steve', 'Space Bunny', 'MiMo', 'Sora'];
+const MEMBERS = ['MovieProTop-Mame', 'Space Bunny', 'MiMo', 'BlogProTop-Momo'];
 
 const runHermes = (profile, prompt, { hermesBin, env, timeout = 150000 }) => new Promise((resolve, reject) => {
   const args = [...(profile ? ['-p', profile] : []), 'chat', '-Q', '--source', 'meeting', '--max-turns', '1', '-t', '', '-q', prompt];
