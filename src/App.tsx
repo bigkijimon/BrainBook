@@ -126,6 +126,10 @@ function normalizeTask(input: Partial<Task>): Task {
 }
 
 function App() {
+  // Owner 2026-10-13 ("メニューを下から戻して、Managed AppsバッジはこのSidebarに入れて"): Managed Apps
+  // used to render inside AreaRail (the icon rail); it now renders inside the left <aside> nav
+  // instead, so the hook that feeds it moves up to where both can read it from one source.
+  const {inventory:managedAppsInventory,error:managedAppsError}=useManagedApps();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -747,6 +751,7 @@ function App() {
           <nav className="stream-list" aria-label="Tasks by stream">
             {domainFilters.map((domain) => <button className={`stream-item ${page === 'tasks' && domainFilter === domain.value ? 'active' : ''}`} style={{ '--stream': domain.color } as React.CSSProperties} type="button" key={domain.value} onClick={() => chooseDomain(domain.value)}><i /><span>{domain.label}</span><b>{domainCounts[domain.value] || 0}</b></button>)}
           </nav>
+          <ManagedApps inventory={managedAppsInventory} error={managedAppsError} />
           <div className="sidebar-footer">
             <div className="mini-orbit" aria-hidden="true"><span /><span /><span /></div>
             <p>Clear space.<br />Keep the signal.</p>
@@ -865,15 +870,13 @@ const AREA_ICON: Record<'all' | LifeArea, typeof Wallet> = { all: LayoutGrid, fi
 
 // Left menu: the five life areas. Everything on the page (ideas, reminders, tasks) follows the choice.
 function AreaRail({ page, area, counts, onChoose, sidebarOpen, onToggleSidebar, teams, selectedTeam, onSelectTeam, onAll }: { page:string; selectedTeam:string|null; onSelectTeam:(id:string)=>void;onAll:()=>void; area: 'all' | LifeArea; counts: Record<string, number>; onChoose: (area: 'all' | LifeArea) => void; sidebarOpen: boolean; onToggleSidebar: () => void; teams: Parameters<typeof TeamRail>[0]['teams'] }) {
-  const {inventory,error}=useManagedApps();
   const [mobileOpen,setMobileOpen]=useState(false);
   const trigger=useRef<HTMLButtonElement>(null);
   useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&mobileOpen&&!document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')){setMobileOpen(false);trigger.current?.focus({preventScroll:true});}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[mobileOpen]);
   return <><button type="button" ref={trigger} className="rail-mobile-trigger ghost-button" aria-label={mobileOpen?'Close menu':'Menu'} data-nav-label={mobileOpen?'Close menu':'Menu'} aria-expanded={mobileOpen} aria-controls="left-navigation" onClick={()=>setMobileOpen(v=>!v)}><Menu size={24} aria-hidden="true"/></button>
-  <nav id="left-navigation" className={`area-rail ${mobileOpen?'mobile-open':''}`} aria-label="Hermes Agents and Managed Apps">
+  <nav id="left-navigation" className={`area-rail ${mobileOpen?'mobile-open':''}`} aria-label="Hermes Agents">
     <h3 className="rail-section-label" title="Hermes departments"><Bot size={18} aria-hidden="true"/><span className="sr-only">Hermes Agents {teams.length}</span></h3>
     <TeamRail teams={teams} allCount={counts.all || 0} selectedTeam={selectedTeam} onSelect={id=>{onSelectTeam(id);setMobileOpen(false);}} allActive={area === 'all' && selectedTeam===null} onAll={()=>{onAll();setMobileOpen(false);}} />
-    <ManagedApps inventory={inventory} error={error}/>
     {page!=='home'&&<details className="rail-life-filters"><summary aria-label="Personal filters" data-nav-label="Personal filters"><SlidersHorizontal size={24} aria-hidden="true"/><span className="sr-only">Personal filters</span></summary><div className="rail-areas" role="group" aria-label="Life areas">{LIFE_AREAS.map(item=>{const Icon=AREA_ICON[item.id];return <button type="button" key={item.id} className="rail-area" aria-label={item.label} data-nav-label={item.label} aria-pressed={area===item.id} onClick={()=>onChoose(area===item.id?'all':item.id)}><Icon size={24} aria-hidden="true"/><span className="sr-only">{item.label}</span></button>;})}</div></details>}
     <button type="button" className={`area-item rail-toggle ${sidebarOpen ? 'active' : ''}`} aria-label="Toggle filters" data-nav-label="Toggle filters" aria-expanded={sidebarOpen} onClick={onToggleSidebar}>{sidebarOpen?<PanelLeftClose size={19}/>:<PanelLeftOpen size={19}/>}<span className="sr-only">Filters</span></button>
   </nav></>;

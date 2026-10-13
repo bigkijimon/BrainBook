@@ -154,8 +154,30 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .profile-popover strong { display: block; margin-top: 8px; color: var(--text); font-size: 13px; font-weight: 600; }.profile-popover p { margin: 7px 0 14px; color: var(--muted); font-size: 10px; line-height: 1.5; }.profile-popover button { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 30px; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: transparent; font-size: 9px; }.profile-popover button:hover { color: var(--text); border-color: var(--line-strong); }
 
 .workspace { display: grid; grid-template-columns: 84px 254px minmax(600px, 1fr) 318px; min-height: calc(100dvh - 78px); }
-.sidebar { display: flex; flex-direction: column; padding: 44px 22px 28px 34px; border-right: 1px solid rgba(235, 209, 245, 0.08); background: rgba(26, 10, 42, 0.36); }
+/* Owner 2026-10-13 ("崩れてる"): Managed Apps moved into this sidebar and can add many rows; the
+   sidebar itself had no height cap, so with the sidebar open it grew to whatever the content
+   needed (thousands of px in the broken case) instead of the rail's own capped, scrollable height.
+   A WebKit-only symptom then appeared: main-content's grid track width collapsed to the sidebar's
+   track and the sidebar's own rect reported the rail's track width — a real WebKit CSS Grid bug
+   triggered by one row sibling being wildly taller than the others, confirmed with a live-diagnostic
+   overlay this session. Capping and scrolling the sidebar like the rail already does removes the
+   extreme height that triggered it. */
+.sidebar { display: flex; flex-direction: column; padding: 44px 22px 28px 34px; border-right: 1px solid rgba(235, 209, 245, 0.08); background: rgba(26, 10, 42, 0.36); height: calc(100dvh - 78px); overflow-y: auto; }
 .eyebrow { margin: 0; color: var(--muted-2); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.18em; line-height: 1.5; text-transform: uppercase; }
+/* Owner 2026-10-13 ("崩れてる"): with the sidebar open (3 grid tracks: rail/sidebar/main), WebKit's
+   auto-placement sometimes assigns main-content the sidebar's track width and the sidebar the
+   rail's — confirmed live in the native app with a diagnostic overlay (mcRect:220 == sidebar's own
+   track, sbRect.width:76 == rail's track), and reproduced in headless WebKit too, so it is a real
+   engine quirk, not a native-wrapper-only issue. Chromium placed all three correctly in every test.
+   Giving each item an explicit grid-column removes the ambiguity auto-placement was getting wrong,
+   regardless of how many DOM children exist before it (the hidden mobile-menu button, etc). */
+.workspace:not(.sidebar-collapsed) .area-rail { grid-column: 1; }
+.workspace:not(.sidebar-collapsed) .sidebar { grid-column: 2; }
+.workspace:not(.sidebar-collapsed) .main-content { grid-column: 3; }
+.workspace:not(.sidebar-collapsed) .inspector { grid-column: 4; }
+.workspace.sidebar-collapsed .area-rail { grid-column: 1; }
+.workspace.sidebar-collapsed .main-content { grid-column: 2; }
+.workspace.sidebar-collapsed .inspector { grid-column: 3; }
 .sidebar h1 { margin: 17px 0 0; color: var(--theme-text); font-size: clamp(25px, 2.2vw, 34px); font-weight: 500; letter-spacing: -0.06em; line-height: 0.98; }
 .sidebar h1 em { color: var(--lime); font-style: normal; }
 .sidebar-copy { max-width: 178px; margin: 20px 0 0; color: var(--muted-2); font-size: 11px; line-height: 1.7; }
@@ -746,6 +768,9 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 .bell-button b { position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; color: var(--theme-night); background: var(--theme-pink); font: 700 10px/17px 'Manrope', sans-serif; box-shadow: 0 0 10px var(--theme-pink); }
 .bell-button.has-unread svg { animation: bellRing 1.4s ease-in-out 2; transform-origin: 50% 0; }
 @keyframes bellRing { 0%, 60%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-14deg); } }
+/* Owner 2026-10-13: the department+agent rail returned to the left column ("下のメニューバーの表示を
+   廃止して"), so the toast stack no longer needs extra bottom clearance for a bottom dock — back to
+   its original 24px corner offset. */
 .toast-stack { position: fixed; left: 24px; bottom: 24px; z-index: 110; display: grid; gap: 10px; width: min(400px, calc(100vw - 32px)); margin: 0; padding: 0; list-style: none; pointer-events: none; }
 /* The whole card was a pointer-event blocker so that one 32px Dismiss button in its corner could be
    tapped. That made a 400x100 notice swallow every click underneath it: measured on the phone
@@ -1231,7 +1256,7 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 .owner-now-list li .run-button { flex: none; margin: 0 4px 0 8px; min-height: 26px; padding: 0 10px; font-size: 11.5px; }
 .owner-now-list li.run-running { position: relative; border-radius: 12px; animation: run-breathe 2.4s ease-in-out infinite; }
 .owner-now-list li.run-running::before { content: ''; position: absolute; inset: 0; padding: 1.5px; border-radius: inherit; background: conic-gradient(from var(--run-angle, 0deg), var(--theme-pink), var(--theme-lavender), var(--theme-lilac), var(--theme-pink)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: run-rotate 3s linear infinite; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .owner-now-list li.run-running, .owner-now-list li.run-running::before { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .owner-now-list li.run-running, .owner-now-list li.run-running::before, .live-work-item, .live-work-item::before, .agent-run-count i { animation: none; } }
 
 /* Agents working now: always visible at the top; animates hard when anything runs. */
 .agents-live { margin: 0 0 18px; padding: 14px 18px; border: 1px solid rgba(255, 241, 255, .12); border-radius: 18px; background: rgba(var(--theme-night-rgb), .55); }
@@ -1444,11 +1469,18 @@ input::placeholder, textarea::placeholder { color: #694f73; }
    face is the wrong voice for a sentence. 11.5px/1.4 is the project's caption size. */
 .team-pane-note { margin-inline-start: auto; font: 400 11.5px/1.4 'Manrope', sans-serif; letter-spacing: 0; color: #a58db6; text-wrap: pretty; }
 /* `team-tree` rides along as the class scripts/test-evolution-ui.mjs and shot-marketing.mjs
-   already query; the tree it used to be is now this grid. */
+   already query. Owner decision 2026-10-13: back to one column, full-width rows, so "who reports
+   to whom" reads as a real indented chain instead of a cap-at-2-levels nudge inside a card grid.
+   The 2026-10-05 multi-column grid traded that readability for guaranteed no-scroll fit; the owner
+   now prefers the chain and accepts scrolling (`.team-roster` already has `overflow-y: auto`) when
+   a long team does not fit, so the grid is one column and the depth indent below is uncapped. */
 .team-tree, .team-tree ol { list-style: none; margin: 0; padding: 0; }
-.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(196px, 100%), 1fr)); gap: 8px; align-items: stretch; }
+.team-grid { display: flex; flex-direction: column; gap: 6px; }
 /* Depth in the chain is an indent, 12px a level, so who reports to whom still reads in a row. The cell
    is a flex box so every card in a row stretches to that row's tallest card without a percentage
+   — RETIRED: the cap at `min(depth, 2)` described below is gone (owner 2026-10-13: one column,
+   indent the real depth up to 6 levels; a chain deeper than that is capped only to stop a pathological
+   roster from pushing a card off the right edge, not to compress the normal case).
    height.
    Capped at two levels, because the indent is spending the card's own width: a 196px track minus the
    badge, the gaps, the padding and the 4px frame edge leaves about 130px of text column, and every
@@ -1459,7 +1491,7 @@ input::placeholder, textarea::placeholder { color: #694f73; }
    nothing escapes its container). The exact parent is not lost to the cap: the chain band above the crew
    spells the whole order out with its arrows, and `AgentInfo` prints "Reports to" for the member's real
    parent, so the indent only has to say lead / reports to the lead / deeper. */
-.team-cell { display: flex; min-width: 0; padding-inline-start: calc(min(var(--depth, 0), 2) * 12px); }
+.team-cell { display: flex; min-width: 0; padding-inline-start: calc(min(var(--depth, 0), 6) * 16px); }
 .team-cell > .member-frame { flex: 1; }
 /* The lead is one cell like every other member (owner 2026-10-05). It used to take the whole first row
    (`grid-column: 1 / -1`), and that row cost the crew a row it does not have: fifteen members became
@@ -1481,7 +1513,7 @@ input::placeholder, textarea::placeholder { color: #694f73; }
    rather than from however long this particular role happens to be: name, one role line, one model
    line, no wasted padding. 196px is the track minimum and 8px the gap, both from the project's own
    spacing scale. */
-.member-frame { --member: #b69bc4; display: flex; align-items: center; gap: 9px; min-height: 54px; padding: 5px 10px; border: 1px solid color-mix(in srgb, var(--member) 55%, transparent); border-left: 4px solid var(--member); border-radius: 12px; background: color-mix(in srgb, var(--member) 9%, rgba(14, 4, 26, 0.6)); }
+.member-frame { --member: #b69bc4; display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 5px 10px; border: 1px solid color-mix(in srgb, var(--member) 55%, transparent); border-left: 4px solid var(--member); border-radius: 12px; background: color-mix(in srgb, var(--member) 9%, rgba(14, 4, 26, 0.6)); }
 .member-frame div { display: grid; flex: 1; min-width: 0; }
 /* The card's scale has to descend, because it is read top to bottom: 13px name, 12px role, 10.5px
    model. The role line sat at 11.5px — a caption size, for the one line of the card that says what the
@@ -1558,8 +1590,8 @@ input::placeholder, textarea::placeholder { color: #694f73; }
 @media (max-width: 640px) {
   .team-sheet-backdrop { padding: 12px; }
   .team-sheet { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 14px; }
-  .team-grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); }
-  .team-cell { padding-inline-start: calc(min(var(--depth, 0), 2) * 8px); }
+  .team-grid { gap: 5px; }
+  .team-cell { padding-inline-start: calc(min(var(--depth, 0), 6) * 10px); }
 }
 
 /* Non-Bigkiji agents get Bigkiji's frame in their own colour (owner 2026-09-29). */
@@ -1889,7 +1921,10 @@ div.agent-text { display: grid; gap: 2px; }
    and neither is a `title` tooltip any more — a tooltip is a mouse-only channel, so the full
    sentence is a screen-reader description of the card itself (see MemberFrame's `aria-describedby`)
    and is in the "what does this agent do?" card the card opens. */
-.member-model-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* One column now has the width to spare (owner 2026-10-13: see .team-grid), so the model line no
+   longer needs to ellipsize to fit a 196px card — it wraps instead, the same rule the phone
+   breakpoint used to carry alone (now the default, not a breakpoint override below). */
+.member-model-text { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .member-frame small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .member-frame > div { display: flex; flex-direction: column; min-width: 0; }
 /* A phone is the one place the model line is given room instead of an ellipsis. The sheet scrolls
@@ -2728,19 +2763,39 @@ body:has([role="dialog"]) .toast-stack { display: none; }
   0%,100% { box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 8px 20px -10px rgba(var(--theme-lavender-rgb),.75), 0 0 0 1px rgba(var(--theme-pink-rgb),.10); }
   50%     { box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 10px 26px -8px rgba(var(--theme-pink-rgb),.95), 0 0 0 1px rgba(var(--theme-pink-rgb),.24); }
 }
-.active-work-list { padding:0; margin:10px 0 0; list-style:none; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-.live-work-item { min-width:0; padding:10px; background:#151021; border:1px solid #624365; border-radius:12px; }
-.live-work-item.is-selected { border-color:var(--theme-lavender); }
-.activity-select { display:flex; flex-direction:column; gap:7px; width:100%; text-align:left; padding:0; border:0; background:transparent; color:var(--theme-text); cursor:pointer; }
-.activity-kind-icon { display:inline-grid; place-items:center; width:30px; height:30px; border-radius:9px; color:var(--tone,var(--theme-lavender)); background:color-mix(in srgb,var(--tone,var(--theme-lavender)) 18%,#1c1326); border:1px solid color-mix(in srgb,var(--tone,var(--theme-lavender)) 45%,transparent); }
+.active-work-list { padding:0; margin:10px 0 0; list-style:none; display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+/* Compact + flowing RPG-palette border (owner 2026-10-13: "枠を光が流れるようにRPGカラーでデコレーションして").
+   Reuses the exact rotating-conic-gradient-border convention already shipped for `.task-card.run-running`
+   and `.agents-live.on` (styles.css ~1216/1246) rather than inventing a new one: every card in this list
+   is, by construction, a currently-running activity (`projectLiveActivity` only includes active
+   working/running records), so every card gets the same "live" border treatment those two already use —
+   `--theme-pink/--theme-lavender/--theme-lilac/--theme-coral`, the app's own RPG-leaning palette, not a
+   one-off color choice. `position:relative` + transparent border + a masked `::before` ring keeps the
+   light confined to the 1px edge, never painting over the card's own (now much denser) text content. */
+.live-work-item { position:relative; min-width:0; padding:8px 10px; background:#151021; border:1px solid transparent; border-radius:12px; animation:run-breathe 2.4s ease-in-out infinite; }
+.live-work-item::before { content:''; position:absolute; inset:-1px; z-index:0; padding:1.5px; border-radius:inherit; background:conic-gradient(from var(--run-angle,0deg),var(--theme-pink),var(--theme-lavender),var(--theme-lilac),var(--theme-coral),var(--theme-pink)); -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; animation:run-rotate 3s linear infinite; pointer-events:none; }
+.live-work-item > * { position:relative; z-index:1; }
+.live-work-item.is-selected { background:#1d1530; }
+.activity-select { display:flex; flex-direction:column; gap:4px; width:100%; text-align:left; padding:0; border:0; background:transparent; color:var(--theme-text); cursor:pointer; }
+/* The agent's own "N running" badge, same bar shape and animation as the pulse meter above it
+   (.live-pulse-group / live-pulse-bar, styles.css ~2827) so the two displays read as one claim. */
+.agent-run-count { display:inline-flex; align-items:flex-end; gap:2px; height:14px; margin-left:2px; }
+.agent-run-count i { display:block; width:3px; border-radius:2px 2px 1px 1px; background:var(--tone,#b69dce); box-shadow:0 0 5px color-mix(in srgb,var(--tone,#b69dce) 65%,transparent); animation:live-pulse-bar 1.15s ease-in-out infinite; animation-delay:var(--delay,0ms); }
+.agent-run-count em { align-self:center; margin-left:1px; font:700 10.5px/1 'Manrope',sans-serif; font-style:normal; color:var(--tone,var(--theme-secondary)); }
+/* One list of task rows per agent card, replacing the single `<strong>` title the per-activity card
+   used to carry — this is where "何のタスクをしてるか" now lives, one line per concurrent task. */
+.agent-task-list { display:flex; flex-direction:column; gap:6px; margin:6px 0 0; padding:0; list-style:none; }
+.agent-task-row { display:flex; flex-direction:column; gap:3px; }
+.agent-task-row strong { font-size:13px; line-height:1.4; overflow-wrap:anywhere; }
+.activity-kind-icon { display:inline-grid; place-items:center; width:26px; height:26px; border-radius:8px; color:var(--tone,var(--theme-lavender)); background:color-mix(in srgb,var(--tone,var(--theme-lavender)) 18%,#1c1326); border:1px solid color-mix(in srgb,var(--tone,var(--theme-lavender)) 45%,transparent); }
 .activity-kind-icon[data-kind="gpu"] { --tone:#ff6b6b; }
 .activity-kind-icon[data-kind="session"] { --tone:#5ad1ff; }
 .activity-kind-icon[data-kind="router"] { --tone:#ffd166; }
 .activity-kind-icon[data-kind="card"] { --tone:#caa6ff; }
 .activity-kind-icon[data-kind="unlinked"] { --tone:#8f769e; }
-.activity-select .activity-who { display:flex; align-items:baseline; gap:6px; }
-.activity-select .activity-who b { font-size:14px; line-height:1.4; color:var(--theme-lavender); }
-.activity-select .activity-who small { font-size:11px; color:var(--theme-secondary); }
+.activity-select .activity-who { display:flex; align-items:baseline; flex-wrap:wrap; min-width:0; gap:4px 6px; }
+.activity-select .activity-who b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; font-size:14px; line-height:1.4; color:var(--theme-lavender); }
+.activity-select .activity-who small { flex:none; font-size:11px; color:var(--theme-secondary); }
 .activity-direction { display:grid; grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr); gap:6px; align-items:center; width:100%; }
 .activity-direction span { min-width:0; overflow-wrap:anywhere; }
 .activity-direction b { display:block; font-size:14px; line-height:1.6; color:var(--theme-lavender); }

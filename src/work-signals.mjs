@@ -4,8 +4,14 @@ export function liveDistribution(rows){const segments=Object.entries(LABELS).map
 // Owner 2026-10-11: "棒のアニメーションも動いてるエージェントの色で表現してください" — the pulse bars must
 // show WHICH agent is live, not which internal activity kind it is. One group per known agent
 // (an unknown-sender row falls back to the 'unlinked' kind bucket, unchanged).
+// Owner 2026-10-13 ("ごちゃごちゃ"/clutter pass): this counted a team-addressed row (recipientKind
+// "team", no individual worker recorded) as its own agent, so the pulse meter showed one more
+// "agent" than the Active Agents header, which already excludes team rows the same way
+// (ActivityPanel.tsx's activeActors). Two numbers claiming to count the same thing and disagreeing
+// reads as broken even though neither was wrong on its own — match the header's definition here so
+// both always report the same count for the same data.
 export function liveAgentDistribution(rows){
- const known=rows.filter(r=>r.toKnown&&r.agent);
+ const known=rows.filter(r=>r.toKnown&&r.agent&&r.original?.recipientKind!=='team');
  const unlinked=rows.length-known.length;
  const byAgent=new Map();
  for(const r of known){byAgent.set(r.agent,(byAgent.get(r.agent)||0)+1);}

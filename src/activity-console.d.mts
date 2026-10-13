@@ -8,9 +8,11 @@ export type LiveActivity={key:string;kind:'gpu'|'session'|'router'|'card'|'unlin
 export type FlowEnd={name:string;model:string|null};
 export type ActivityFlow={from:FlowEnd;to:FlowEnd;basis:string};
 export type Graph={nodes:{id:string;name:string;department:string;activities:string[]}[];edges:{id:string;source:string;target:string;activity:string}[]};
+export type AgentActivityGroup={key:string;agent:string;toKnown:boolean;rows:LiveActivity[];count:number};
 export function activityKind(handoff:Partial<Handoff>,tasks?:Task[]):LiveActivity['kind'];
 export function activityMetrics(handoff:Partial<Handoff>):LiveActivity['metrics'];
 export function projectLiveActivity(flow:{available:boolean;handoffs:Handoff[]},teams?:{id:string;name:string;members:{name:string;parent?:string|null;model?:string|null}[]}[],tasks?:Task[]):LiveActivity[];
+export function aggregateByAgent(rows:LiveActivity[]):AgentActivityGroup[];
 export function relationshipGraph(rows:LiveActivity[]):Graph;
 export function otherWorkInventory(work:ControlWork,liveRows?:LiveActivity[],now?:number):{rows:NextWorkRow[];groups:Record<'queued'|'attention'|'scheduled'|'completed'|'unverified',NextWorkRow[]>;counts:Record<string,number>;total:number;sources:{board:number;notes:number;requests:number}};
 

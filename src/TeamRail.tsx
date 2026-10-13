@@ -7,7 +7,7 @@ import { TeamMark } from './TeamMark';
 import { markFor } from './team-marks.mjs';
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Boxes, CircleAlert, Calculator, Clapperboard, Car, Cpu, GraduationCap, LineChart, LayoutGrid, Megaphone, Send, Target, Users, X } from 'lucide-react';
+import { Boxes, CircleAlert, Calculator, Clapperboard, Car, Cpu, GraduationCap, LineChart, Megaphone, Send, Target, Users, X } from 'lucide-react';
 import { ROSTER, personaOf } from './agentRoster';
 import { VoiceRow } from './VoiceInput';
 import { joinSpoken } from './voice';
@@ -68,8 +68,12 @@ export function TeamRail({ teams, allCount, onAll, allActive, selectedTeam=null,
   const [open, setOpen] = useState<string | null>(null);
   const team = teams.find((entry) => entry.id === open) || null;
   return <>
+    {/* Owner 2026-10-13 ("ごちゃごちゃ"/clutter pass): this used LayoutGrid, the exact same icon as
+        the sidebar's unrelated "Office" page link (App.tsx), so the two looked like duplicate
+        buttons pointing at the same place even though one filters the rail and the other opens the
+        3D office page. Users (people) reads as "everyone" without colliding with Office's icon. */}
     <button type="button" className={`area-item area-all ${allActive ? 'active' : ''}`} aria-pressed={allActive} aria-label="All teams" data-nav-label={`All teams · ${allCount} records`} title="All teams" onClick={() => { setOpen(null); onAll(); }}>
-      <LayoutGrid size={26} strokeWidth={1.8} aria-hidden="true"/><span className="sr-only">All · {allCount}</span>
+      <Users size={26} strokeWidth={1.8} aria-hidden="true"/><span className="sr-only">All · {allCount}</span>
     </button>
     {teams.map((entry) => {
 

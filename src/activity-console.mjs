@@ -45,11 +45,33 @@ export function projectLiveActivity(flow,teams=[],tasks=[]) {
  if(!flow?.available)return [];
  const seen=new Set();
  return (flow.handoffs || []).filter(h=>h.active===true && ['working','running'].includes(h.state)).filter(h=>{const key=`${h.source}:${h.id}`;if(seen.has(key))return false;seen.add(key);return true;}).map(h=>{
- const row=liveWork([h])[0];
- const base={...row,key:`${h.source}:${h.id}`,kind:activityKind(h,tasks),fromKnown:!unknownSender(h.from),toKnown:Boolean(text(h.to))&&!/unknown|担当者未記録/.test(h.to),
- fromDepartment:department(h.fromDepartment,h.from,teams,true),toDepartment:department(h.toDepartment || h.team,h.to,teams),
- metrics:activityMetrics(h),original:h};
- return {...base,flow:activityFlow(base,teams)};
+  const row=liveWork([h])[0];
+  const base={...row,key:`${h.source}:${h.id}`,kind:activityKind(h,tasks),fromKnown:!unknownSender(h.from),toKnown:Boolean(text(h.to))&&!/unknown|担当者未記録/.test(h.to),
+  fromDepartment:department(h.fromDepartment,h.from,teams,true),toDepartment:department(h.toDepartment || h.team,h.to,teams),
+  metrics:activityMetrics(h),original:h};
+  return {...base,flow:activityFlow(base,teams)};
+ });
+}
+// Owner feedback 2026-10-13 (screenshot): the same agent (e.g. Bigkiji) running two things at once
+// drew two near-identical cards back to back, each repeating the agent's name/icon/colour. The top
+// pulse meter already merges an agent's concurrent activity into one coloured group with a bar per
+// running item (`liveAgentDistribution` in work-signals.mjs) — this does the same grouping for the
+// card list below it, so the card list and the pulse meter agree on "one agent, N things". A row
+// with no recorded recipient (`toKnown` false) is never merged with another unknown row: there is
+// no identity to group by, so each becomes its own one-row group (grouped under its own `key`
+// instead of a shared "unknown" bucket, which would have wrongly implied they were the same actor).
+export function aggregateByAgent(rows) {
+ const order=[],map=new Map();
+ for(const row of rows){
+  const groupKey=row.toKnown?`agent:${row.agent}`:`row:${row.key}`;
+  if(!map.has(groupKey)){map.set(groupKey,{key:groupKey,agent:row.agent,toKnown:row.toKnown,rows:[]});order.push(groupKey);}
+  map.get(groupKey).rows.push(row);
+ }
+ return order.map(groupKey=>{
+  const group=map.get(groupKey);
+  group.rows.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  group.count=group.rows.length;
+  return group;
  });
 }
 export function relationshipGraph(rows) {
