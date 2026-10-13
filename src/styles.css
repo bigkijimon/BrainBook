@@ -170,14 +170,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    track, sbRect.width:76 == rail's track), and reproduced in headless WebKit too, so it is a real
    engine quirk, not a native-wrapper-only issue. Chromium placed all three correctly in every test.
    Giving each item an explicit grid-column removes the ambiguity auto-placement was getting wrong,
-   regardless of how many DOM children exist before it (the hidden mobile-menu button, etc). */
-.workspace:not(.sidebar-collapsed) .area-rail { grid-column: 1; }
-.workspace:not(.sidebar-collapsed) .sidebar { grid-column: 2; }
-.workspace:not(.sidebar-collapsed) .main-content { grid-column: 3; }
-.workspace:not(.sidebar-collapsed) .inspector { grid-column: 4; }
-.workspace.sidebar-collapsed .area-rail { grid-column: 1; }
-.workspace.sidebar-collapsed .main-content { grid-column: 2; }
-.workspace.sidebar-collapsed .inspector { grid-column: 3; }
+   regardless of how many DOM children exist before it (the hidden mobile-menu button, etc).
+   2026-10-13 (round 2): .area-rail went back to position:fixed (bottom dock), so it no longer
+   occupies a workspace grid column — the remaining tracks shift down by one; neon-navigation.css's
+   .workspace grid-template-columns matches this (sidebar | main | inspector, no leading rail track). */
+.workspace:not(.sidebar-collapsed) .sidebar { grid-column: 1; }
+.workspace:not(.sidebar-collapsed) .main-content { grid-column: 2; }
+.workspace:not(.sidebar-collapsed) .inspector { grid-column: 3; }
+.workspace.sidebar-collapsed .main-content { grid-column: 1; }
+.workspace.sidebar-collapsed .inspector { grid-column: 2; }
 .sidebar h1 { margin: 17px 0 0; color: var(--theme-text); font-size: clamp(25px, 2.2vw, 34px); font-weight: 500; letter-spacing: -0.06em; line-height: 0.98; }
 .sidebar h1 em { color: var(--lime); font-style: normal; }
 .sidebar-copy { max-width: 178px; margin: 20px 0 0; color: var(--muted-2); font-size: 11px; line-height: 1.7; }
