@@ -129,7 +129,11 @@ export function BrainScene({ data, area, focus, selected, pulse, onHover, onSele
     const HOME = new THREE.Vector3(0, 0.35, 9.4);
     camera.position.copy(HOME);
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
+    // 2026-10-17: owner "とても重い（GPUを使ってる）ので軽くして欲しい". This is a full-window
+    // backdrop, not a focused art canvas, so 1.25 is well past the point where the glow and the
+    // connection lines read cleanly; the fill cost is proportional to the square, so the change
+    // cuts fragment work to ~54% of the old 1.7 at once.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.enablePan = false;
@@ -411,8 +415,28 @@ export function BrainScene({ data, area, focus, selected, pulse, onHover, onSele
     const tmp = new THREE.Vector3();
     const sigColor = new THREE.Color();
     let frame = 0;
-    const tick = () => {
-      const dt = Math.min(clock.getDelta(), 0.05);
+    // 2026-10-14 (measured): this scene is the full-window backdrop of every BrainBook page and
+    // repainted at the display rate forever. With the app merely open the GPU sat at 67-73%
+    // device utilisation and dropped to 0% the moment the window was hidden. While the brain is
+    // only the backdrop and nothing is moving on purpose, paint at BRAIN_IDLE_FRAME_MS instead;
+    // full rate only while the owner looks at it (focus), drags it, or a real signal is flying.
+    // 2026-10-17: halved again (125 -> 250 ms). The unfocused scene is a slow decorative drift at
+    // the middle of a mostly-static page; 4 Hz is plenty for that and is another 50% off the idle
+    // composite, on top of the pixel-ratio cut above.
+    const BRAIN_IDLE_FRAME_MS = 250;
+    let lastPaint = 0;
+    let dragging = false;
+    controls.addEventListener('start', () => { dragging = true; });
+    controls.addEventListener('end', () => { dragging = false; });
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      const flying = Boolean(network && network.pool.some((slot) => slot.life > 0));
+      if (!state.focus && !dragging && !flying && now - lastPaint < BRAIN_IDLE_FRAME_MS) return;
+      lastPaint = now;
+      // Same visual speed at the slower backdrop rate: allow up to one backdrop interval of dt.
+      // 2026-10-17: clamped to the idle period, not the old 125 ms one, so the drift the owner
+      // actually sees stays at the same visual speed once the repaint rate is halved.
+      const dt = Math.min(clock.getDelta(), BRAIN_IDLE_FRAME_MS / 1000 + 0.02);
       const t = clock.elapsedTime;
       const motion = reduced ? 0 : 1;
       if (!state.focus) world.rotation.y += dt * 0.035 * motion;
@@ -453,7 +477,6 @@ export function BrainScene({ data, area, focus, selected, pulse, onHover, onSele
       controls.update();
       renderer.render(scene, camera);
       if (state.focus) placeLabels();
-      frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
 
