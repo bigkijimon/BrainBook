@@ -49,12 +49,15 @@ if [[ -d /Applications/BrainBook.app ]]; then
   mv /Applications/BrainBook.app "$SHIP_BACKUP_DIR/BrainBook.app"
   echo "   previous install moved to $SHIP_BACKUP_DIR/BrainBook.app (rollback copy)"
 fi
-DERIVED_DATA=$(xcodebuild -project macos/BrainBook.xcodeproj -scheme BrainBook -configuration Release -showBuildSettings 2>/dev/null | grep -E '^\\s*BUILD_DIR' | head -1 | sed 's/.*= //')
+DERIVED_DATA=$(xcodebuild -project macos/BrainBook.xcodeproj -scheme BrainBook -configuration Release -showBuildSettings 2>/dev/null | grep -E '^\\s*BUILD_DIR' | head -1 | sed 's/.*= //' || true)
+# `|| true`: under `set -euo pipefail` a non-matching grep ended the whole script right here,
+# AFTER the previous install had been moved to the backup dir, leaving /Applications without
+# BrainBook (2026-10-14). An empty result must fall through to the DerivedData search below.
 if [[ -n "$DERIVED_DATA" && -d "$DERIVED_DATA/Release/BrainBook.app" ]]; then
   ditto "$DERIVED_DATA/Release/BrainBook.app" /Applications/BrainBook.app
 else
   # Fallback: search common derived data locations
-  FOUND_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "BrainBook.app" -path "*/Release/*" 2>/dev/null | head -1)
+  FOUND_APP=$(find ~/Library/Developer/Xcode/DerivedData -name "BrainBook.app" -path "*/Release/*" 2>/dev/null | head -1 || true)
   [[ -n "$FOUND_APP" ]] || FAIL "Could not locate built BrainBook.app in DerivedData"
   ditto "$FOUND_APP" /Applications/BrainBook.app
 fi
