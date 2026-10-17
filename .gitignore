@@ -47,3 +47,7 @@ inputs/
 .vite-stage/
 .vite-test/
 
+
+# 214MB Node runtime bundled into the .app by the Xcode build. Too large for GitHub
+# (100MB limit) and was purged from history 2026-10-17; keep it local-only.
+macos/node-self-contained
