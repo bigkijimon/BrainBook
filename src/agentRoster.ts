@@ -37,9 +37,9 @@ export const ROSTER: Record<string, RosterEntry> = {
   Maru: { persona: 'Jensen Huang', field: 'Founder of NVIDIA', does: 'Runs the GPU: takes the lease, starts ComfyUI, watches memory, and gives the machine back when the job ends.', gives: 'Rendered files, or a clear "blocked" reason (for example, not enough memory).', instruct: 'Direct instruction from the MoviePro sheet.' },
   'Auto QA': { persona: 'Thelma Schoonmaker', field: 'Film editor (Raging Bull, Goodfellas)', does: 'Checks every cut automatically: it listens with Whisper, looks with Vision, compares both with the script and holds any cut that does not match.', gives: 'A PASS or FAIL for each cut and for the whole unit.' },
   ComfyUI: { persona: 'Hayao Miyazaki', field: 'Animation director', does: 'The image and video engine. It draws the keyframes and animates them into video on the GPU.', gives: 'Keyframe images and MP4 cuts.' },
-  // BlogPro
-  Sora: { persona: 'Seth Godin', field: 'Marketer and daily blogger', does: 'Leads blogs, social media and the AI influencer. Nothing is published without your approval.', gives: 'Drafts waiting in the approval queue.', instruct: 'Direct instruction from the BlogPro sheet.' },
-  Coco: { persona: 'MrBeast', field: 'The most-subscribed YouTube creator', does: 'The AI influencer persona: plans and drafts short social posts and stills.', gives: 'Post drafts for Sora.' },
+  // CreativePro (owner 2026-10-17: BlogPro renamed, MarketPro merged in as the Marketing team)
+  'CreativeProTop-Momo': { persona: 'Seth Godin', field: 'Marketer and daily blogger', does: 'Leads the CreativePro department: owned content, blogs, social media and the AI influencer, and supervises the Marketing team. Nothing is published without your approval.', gives: 'Drafts waiting in the approval queue.', instruct: 'Direct instruction from the CreativePro sheet.' },
+  Coco: { persona: 'MrBeast', field: 'The most-subscribed YouTube creator', does: 'The AI influencer persona: plans and drafts short social posts and stills.', gives: 'Post drafts for CreativeProTop-Momo.' },
   'Blog QA': { persona: 'William Zinsser', field: 'Author of "On Writing Well"', does: 'Scores H&S blog drafts against the 95-point gate: facts, clarity and tone.', gives: 'A score with the lines to fix.' },
   'Tech Blog QA': { persona: 'Donald Knuth', field: 'Author of "The Art of Computer Programming"', does: 'Scores technical blog drafts against the 95-point gate. It checks that the code and claims are correct.', gives: 'A score with the lines to fix.' },
 };

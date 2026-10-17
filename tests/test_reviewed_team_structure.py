@@ -125,7 +125,7 @@ class EndpointTests(unittest.TestCase):
             (config/'teams.yaml').write_text(json.dumps({'teams':teams}))
             (config/'workers.yaml').write_text(json.dumps({'mimo':{'model':'fixture-model'}}))
             stream=io.StringIO()
-            with patch.object(module,'movie_activity',return_value=[]), patch.object(module,'BLOG_QUEUE',str(root/'empty')):
+            with patch.object(module,'movie_activity',return_value=[]), patch.object(module,'CREATIVE_QUEUE',str(root/'empty')):
                 with contextlib.redirect_stdout(stream): module.teams(str(root/'home'),str(config),str(root/'jobs'))
             body=json.loads(stream.getvalue());by_id={t['id']:t for t in body['teams']}
             self.assertIn('workflow',by_id['app-dev'])

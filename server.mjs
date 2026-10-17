@@ -549,13 +549,17 @@ const DIRECT_MEMBERS = {
   Ame: { profile: 'eduresearchpro', board: 'movie', team: 'movie' },
   Shimajiro: { profile: 'eduleadpro', board: 'movie', team: 'movie' },
   Maru: { profile: 'gpupro', board: 'movie', team: 'movie' },
-  'BlogProTop-Momo': { profile: 'blogpro', board: 'owner', team: 'blog' },
+  // CreativePro is one card (owner 2026-10-17: BlogPro renamed, MarketPro merged in as the
+  // Marketing team): the Content & SNS lead and the Marketing lead both sit under it. Yui's
+  // profile id is `marketpro`; this entry used to name the Router team id `marketing`, which
+  // is not a profile, so instructing Yui from the sheet never reached a profile at all.
+  'CreativeProTop-Momo': { profile: 'creativepro', board: 'owner', team: 'blog' },
   'AppProTop-Sora': { profile: 'apppro', board: 'owner', team: 'app-dev' },
   'AccountProTop-Riku': { profile: 'accountpro', board: 'owner', team: 'accountpro' },
   'ClassProTop-Nana': { profile: 'classpro', board: 'owner', team: 'hs-school-ops' },
   'InvestProTop-Rin': { profile: 'investment', board: 'owner', team: 'investment' },
   'RentProTop-Kai': { profile: 'igataya-web', board: 'owner', team: 'igataya-web' },
-  'MarketProTop-Yui': { profile: 'marketing', board: 'owner', team: 'marketing' },
+  'MarketProTop-Yui': { profile: 'marketpro', board: 'owner', team: 'marketing' },
   'SecurityProTop-Taiga': { profile: 'securitypro', board: 'owner', team: 'securitypro' },
 };
 // Router teams (AppPro, AccountPro, ClassPro, VIT, Igataya; owner 2026-10-01: "各グループにオーナーが

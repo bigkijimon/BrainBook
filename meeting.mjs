@@ -15,9 +15,9 @@ export const ATTENDEES = {
   'Claude Code': { persona: 'Grace Hopper', group: 'Engineering QA' },
   'Space Bunny': { persona: 'Grace Hopper', group: 'Engineering QA' },
   MiMo: { persona: 'Linus Torvalds', group: 'AppPro (app building)' },
-  'BlogProTop-Momo': { persona: 'Seth Godin', group: 'BlogPro (blogs, social)' },
+  'CreativeProTop-Momo': { persona: 'Seth Godin', group: 'CreativePro (blogs, social, marketing)' },
 };
-const MEMBERS = ['MovieProTop-Mame', 'Space Bunny', 'MiMo', 'BlogProTop-Momo'];
+const MEMBERS = ['MovieProTop-Mame', 'Space Bunny', 'MiMo', 'CreativeProTop-Momo'];
 
 const runHermes = (profile, prompt, { hermesBin, env, timeout = 150000 }) => new Promise((resolve, reject) => {
   const args = [...(profile ? ['-p', profile] : []), 'chat', '-Q', '--source', 'meeting', '--max-turns', '1', '-t', '', '-q', prompt];

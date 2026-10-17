@@ -28,7 +28,9 @@ const MEMBER_TONE: Record<string, string> = {
   Jev: themePalette.peach, 'Qwen (local)': themePalette.lavender, Vision: themePalette.peach, Router: themePalette.lilac, ComfyUI: themePalette.lilac,
   // MoviePro
   Steve: themePalette.coral, HideoKojima: themePalette.lilac, 'RyūichiSakamoto': themePalette.peach, Kuro: themePalette.coral, Shimajiro: themePalette.peach,
-  Ame: themePalette.lavender, Maru: '#ffb4a2', 'Auto QA': themePalette.lavender, Sora: themePalette.pink,
+  Ame: themePalette.lavender, Maru: '#ffb4a2', 'Auto QA': themePalette.lavender,
+  // CreativePro (owner 2026-10-17: BlogPro renamed, MarketPro merged in as the Marketing team)
+  'CreativeProTop-Momo': themePalette.pink, 'MarketProTop-Yui': themePalette.lilac, Sora: themePalette.pink,
 };
 // None of these may repeat a MEMBER_TONE value, or an outer-ring legacy profile
 // could land on the exact colour of a real roster member (e.g. MiMo or Pi).

@@ -13,13 +13,13 @@
 //   AccountPro(`accountpro`)  same Router shape, three profiles: ten members.
 //   ClassPro (`hs-school-ops`) same, three profiles: ten members.
 //   RentPro  (`igataya-web`)   same, three profiles: ten members.
-//   MarketPro(`marketing`)    same, three profiles: ten members.
+//   CreativePro Marketing(`marketing`) same, three profiles: ten members.
 //   MoviePro (`movie`)        the film unit: MOVIE_CREW + the script lane, nested three levels deep.
 //                              Fifteen members, MOVIE_SKILLS plus the script lane's role file (seven
 //                              chips), six work rows. MOVIE_PARENT puts Ame under Shimajiro and
 //                              ComfyUI under Maru; the fixture used to flatten both onto Steve, which
 //                              hid the deepest indent in the grid.
-//   BlogPro  (`blog`)         BLOG_CREW: four members, BLOG_SKILLS (five), no chain.
+//   CreativePro(`blog`)      CREATIVE_CREW: four members, CREATIVE_SKILLS (five), no chain.
 //   InvestPro(`investment`)   not in REVIEWED_TEAM_IDS, so TEAM_CREW as configured plus the EVOLUTION
 //                              tab — the one view of this dialog that is allowed to scroll.
 //   StressPro(`stress-router`) not a team: the bound. MoviePro's fifteen members with AppPro's
@@ -204,7 +204,7 @@ const RENT_CARD = routerCard({
   ['Viewings', 'books the viewings and the handover']]);
 
 const MARKET_CARD = routerCard({
-  id: 'marketing', name: 'MarketPro', label: 'Campaigns, copy and growth', live: true,
+  id: 'marketing', name: 'CreativePro Marketing', label: 'Campaigns, copy and growth', live: true,
   specialists: ['ad copy', 'landing pages', 'campaign setup', 'seo', 'newsletter', 'social calendar',
     'brand voice', 'keyword research', 'lifecycle email', 'attribution', 'budget review', 'competitor scan',
     'creative brief', 'landing test', 'onboarding copy', 'churn review'],
@@ -272,13 +272,13 @@ const MOVIE_MEMBERS = crew([
   ['Jev', 'Steve', 'Optional bounded advice; never worker selection or approval', 'Only when opted in and within the task budget'],
 ]);
 
-// `blog` is not in REVIEWED_TEAM_IDS, so it keeps BLOG_CREW (agent-feed.py:483) and gets only the
+// `blog` is not in REVIEWED_TEAM_IDS, so it keeps CREATIVE_CREW (agent-feed.py) and gets only the
 // note agent-feed.py:757 writes for it. The shortest chain in the roster: four members.
 const BLOG_MEMBERS = crew([
-  ['Sora', null, 'lead: content and SNS', 'Claude Sonnet 4.5', true],
-  ['Coco', 'Sora', 'AI influencer', null],
-  ['Blog QA', 'Sora', 'H&S blog 95-point gate', 'Qwen3.8 27B · local'],
-  ['Tech Blog QA', 'Sora', 'tech blog 95-point gate', 'Qwen3.8 27B · local'],
+  ['CreativeProTop-Momo', null, 'lead: content and SNS', 'Claude Sonnet 4.5', true],
+  ['Coco', 'CreativeProTop-Momo', 'AI influencer', null],
+  ['Blog QA', 'CreativeProTop-Momo', 'H&S blog 95-point gate', 'Qwen3.8 27B · local'],
+  ['Tech Blog QA', 'CreativeProTop-Momo', 'tech blog 95-point gate', 'Qwen3.8 27B · local'],
 ]);
 
 // `investment` is excluded from REVIEWED_TEAM_IDS (agent-feed.py:577), so its card carries the raw
@@ -316,16 +316,16 @@ const teams: Team[] = [APP_CARD, ACCOUNT_CARD, CLASS_CARD, RENT_CARD, MARKET_CAR
     // the captures are measured against, so it must not be a paraphrase.
     workflow: 'Steve directs → brief and research → scenario and audio → MiMo builds the script, Space Bunny checks it → keyframes and video on the GPU → Auto QA gate → final unit',
     workflow_note: WORKFLOW_NOTE },
-  { id: 'blog', name: 'BlogPro', label: 'Blogs, SNS, AI influencer (publication needs Yuma)', live: true, members: BLOG_MEMBERS,
+  { id: 'blog', name: 'CreativePro', label: 'Blogs, SNS, AI influencer (publication needs Yuma)', live: true, members: BLOG_MEMBERS,
     specialists: ['blog pipeline', 'sns studio', 'influencer studio', 'blog qa', 'tech blog qa'],
-    direct: ['Sora'],
-    work: [{ member: 'Sora', title: 'Draft: three ways to test an agent', state: 'working' },
+    direct: ['CreativeProTop-Momo'],
+    work: [{ member: 'CreativeProTop-Momo', title: 'Draft: three ways to test an agent', state: 'working' },
       { member: 'Coco', title: 'Plan the next AI influencer still', state: 'working' },
       { title: '4 post(s) in the SNS queue waiting for your approval' },
       { member: 'Blog QA', title: 'Score the H&S draft against the 95-point gate', state: 'ready' },
       { member: 'Tech Blog QA', title: 'Check the code claims in the React draft', state: 'ready' },
       { title: 'Update the blog pipeline runbook' }],
-    workflow_note: 'Sora owns drafts and publication approval. Universal Pi support and Router dispatch are not yet verified for this native profile path.' },
+    workflow_note: 'CreativeProTop-Momo owns drafts and publication approval. Universal Pi support and Router dispatch are not yet verified for this native profile path.' },
   { id: 'investment', name: 'InvestPro', label: 'Trading research and the evolution arena', live: false, members: INVEST_MEMBERS,
     specialists: ['market structure', 'risk model', 'backtest review', 'position sizing'],
     direct: ['MiMo', 'Bigkiji'],

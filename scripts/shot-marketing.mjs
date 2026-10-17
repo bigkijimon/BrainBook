@@ -1,4 +1,4 @@
-// Screenshot the BrainBook home top bar (team tabs) so the MarketPro tab can be
+// Screenshot the BrainBook home top bar (team tabs) so the CreativePro Marketing tab can be
 // compared with its neighbours by eye. Run: node scripts/shot-marketing.mjs [outDir]
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -17,24 +17,24 @@ for (const [name, viewport] of [['marketing-1440', { width: 1440, height: 900 }]
   const tabs = await page.locator('.team-item span, .area-all span').allTextContents();
   console.log(`${name}: ${tabs.join(' | ')}`);
   await page.screenshot({ path: `${OUT}/${name}.png` });
-  // Narrow layouts scroll the tab strip, so scroll MarketPro next to its neighbours
+  // Narrow layouts scroll the tab strip, so scroll CreativePro Marketing next to its neighbours
   // before judging that it looks like them.
   const strip = page.locator('.area-rail').first();
   if (await strip.evaluate((el) => el.scrollWidth > el.clientWidth + 4)) {
-    await page.locator('.team-item', { hasText: 'MarketPro' }).first().evaluate((el) => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
+    await page.locator('.team-item').filter({ has: page.locator('[aria-label="CreativePro Marketing"]') }).first().evaluate((el) => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
     await page.waitForTimeout(400);
-    console.log(`${name}-scrolled: MarketPro brought into view among ${tabs.join(' | ')}`);
+    console.log(`${name}-scrolled: CreativePro Marketing brought into view among ${tabs.join(' | ')}`);
     await page.screenshot({ path: `${OUT}/${name}-scrolled.png` });
   }
   await page.close();
 }
 // The team sheet is the second place a group shows up: click the tab and the whole
-// crew (same as InvestPro) must come out with the MarketPro label.
+// crew (same as InvestPro) must come out with the CreativePro Marketing label.
 {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
   await page.goto(URL_, { waitUntil: 'networkidle' });
   await page.waitForSelector('.team-item', { timeout: 20000 });
-  await page.locator('.team-item', { hasText: 'MarketPro' }).first().click();
+  await page.locator('.team-item').filter({ has: page.locator('[aria-label="CreativePro Marketing"]') }).first().click();
   await page.waitForSelector('.team-sheet', { timeout: 10000 });
   await page.waitForTimeout(400);
   const head = await page.locator('.team-sheet header').innerText();
@@ -46,14 +46,14 @@ for (const [name, viewport] of [['marketing-1440', { width: 1440, height: 900 }]
   await page.screenshot({ path: `${OUT}/marketing-team-sheet.png` });
   await page.close();
 }
-// The office view is a row list, so its MarketPro room is proved by its own row.
+// The office view is a row list, so its CreativePro room is proved by its own row.
 {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
   await page.addInitScript(() => localStorage.setItem('brainbook.office', 'open'));
   await page.goto(URL_, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.office-row[data-zone="z-phone"]', { timeout: 30000 });
-  console.log(`office room z-phone: ${(await page.locator('.office-row[data-zone="z-phone"]').innerText()).replace(/\n/g, ' | ')}`);
-  await page.locator('.office-row[data-zone="z-phone"]').scrollIntoViewIfNeeded();
+  await page.waitForSelector('.office-row[data-zone="z-text"]', { timeout: 30000 });
+  console.log(`office room z-text: ${(await page.locator('.office-row[data-zone="z-text"]').innerText()).replace(/\n/g, ' | ')}`);
+  await page.locator('.office-row[data-zone="z-text"]').scrollIntoViewIfNeeded();
   await page.waitForTimeout(600);
   await page.locator('.office').screenshot({ path: `${OUT}/marketing-office-room.png` });
   await page.close();

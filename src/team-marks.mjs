@@ -7,8 +7,8 @@ export const TEAM_MARKS = Object.freeze({
   investment: {name:'InvestPro',glyph:'ChartNoAxesCombined',tone:'magentaGlow'},
   'igataya-web': {name:'RentPro',glyph:'CarFront',tone:'coral'},
   movie: {name:'MoviePro',glyph:'Clapperboard',tone:'hotGlow'},
-  marketing: {name:'MarketPro',glyph:'Megaphone',tone:'skyGlow'},
-  blog: {name:'BlogPro',glyph:'BookOpen',tone:'lavender'},
+  marketing: {name:'CreativePro Marketing',glyph:'Megaphone',tone:'skyGlow'},
+  blog: {name:'CreativePro',glyph:'BookOpen',tone:'lavender'},
   securitypro: {name:'SecurityPro',glyph:'ShieldCheck',tone:'limeGlow'},
 });
 export function markFor(id) {

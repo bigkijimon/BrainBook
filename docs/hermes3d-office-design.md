@@ -21,12 +21,11 @@ Goal: [[Projects/Goals/2026-09-30-hermes3dで自分のai会社が見えるよう
 | HQ (Bigkiji) | z-meeting | Exec Office → HQ | Bigkiji, miro, Router, Jev |
 | AppPro | z-web | Web Lab → AppPro | MiMo, Space Bunny, Tora |
 | MoviePro | z-product | Video Edit → MoviePro | Steve, HideoKojima, Shimajiro, Ame, Risa |
-| BlogPro | z-text | Text Edit → BlogPro | Sora, Coco |
+| CreativePro | z-text | Text Edit → CreativePro | CreativeProTop-Momo, Coco, MarketProTop-Yui (marketing team lead) |
 | ClassPro | z-cx | Classroom Ops → ClassPro | hs-school-ops のエージェント |
 | AccountPro | z-reading | Research Lab → AccountPro | AccountingGroup のエージェント |
 | InvestPro | z-game | Game Studio → InvestPro | VirtualInvestmentTrusts のエージェント |
 | RentPro | z-3d | 3D Studio → RentPro | igataya-web のエージェント |
-| MarketPro | z-phone | LINE Booths → MarketPro | WEB_MARKETING のエージェント |
 | SecurityPro | unassigned | Native security oversight; no physical zone allocated | SecurityPro (registered lead, execution unverified) |
 
 SecurityPro is an existing native oversight department, not a new Router team. Its logical room has `zone: null` and explicit `assignment: unassigned`; its board/profile map there without taking the reserved kitchen/image zones or implying active inference. Assigning a physical zone is a separate design decision. The checker must validate the unique logical room and its unassigned state rather than claim it exists in the physical map.
@@ -44,7 +43,9 @@ SecurityPro is an existing native oversight department, not a new Router team. I
 | Skills | z-gym | DNA Dojo（そのまま） | tama |
 | Idle | z-lounge | Lounge（そのまま） | どこにも割り当てのないエージェント |
 
-z-kitchen, z-image は空けておく（休憩の動き・画像スタジオ用。v1 では誰も座らない）。z-phone は MarketPro の部屋にする（下の決定 1）。
+z-kitchen, z-image は空けておく（休憩の動き・画像スタジオ用。v1 では誰も座らない）。
+z-phone は空きにする（2026-10-17: MarketPro は独立部門をやめ、CreativePro のマーケティングチームになった。
+決定 1 のとおり 1 グループ 1 部屋なので、Marketing の Router レーンは `teams["marketing"]` で CreativePro の部屋を指す）。
 
 ## 決定 3: タスクは部屋のホワイトボードと、エージェントの頭の上に出す
 

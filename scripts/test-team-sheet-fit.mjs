@@ -118,7 +118,7 @@
 // Router team at all — so every `ok` those rounds printed had never been asked whether the tallest
 // sheet BrainBook ships fits, or even whether all of them were looked at. The harness now builds every
 // card the server can emit: five Router cards through one builder (agent-feed.py `reviewed_structure()`,
-// seven members plus one per configured profile), the film unit, BlogPro, InvestPro, and one card that
+// seven members plus one per configured profile), the film unit, CreativePro, InvestPro, and one card that
 // is not a team at all — MoviePro's fifteen members carrying AppPro's sixteen chips and ten work rows,
 // the union of the two heaviest shapes. The fit is measured on that bound, so it is a claim about the
 // layout rather than about today's roster. Both are measured at 1440x900, and every card is walked at
@@ -150,7 +150,7 @@ const PHONE = { width: 390, height: 844 };
 const NO_SLOP = 1;
 
 // The eight teams the server emits: TEAM_SHORT names seven registry teams (agent-feed.py:447) and
-// `teams()` appends BlogPro. Written out here on purpose rather than read out of the harness: a new team
+// `teams()` appends CreativePro. Written out here on purpose rather than read out of the harness: a new team
 // on the server has to fail this file instead of quietly widening a fixture list nobody re-reads.
 const SERVER_TEAM_IDS = ['accountpro', 'app-dev', 'blog', 'hs-school-ops', 'igataya-web', 'investment', 'marketing', 'movie'];
 // …and the one card in the rail that is not a team: the bound the popup is measured against.
@@ -319,7 +319,10 @@ const open = async (viewport) => {
 };
 const openSheet = async (page, team) => {
   MEASURED.add(team);
-  await page.locator('.team-item', { hasText: team }).first().click();
+  // Exact match on the rail's aria-label (which is the team's display name), not `hasText`:
+  // the content team is now "CreativePro" and the marketing lane "CreativePro Marketing", so a
+  // substring match on the shorter name would open whichever of the two the DOM listed first.
+  await page.locator('.team-item').filter({ has: page.locator(`[aria-label="${team}"]`) }).first().click();
   await page.waitForSelector('.team-sheet');
   // The fonts before the first measurement of them. `waitUntil: 'load'` covers the stylesheets but not
   // the faces those stylesheets pull in, and a face is only fetched once something on the page uses
@@ -741,7 +744,7 @@ const briefHonest = (m, label, expectBand) => {
   }
   inside(m.sheet.box, m.brief.box, 'the chain summary band');
   // The owner's criterion for this band is the chain-arrow summary, so a band that is drawn has to carry
-  // arrows: BlogPro ships a note and no chain, which is why this is read off the rendered line instead of
+  // arrows: CreativePro ships a note and no chain, which is why this is read off the rendered line instead of
   // assumed for every team. The glyph is a set rather than one character, because the arrow is the
   // server's wording to choose and this file should not fail over which one it picked.
   if (m.chain.text) {
@@ -981,17 +984,17 @@ await check('StressPro (15 members, 16 role chips, 10 work rows) at 1440x900: th
 });
 
 // ---- the shortest chain in the roster, at the same viewport -----------------------------------
-await check('BlogPro (4 members) at 1440x900: every member visible, nothing stretched, nothing overlaps', async () => {
+await check('CreativePro (4 members) at 1440x900: every member visible, nothing stretched, nothing overlaps', async () => {
   const page = await open(DESKTOP);
-  await openSheet(page, 'BlogPro');
+  await openSheet(page, 'CreativePro');
   const m = await page.evaluate(MEASURE);
-  record('BlogPro', m);
+  record('CreativePro', m);
   await page.screenshot({ path: shot('team-sheet-blogpro-1440x900.png'), ...CROP });
   assert.equal(m.cards.length, 4, `expected 4 members, saw ${m.cards.length}`);
-  noPopupScroll(m, 'BlogPro 1440x900');
-  noSideways(m, 'BlogPro 1440x900');
+  noPopupScroll(m, 'CreativePro 1440x900');
+  noSideways(m, 'CreativePro 1440x900');
   assert.ok(m.roster.scrollHeight <= m.roster.clientHeight + NO_SLOP, `the crew list scrolls (${m.roster.scrollHeight} > ${m.roster.clientHeight})`);
-  briefHonest(m, 'BlogPro 1440x900', true);
+  briefHonest(m, 'CreativePro 1440x900', true);
   inside(m.sheet.box, m.direct, 'the message box');
   const rows = new Set(m.cards.map((card) => Math.round(card.box.top)));
   // `rows.size` is 0 on an empty crew, so the count is asserted before the layout is read off it: "four
@@ -1003,7 +1006,7 @@ await check('BlogPro (4 members) at 1440x900: every member visible, nothing stre
   // the reading order already carry is the opposite of that (see `.team-cell`, styles.css).
   assert.equal(rows.size, 1, `4 members should sit in 1 row of the ${m.columns}-column crew grid, saw ${rows.size}`);
   const lead = m.cards.filter((card) => card.lead);
-  assert.equal(lead.length, 1, 'Sora should be the one lead card');
+  assert.equal(lead.length, 1, 'CreativeProTop-Momo should be the one lead card');
   // …and the lead is one cell, not a bar. It leads by being first and by depth 0, so a card four times its
   // neighbours' width is the stretch this check exists to reject, not the intent.
   assert.ok(lead[0].box.width <= 420, `the lead card is ${Math.round(lead[0].box.width)}px wide; it should be one cell like every other member`);
@@ -1015,15 +1018,15 @@ await check('BlogPro (4 members) at 1440x900: every member visible, nothing stre
     assert.ok(card.box.width <= 420, `member ${card.name} is stretched to ${Math.round(card.box.width)}px wide`);
   }
   assert.ok(m.sheet.box.height < DESKTOP.height * 0.9, `a 4-member popup fills ${Math.round(m.sheet.box.height)}px of ${DESKTOP.height}px; it should be content-sized`);
-  namesInside(m, 'BlogPro 1440x900');
-  await noOverlap(page, 'BlogPro 1440x900');
+  namesInside(m, 'CreativePro 1440x900');
+  await noOverlap(page, 'CreativePro 1440x900');
   // A short team has to look intentional, and "content-sized" is the whole of that: the popup ends far
   // above its own cap and the cards keep their own height rather than filling the column.
-  hasHeadroom(m, 'BlogPro 1440x900');
+  hasHeadroom(m, 'CreativePro 1440x900');
   // Free slots here too, and for the same reason as on the long cards: the claim "the layout has room to
   // grow" is a claim about every card the rail can open, and a four-member popup is the one most likely
   // to pass a height check while having no free cell left in its grid.
-  console.log(`     sheet ${Math.round(m.sheet.box.height)}/${DESKTOP.height}px tall, ${m.columns} columns, tallest card ${Math.round(Math.max(...m.cards.map((card) => card.box.height)))}px, ${Math.round(m.maxHeight - m.sheet.box.height)}px of headroom; ${await freeSlotsFit(page, m, 'BlogPro 1440x900')}`);
+  console.log(`     sheet ${Math.round(m.sheet.box.height)}/${DESKTOP.height}px tall, ${m.columns} columns, tallest card ${Math.round(Math.max(...m.cards.map((card) => card.box.height)))}px, ${Math.round(m.maxHeight - m.sheet.box.height)}px of headroom; ${await freeSlotsFit(page, m, 'CreativePro 1440x900')}`);
   await page.close();
 });
 
@@ -1336,7 +1339,7 @@ await check('the "what does this agent do?" card keeps focus inside itself, and 
 // four of the eight teams the server emits were never measured at a single viewport while this file
 // printed ok throughout. The set is checked against the rail itself at the end of the run, so a team
 // added to the harness without being swept fails there rather than passing quietly.
-const SWEEP_TEAMS = ['AppPro', 'AccountPro', 'ClassPro', 'RentPro', 'MarketPro', 'StressPro', 'MoviePro', 'BlogPro', 'InvestPro'];
+const SWEEP_TEAMS = ['AppPro', 'AccountPro', 'ClassPro', 'RentPro', 'CreativePro Marketing', 'StressPro', 'MoviePro', 'CreativePro', 'InvestPro'];
 const SWEEP_VIEWPORTS = [DESKTOP, SHORT, WIDE_SHORT, NARROW_SHORT, PHONE];
 const SWEEP = SWEEP_TEAMS.flatMap((team) => SWEEP_VIEWPORTS.map((viewport) => [team, viewport]));
 for (const [team, viewport] of SWEEP) {

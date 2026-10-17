@@ -21,7 +21,7 @@ const HUB = 'Bigkiji';
 // Anything else seen in a hand-off (old Hermes profiles, Codex, OpenCode) lands in OTHER.
 const GROUPS: { id: string; label: string; lead: string | null; members: string[]; tone: string }[] = [
   // Owner 2026-09-30: every team shows its whole chain. MoviePro gained its two
-  // departments; BlogPro (Sora's team) was missing; Support reports straight to Bigkiji.
+  // departments; the content team (then BlogPro) was missing; Support reports straight to Bigkiji.
   // Owner 2026-10-02 ("まとめて"): MoviePro is one team, so its panel is named MoviePro alone.
   // One box per agent (see `layout`) keeps MiMo and Space Bunny — the script lane MoviePro now
   // carries — in the ENGINEER panel they were already drawn in, instead of duplicating them here.
@@ -29,9 +29,9 @@ const GROUPS: { id: string; label: string; lead: string | null; members: string[
   { id: 'accountpro', label: 'ACCOUNTPRO', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.peach },
   { id: 'investpro', label: 'INVESTPRO', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.lavender },
   { id: 'rentpro', label: 'RENTPRO', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.coral },
-  { id: 'marketpro', label: 'MARKETPRO', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.lilac },
+  { id: 'marketpro', label: 'CREATIVEPRO · MARKETING', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.lilac },
   { id: 'movie', label: 'MOVIEPRO', lead: 'Steve', members: ['HideoKojima', 'RyūichiSakamoto', 'Shimajiro', 'Ame', 'Maru', 'ComfyUI', 'Auto QA', 'Kuro'], tone: themePalette.coral },
-  { id: 'blog', label: 'BLOGPRO · CONTENT', lead: 'Sora', members: ['Coco', 'Blog QA', 'Tech Blog QA'], tone: themePalette.pink },
+  { id: 'blog', label: 'CREATIVEPRO · CONTENT', lead: 'CreativeProTop-Momo', members: ['Coco', 'Blog QA', 'Tech Blog QA'], tone: themePalette.pink },
   { id: 'support', label: 'SUPPORT · REPORTS TO BIGKIJI', lead: null, members: ['Pi', 'Jev'], tone: themePalette.coral },
 ];
 // Who reports to whom inside a group (owner 2026-09-30: "show which agent sits under which").

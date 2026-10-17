@@ -308,7 +308,10 @@ AGENT_NAME = {"default": "Bigkiji", "hermes": "Bigkiji", "worker": "Bigkiji", "b
               "router": "Router", "auto-decomposer": "Decomposer", "mimo": "MiMo", "claude": "Claude Code",
               "claudecode": "Claude Code", "codex": "Codex", "qwen": "Qwen (local)", "vision": "Vision",
               "opencode": "OpenCode", "supportpro": "Pi",
-              "moviepro": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru", "blogpro": "BlogProTop-Momo",
+              "moviepro": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru",
+              # `creativepro` is the live profile (renamed 2026-10-17); `blogpro` stays mapped so
+              # cards filed before the rename still print the lead's current display name.
+              "creativepro": "CreativeProTop-Momo", "blogpro": "CreativeProTop-Momo",
               "apppro": "AppProTop-Sora", "accountpro": "AccountProTop-Riku", "classpro": "ClassProTop-Nana",
               "investment": "InvestProTop-Rin", "igataya-web": "RentProTop-Kai", "marketing": "MarketProTop-Yui",
               "securitypro": "SecurityProTop-Taiga"}
@@ -476,7 +479,9 @@ def flow(home, since, router_jobs):
 # second card back: `teams()` skips the lane before it ever reads this table, so the name here is only
 # ever reached through team_short_name.
 TEAM_SHORT = {"app-dev": "AppPro", "accountpro": "AccountPro", "hs-school-ops": "ClassPro",
-              "investment": "InvestPro", "igataya-web": "RentPro", "marketing": "MarketPro",
+              # The `marketing` Router lane is the Marketing team inside CreativePro (owner
+              # 2026-10-17), not a department of its own, so the tab says which department it sits in.
+              "investment": "InvestPro", "igataya-web": "RentPro", "marketing": "CreativePro Marketing",
               "movie": "MoviePro", "movie-pro": "MoviePro", "securitypro": "SecurityPro"}
 
 
@@ -525,13 +530,17 @@ MOVIE_CREW = [("MovieProTop-Mame", "production director"), ("HideoKojima", "scen
 # departments that run under MovieProTop-Mame's profile, so they are reached through MovieProTop-Mame.
 MOVIE_DIRECT = ["MovieProTop-Mame", "Kuro", "Ame", "Shimajiro", "Maru"]
 MOVIE_PROFILE = {"moviepro": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru"}
-# BlogPro (owner 2026-09-29): blogs, SNS and AI influencer. Lead is the `blogpro` profile.
+# CreativePro (owner 2026-10-17: BlogPro renamed, MarketPro merged in as the Marketing team;
+# originally owner 2026-09-29): blogs, SNS and AI influencer. Lead is the `creativepro` profile,
+# displayed CreativeProTop-Momo. The internal team id stays `blog` — it is an identifier the
+# tests, the flow map and the office all key on, and only the display name was renamed.
 # Publication always waits for Yuma, so this group is shown but never auto-dispatched.
-BLOG_CREW = [("BlogProTop-Momo", "lead: content and SNS"), ("Coco", "AI influencer"), ("Blog QA", "H&S blog 95-point gate"),
-             ("Tech Blog QA", "tech blog 95-point gate")]
-BLOG_PROFILE = {"blogpro": "BlogProTop-Momo"}
-BLOG_SKILLS = ["blog pipeline", "sns studio", "influencer studio", "blog qa", "tech blog qa"]
-BLOG_QUEUE = os.path.expanduser("~/Documents/AI/AgentsDB/Admin/SNSStudioSora/_queue")
+CREATIVE_CREW = [("CreativeProTop-Momo", "lead: content and SNS"), ("Coco", "AI influencer"), ("Blog QA", "H&S blog 95-point gate"),
+                 ("Tech Blog QA", "tech blog 95-point gate")]
+# Both profile ids resolve to the same lead: cards filed before the rename still exist.
+CREATIVE_PROFILE = {"creativepro": "CreativeProTop-Momo", "blogpro": "CreativeProTop-Momo"}
+CREATIVE_SKILLS = ["blog pipeline", "sns studio", "influencer studio", "blog qa", "tech blog qa"]
+CREATIVE_QUEUE = os.path.expanduser("~/Documents/AI/AgentsDB/Admin/SNSStudioSora/_queue")
 MOVIE_SKILLS = ["film scenario", "film preproduction", "film identity", "movie character reference",
                 "movie video generation", "film review"]
 # MoviePro's own chain, beside the crew it names (owner 2026-10-02, "まとめて"). It is the film
@@ -551,9 +560,9 @@ MOVIE_WORKFLOW = ("MovieProTop-Mame directs → brief and research → scenario 
 # config.yaml (model.default), Router config/workers.yaml, Router adapters/mimo (UI lane).
 # Members with no config of their own (tools, departments) name the files that prove it.
 PROFILE_OF = {"Bigkiji": None, "MovieProTop-Mame": "moviepro", "Kuro": "kuro", "Ame": "eduresearchpro", "Shimajiro": "eduleadpro",
-              "Maru": "gpupro", "BlogProTop-Momo": "blogpro", "Tora": "appdebugpro", "Hana": "hana",
+              "Maru": "gpupro", "CreativeProTop-Momo": "creativepro", "Tora": "appdebugpro", "Hana": "hana",
               "AppProTop-Sora": "apppro", "AccountProTop-Riku": "accountpro", "ClassProTop-Nana": "classpro",
-              "InvestProTop-Rin": "investment", "RentProTop-Kai": "igataya-web", "MarketProTop-Yui": "marketing",
+              "InvestProTop-Rin": "investment", "RentProTop-Kai": "igataya-web", "MarketProTop-Yui": "marketpro",
               "SecurityProTop-Taiga": "securitypro"}
 
 
@@ -626,8 +635,8 @@ def member_models(home, router_config):
     out["Auto QA"] = "Whisper large-v3-turbo + Qwen2.5-VL 7B"           # media/scripts/cut_qa.py
     out["ComfyUI"] = "Qwen-Image-Edit 2511 + LTX-2.5 22B"               # gen_keyframe.py, ltx25-golden.json
     out["HideoKojima"] = out["RyūichiSakamoto"] = out.get("MovieProTop-Mame")      # departments on MovieProTop-Mame's profile
-    for name in ("Coco", "Blog QA", "Tech Blog QA"):                    # skills run by the blogpro profile
-        out[name] = out.get("BlogProTop-Momo")
+    for name in ("Coco", "Blog QA", "Tech Blog QA"):                    # skills run by the creativepro profile
+        out[name] = out.get("CreativeProTop-Momo")
     return {name: model for name, model in out.items() if model}
 
 
@@ -822,33 +831,35 @@ def teams(home, router_config, router_jobs):
         if team.get("id") in REVIEWED_TEAM_IDS and os.path.isfile(os.path.join(home, "state", "team-lane", "repair-hold.json")):
             team["workflow_note"] = "Automatic worker execution is held pending verification. " + team.get("workflow_note", "")
         if team.get("id") == "blog":
-            team["workflow_note"] = "BlogProTop-Momo owns drafts and publication approval. Universal Pi support and Router dispatch are not yet verified for this native profile path."
+            team["workflow_note"] = "CreativeProTop-Momo owns drafts and publication approval. Universal Pi support and Router dispatch are not yet verified for this native profile path."
     print(json.dumps({"teams": out, "models": models}, ensure_ascii=False))
 
 
 def blog_team(home):
-    """BlogPro: blogpro's Kanban cards on any board plus the SNS approval queue (read-only)."""
+    """CreativePro: the `creativepro` profile's Kanban cards on any board plus the SNS approval
+    queue (read-only). Cards filed before the 2026-10-17 rename still carry the old `blogpro`
+    assignee, so the query reads both ids rather than silently hiding that older work."""
     cards, busy = [], set()
     for path in glob.glob(os.path.join(home, "kanban", "boards", "*", "kanban.db")):
         conn = connect(path)
         if conn is None:
             continue
         try:
-            for title, status, assignee in conn.execute("select title, status, assignee from tasks where assignee = 'blogpro' and status in ('running','ready','blocked','todo') order by created_at desc limit 5"):
+            for title, status, assignee in conn.execute("select title, status, assignee from tasks where assignee in ('creativepro', 'blogpro') and status in ('running','ready','blocked','todo') order by created_at desc limit 5"):
                 cards.append({"title": (title or "")[:120], "state": KANBAN_OUTCOME.get(status, status)})
                 if status == "running":
-                    busy.add(BLOG_PROFILE.get(assignee, assignee))
+                    busy.add(CREATIVE_PROFILE.get(assignee, assignee))
         except sqlite3.Error:
             pass
     try:
-        waiting = sorted(name for name in os.listdir(BLOG_QUEUE) if name.endswith(".md"))
+        waiting = sorted(name for name in os.listdir(CREATIVE_QUEUE) if name.endswith(".md"))
     except OSError:
         waiting = []
     if waiting:
         cards.append({"title": f"{len(waiting)} post(s) in the SNS queue waiting for your approval", "state": "waiting"})
-    return {"id": "blog", "name": "BlogPro", "label": "Blogs, SNS, AI influencer (publication needs Yuma)", "live": bool(busy),
-            "members": [{"name": member, "role": role, "live": member in busy, "parent": None if member == "BlogProTop-Momo" else "BlogProTop-Momo"} for member, role in BLOG_CREW],
-            "specialists": BLOG_SKILLS, "work": cards[:6], "board": None, "direct": ["BlogProTop-Momo"]}
+    return {"id": "blog", "name": "CreativePro", "label": "Blogs, SNS, AI influencer (publication needs Yuma)", "live": bool(busy),
+            "members": [{"name": member, "role": role, "live": member in busy, "parent": None if member == "CreativeProTop-Momo" else "CreativeProTop-Momo"} for member, role in CREATIVE_CREW],
+            "specialists": CREATIVE_SKILLS, "work": cards[:6], "board": None, "direct": ["CreativeProTop-Momo"]}
 
 
 def security_team(home):
