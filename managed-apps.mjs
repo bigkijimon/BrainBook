@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-export const INVENTORY_UNIVERSE={documents:'/Users/yuma/Documents',canonical:['ObsidianVault/Vault/SYSTEMS.md','ObsidianVault/Vault/000_WHERE.md'],catalogs:['SystemAPPS'],knownRoots:['Personal/task-system','Hermes/Hermes3D','ComfyUI/ComfyUI-H3-MacFast','School/HSAcademy/HS_App','School/HSAcademy/HS_Web','School/Upclass/Upclass_App/upclass-app','School/留学/StudyAbroadIntelligenceDNA','School/留学/ryugaku-hub-mvp','SystemAPPS/Applications/Obsidian.app'],excludedDirectories:['Applications','Developer-Settings','Secrets','_keys','_backups','node_modules','dist','build','data','output','logs','cache','venv','__pycache__','archive','archives','backup','backups','tests','test-results','docs','AGENTS','agents','Accounting','customers','secrets','models','assets','audio','papers','materials','fonts','vendor','content','books','inputs','verification','tools','knowledge','hosting','site','public']};
+export const INVENTORY_UNIVERSE={documents:'/Users/yuma/Documents',canonical:['ObsidianVault/Vault/SYSTEMS.md','ObsidianVault/Vault/000_WHERE.md'],catalogs:['SystemAPPS'],knownRoots:['Personal/task-system','Hermes/Hermes3D','ComfyUI/ComfyUI-H3-MacFast','School/HSAcademy/HS_App','School/HSAcademy/HS_Web','School/Upclass/Upclass_App/upclass-app','School/留学/StudyAbroadIntelligenceDNA','School/留学/ryugaku-hub-mvp','SystemAPPS/Applications/Obsidian.app','System/Mitumorikun'],excludedDirectories:['Applications','Developer-Settings','Secrets','_keys','_backups','node_modules','dist','build','data','output','logs','cache','venv','__pycache__','archive','archives','backup','backups','tests','test-results','docs','AGENTS','agents','Accounting','customers','secrets','models','assets','audio','papers','materials','fonts','vendor','content','books','inputs','verification','tools','knowledge','hosting','site','public']};
 const MARKERS=['package.json','pyproject.toml','Package.swift','server.mjs','server.py','main.py','app.py','index.html','foundation/mcp_foundation.py','bin/llm-weekly','src/app.py','web/app.py','Contents/Info.plist'];
 const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const exists=async p=>fs.stat(p).then(s=>s.isFile()).catch(()=>false);
@@ -32,17 +32,24 @@ export async function collectManagedApps({documents=INVENTORY_UNIVERSE.documents
  const evidence=[];for(const f of proof){const full=path.join(root,f),stat=await fs.stat(full);let hash=null;if(['package.json','Package.swift'].includes(f))hash=sha(await fs.readFile(full));evidence.push({path:full,kind:f,mtime:stat.mtime.toISOString(),sha256:hash});}
  if(await exists(path.join(root,'README.md'))){const full=path.join(root,'README.md'),bytes=await fs.readFile(full);evidence.push({path:full,kind:'public README',sha256:sha(bytes)});}
  let name=human(path.basename(owningRoot).replace(/\.app$/,''));if(root!==owningRoot && path.basename(owningRoot)==='Stock')name=human(path.basename(root));
- if(owningRoot.endsWith('/HS_App'))name='H&S Academy app';if(root.endsWith('/HS_Web'))name='H&S Academy website';if(root.endsWith('/upclass-app'))name='UPCLASS';if(root.endsWith('/task-system'))name='BrainBook';if(path.basename(owningRoot)==='IgataCarRental')name='Igataya';
+ if(owningRoot.endsWith('/HS_App'))name='H&S Academy app';if(root.endsWith('/HS_Web'))name='H&S Academy website';if(root.endsWith('/upclass-app'))name='UPCLASS';if(root.endsWith('/task-system'))name='BrainBook';if(path.basename(owningRoot)==='IgataCarRental')name='Igataya';if(root.endsWith('/Mitumorikun'))name='Mr.INV';if(root.endsWith('/MrINV-site'))name='Mr.INV 販売サイト';
  const kind=markers.includes('Package.swift')||markers.includes('Contents/Info.plist')?'desktop app':markers.includes('index.html')&&!appScript?'site':markers.some(f=>/server|foundation|llm-weekly|main.py|app.py/.test(f))?'service':'app';
  const rootLine=ledger.split('\n').find(line=>line.includes('`'+root+'`'));
  const portLines=ledger.split('\n').filter(line=>/^\| `\d/.test(line));
  // Only a named canonical port or explicit port in package scripts. Never template README :3000.
  const localPort=Object.values(pkg.scripts||{}).filter(v=>typeof v==='string').map(v=>v.match(/(?:--port|\s-p)\s+(\d{4,5})\b/)).find(Boolean)?.[1];
- const aliases=name==='BrainBook'?['BrainBook']:name==='UPCLASS'?['UPCLASS app']:name==='Hermes3D'?['Hermes3D']:name==='ComfyUI H3 MacFast'?['ComfyUI']:name==='MorningApp'?['MorningApp']:name==='AccountingGroup'?['Accounting Agent Group']:name==='EikenPrep'?['EikenPrep']:name==='MCP Business'?['MCP-Business']:[];
+ const aliases=name==='BrainBook'?['BrainBook']:name==='UPCLASS'?['UPCLASS app']:name==='Hermes3D'?['Hermes3D']:name==='ComfyUI H3 MacFast'?['ComfyUI']:name==='MorningApp'?['MorningApp']:name==='AccountingGroup'?['Accounting Agent Group']:name==='EikenPrep'?['EikenPrep']:name==='MCP Business'?['MCP-Business']:name==='Mr.INV'?['見積君 app','見積君 server']:[];
  const portLine=portLines.find(line=>aliases.some(a=>line.includes(a))&&!line.includes('–'));
  const port=portLine?.match(/`(\d{4,5})`/)?.[1]||localPort;
- const address=port?`http://127.0.0.1:${port}`:null;
- entries.push({id:sha(real).slice(0,16),name,kind,root:real,documentedUrl:address,addressBasis:portLine?'Canonical location ledger port':localPort?'Explicit package script port':'No verified address recorded',health:'Not checked',evidence:[...evidence,...(rootLine?[{path:path.join(documents,'ObsidianVault/Vault/000_WHERE.md'),kind:'canonical root reference',sha256:canonical.find(c=>c.path.endsWith('000_WHERE.md'))?.sha256}]:[])]});return;
+ // Verified public deployment addresses (not derived — hand-recorded here once a canonical public
+ // URL has been checked live; see 000_WHERE.md for the underlying launchd/tunnel entry). Preferred
+ // over a bare local port because the owner (including from the BrainBook phone) wants the real
+ // reachable site, not a loopback address only valid on this one Mac.
+ const PUBLIC_URLS={'Mr.INV':'https://mrinv.hsacademy202404.site/','Mr.INV 販売サイト':'https://shop.hsacademy202404.site/'};
+ const ICON_URLS={'Mr.INV':'https://shop.hsacademy202404.site/assets/logo.png','Mr.INV 販売サイト':'https://shop.hsacademy202404.site/assets/logo.png'};
+ const publicUrl=PUBLIC_URLS[name];
+ const address=publicUrl||(port?`http://127.0.0.1:${port}`:null);
+ entries.push({id:sha(real).slice(0,16),name,kind,root:real,documentedUrl:address,iconUrl:ICON_URLS[name]||null,addressBasis:publicUrl?'Verified public deployment (recorded in 000_WHERE.md, checked live)':portLine?'Canonical location ledger port':localPort?'Explicit package script port':'No verified address recorded',health:'Not checked',evidence:[...evidence,...(rootLine?[{path:path.join(documents,'ObsidianVault/Vault/000_WHERE.md'),kind:'canonical root reference',sha256:canonical.find(c=>c.path.endsWith('000_WHERE.md'))?.sha256}]:[])]});return;
  }
  let children=[];if(depth>0)try{children=(await fs.readdir(root,{withFileTypes:true})).filter(d=>d.isDirectory()&&!d.name.startsWith('.')&&!d.name.startsWith('_')&&!excluded.has(d.name));}catch(e){denied.push({path:root,reason:e.code||'Read failed'});}
  const before=entries.length;for(const child of children)await inspect(path.join(root,child.name),depth-1,owningRoot);

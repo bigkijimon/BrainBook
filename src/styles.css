@@ -2711,6 +2711,7 @@ body:has([role="dialog"]) .toast-stack { display: none; }
 .managed-app-item { display:flex; align-items:center; text-align:left; gap:8px; min-height:44px; min-width:44px; width:100%; padding:7px 8px; border:1px solid transparent; border-radius:9px; background:#251c34; color:var(--theme-text); font:600 12px/1.5 'Manrope',sans-serif; overflow-wrap:anywhere; cursor:pointer; }
 .managed-app-item svg { flex:none; color:var(--theme-pink); }
 .managed-app-badge { flex:none; width:20px; height:20px; border-radius:6px; display:flex; align-items:center; justify-content:center; font:700 9px/1 'Manrope',sans-serif; color:#fff; background:var(--badge-color,#5a385c); }
+.managed-app-icon { object-fit:cover; background:#fff; padding:0; }
 .managed-app-item.has-more .managed-app-more { background:linear-gradient(150deg,var(--theme-pink,#e85d9c),var(--theme-magentaGlow,#7a3fa0)); }
 .managed-app-item:hover,.managed-app-item:focus-visible { background:#3b284a; border-color:var(--theme-lavender); }
 .rail-life-filters { margin-top:6px; color:#d2c3df; font-size:12px; }
