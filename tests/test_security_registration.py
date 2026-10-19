@@ -20,4 +20,9 @@ class SecurityRegistrationTests(unittest.TestCase):
    stream=io.StringIO()
    with patch.object(feed,'movie_activity',return_value=[]),patch.object(feed,'member_models',return_value={}),contextlib.redirect_stdout(stream):feed.teams(home,home,home)
    groups=json.loads(stream.getvalue())['teams'];self.assertEqual(sum(t['id']=='securitypro' for t in groups),1);self.assertEqual(sum(t['id']=='movie' for t in groups),1)
+ def test_the_renamed_profile_directory_is_recognised(self):
+  with tempfile.TemporaryDirectory() as home:
+   p=Path(home,'profiles/securityagent');p.mkdir(parents=True);(p/'config.yaml').write_text('model:\n  default: null\n')
+   self.assertTrue(feed.security_team(home)['registration']['profilePresent'])
+
 if __name__=='__main__':unittest.main()

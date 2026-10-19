@@ -92,15 +92,15 @@ class TeamNamingTests(unittest.TestCase):
     # `teams()` skips the lane before it reads TEAM_SHORT (MOVIE_SCRIPT_TEAM, tests/teams-moviepro).
     def test_both_ids_of_moviepro_are_named_moviepro(self):
         ns=display();short=ns['team_short_name']
-        self.assertEqual(ns['TEAM_SHORT']['movie-pro'],'MoviePro')
-        self.assertEqual(short('movie'),'MoviePro')
-        self.assertEqual(short('movie-pro'),'MoviePro')
-        self.assertEqual({short(k) for k in ('movie','movie-pro')},{'MoviePro'},
-                         'MoviePro is one team, so one word names both halves of it')
+        self.assertEqual(ns['TEAM_SHORT']['movie-pro'],'MovieAgent')
+        self.assertEqual(short('movie'),'MovieAgent')
+        self.assertEqual(short('movie-pro'),'MovieAgent')
+        self.assertEqual({short(k) for k in ('movie','movie-pro')},{'MovieAgent'},
+                         'MovieAgent is one team, so one word names both halves of it')
 
     def test_a_team_the_table_has_not_seen_keeps_its_own_text(self):
         short=display()['team_short_name']
-        self.assertEqual(short('app-dev'),'AppPro')
+        self.assertEqual(short('app-dev'),'AppAgent')
         self.assertEqual(short('future-team'),'future-team','a Router team added tomorrow is shown, not blanked')
         # A card with no `team:` hint adds no team name at all, which is what `None` is for.
         self.assertIsNone(short(None))

@@ -26,11 +26,11 @@ const GROUPS: { id: string; label: string; lead: string | null; members: string[
   // One box per agent (see `layout`) keeps MiMo and Space Bunny — the script lane MoviePro now
   // carries — in the ENGINEER panel they were already drawn in, instead of duplicating them here.
   { id: 'eng', label: 'ENGINEER', lead: 'Router', members: ['MiMo', 'Space Bunny', 'Claude Code', 'Tora', 'Hana', 'Qwen (local)', 'Vision'], tone: themePalette.lavender },
-  { id: 'accountpro', label: 'ACCOUNTPRO', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.peach },
-  { id: 'investpro', label: 'INVESTPRO', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.lavender },
-  { id: 'rentpro', label: 'RENTPRO', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.coral },
+  { id: 'accountpro', label: 'ACCOUNTAGENT', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.peach },
+  { id: 'investpro', label: 'INVESTAGENT', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.lavender },
+  { id: 'rentpro', label: 'IGATAYA · WEB SERVICES', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.coral },
   { id: 'marketpro', label: 'CREATIVEPRO · MARKETING', lead: null, members: ['Router', 'MiMo', 'Space Bunny', 'Claude Code', 'Qwen (local)', 'Vision'], tone: themePalette.lilac },
-  { id: 'movie', label: 'MOVIEPRO', lead: 'Steve', members: ['HideoKojima', 'RyūichiSakamoto', 'Shimajiro', 'Ame', 'Maru', 'ComfyUI', 'Auto QA', 'Kuro'], tone: themePalette.coral },
+  { id: 'movie', label: 'MOVIEAGENT', lead: 'Steve', members: ['HideoKojima', 'RyūichiSakamoto', 'Shimajiro', 'Ame', 'Maru', 'ComfyUI', 'Auto QA', 'Kuro'], tone: themePalette.coral },
   { id: 'blog', label: 'CREATIVEPRO · CONTENT', lead: 'CreativeProTop-Momo', members: ['Coco', 'Blog QA', 'Tech Blog QA'], tone: themePalette.pink },
   { id: 'support', label: 'SUPPORT · REPORTS TO BIGKIJI', lead: null, members: ['Pi', 'Jev'], tone: themePalette.coral },
 ];

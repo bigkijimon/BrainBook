@@ -19,16 +19,16 @@ Goal: [[Projects/Goals/2026-09-30-hermes3dで自分のai会社が見えるよう
 | Group | Zone | 今の表示名 → 新しい表示名 | 座る人（例） |
 |---|---|---|---|
 | HQ (Bigkiji) | z-meeting | Exec Office → HQ | Bigkiji, miro, Router, Jev |
-| AppPro | z-web | Web Lab → AppPro | MiMo, Space Bunny, Tora |
-| MoviePro | z-product | Video Edit → MoviePro | Steve, HideoKojima, Shimajiro, Ame, Risa |
+| AppAgent | z-web | Web Lab → AppAgent | MiMo, Space Bunny, Tora |
+| MovieAgent | z-product | Video Edit → MovieAgent | MovieAgent, HideoKojima, Shimajiro, Ame, Risa |
 | CreativePro | z-text | Text Edit → CreativePro | CreativeProTop-Momo, Coco, MarketProTop-Yui (marketing team lead) |
-| ClassPro | z-cx | Classroom Ops → ClassPro | hs-school-ops のエージェント |
-| AccountPro | z-reading | Research Lab → AccountPro | AccountingGroup のエージェント |
-| InvestPro | z-game | Game Studio → InvestPro | VirtualInvestmentTrusts のエージェント |
-| RentPro | z-3d | 3D Studio → RentPro | igataya-web のエージェント |
-| SecurityPro | unassigned | Native security oversight; no physical zone allocated | SecurityPro (registered lead, execution unverified) |
+| ClassAgent | z-cx | Classroom Ops → ClassAgent | hs-school-ops のエージェント |
+| AccountAgent | z-reading | Research Lab → AccountAgent | AccountingGroup のエージェント |
+| InvestAgent | z-game | Game Studio → InvestAgent | VirtualInvestmentTrusts のエージェント |
+| Web Services | z-3d | 3D Studio → Igataya (Web Services) | igataya-web のエージェント |
+| SecurityAgent | unassigned | Native security oversight; no physical zone allocated | SecurityAgent (registered lead, execution unverified) |
 
-SecurityPro is an existing native oversight department, not a new Router team. Its logical room has `zone: null` and explicit `assignment: unassigned`; its board/profile map there without taking the reserved kitchen/image zones or implying active inference. Assigning a physical zone is a separate design decision. The checker must validate the unique logical room and its unassigned state rather than claim it exists in the physical map.
+SecurityAgent is an existing native oversight department, not a new Router team. Its logical room has `zone: null` and explicit `assignment: unassigned`; its board/profile map there without taking the reserved kitchen/image zones or implying active inference. Assigning a physical zone is a separate design decision. The checker must validate the unique logical room and its unassigned state rather than claim it exists in the physical map.
 
 ## 決定 2: グループをまたぐ役割は共有の部屋に置く
 

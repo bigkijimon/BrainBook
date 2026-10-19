@@ -10,6 +10,7 @@
     "smoke": "node server.mjs --smoke",
     "test:criteria": "node --test tests/jev-decisions.test.mjs tests/worker-router.test.mjs tests/next-work.test.mjs tests/live-work.test.mjs",
     "test:log": "node scripts/test-server-log.mjs",
+    "test:metrics": "node scripts/test-product-metrics.mjs",
     "test:browser": "node scripts/test-browser.mjs",
     "test:control-center": "node scripts/test-control-center.mjs",
     "test:voice": "node scripts/test-voice.mjs",

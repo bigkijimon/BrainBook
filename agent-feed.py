@@ -123,7 +123,7 @@ def live(home):
             pass
     for job in movie_activity():
         out.append({"id": job["id"], "title": job["title"], "assignee": job["member"], "startedAt": job["startedAt"],
-                    "board": "movie", "boardName": "MoviePro", "gpu": job["gpu"], "queue": comfy_queue() if job["gpu"] else None})
+                    "board": "movie", "boardName": "MovieAgent", "gpu": job["gpu"], "queue": comfy_queue() if job["gpu"] else None})
     out.extend(session_activity(home))
     print(json.dumps({"running": out}, ensure_ascii=False))
 
@@ -136,11 +136,11 @@ def live(home):
 SESSION_LIVE_SECONDS = 180
 PROJECT_LABELS = [
     ("/Personal/task-system", "BrainBook app"),
-    ("/EnglishContentOS", "MoviePro (lesson videos)"),
+    ("/EnglishContentOS", "MovieAgent (lesson videos)"),
     ("/Character-reference", "character references"),
     ("/Upclass/", "UPCLASS"),
     ("/HSAcademy/", "H&S Academy app"),
-    ("/AccountingGroup", "AccountPro"),
+    ("/AccountingGroup", "AccountAgent"),
     ("/IgatayaDB", "Igataya data"),
     ("/IgataCarRental", "Igataya rent-a-car web"),
     ("/Mitumorikun", "Mitumorikun"),
@@ -242,7 +242,7 @@ def _movie_title(member, command):
         return "Vision model is looking at frames for Auto QA"
     if "charref" in command:
         return "Character-reference batch"
-    return "MoviePro: lesson video chain" + (f" ({where})" if where else "")
+    return "MovieAgent: lesson video chain" + (f" ({where})" if where else "")
 
 
 def movie_activity():
@@ -275,7 +275,7 @@ def gpu_work():
     for job in movie_activity():
         if job["gpu"]:
             out.append({"id": f"gpu-{job['id']}", "title": job["title"], "assignee": "ComfyUI", "startedAt": job["startedAt"],
-                        "board": "movie", "boardName": "MoviePro", "gpu": True, "queue": comfy_queue()})
+                        "board": "movie", "boardName": "MovieAgent", "gpu": True, "queue": comfy_queue()})
     return out
 
 
@@ -308,11 +308,13 @@ AGENT_NAME = {"default": "Bigkiji", "hermes": "Bigkiji", "worker": "Bigkiji", "b
               "router": "Router", "auto-decomposer": "Decomposer", "mimo": "MiMo", "claude": "Claude Code",
               "claudecode": "Claude Code", "codex": "Codex", "qwen": "Qwen (local)", "vision": "Vision",
               "opencode": "OpenCode", "supportpro": "Pi",
-              "moviepro": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru",
+              "moviepro": "MovieProTop-Mame", "movieagent": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru",
               # `creativepro` is the live profile (renamed 2026-10-17); `blogpro` stays mapped so
               # cards filed before the rename still print the lead's current display name.
-              "creativepro": "CreativeProTop-Momo", "blogpro": "CreativeProTop-Momo",
+              "creativepro": "CreativeProTop-Momo", "creativeagent": "CreativeProTop-Momo", "blogpro": "CreativeProTop-Momo",
               "apppro": "AppProTop-Sora", "accountpro": "AccountProTop-Riku", "classpro": "ClassProTop-Nana",
+              "appagent": "AppProTop-Sora", "accountagent": "AccountProTop-Riku", "classagent": "ClassProTop-Nana",
+              "investagent": "InvestProTop-Rin", "marketagent": "MarketProTop-Yui", "securityagent": "SecurityProTop-Taiga",
               "investment": "InvestProTop-Rin", "igataya-web": "RentProTop-Kai", "marketing": "MarketProTop-Yui",
               "securitypro": "SecurityProTop-Taiga"}
 KANBAN_OUTCOME = {"running": "working", "ready": "queued", "todo": "waiting", "triage": "queued", "scheduled": "scheduled", "blocked": "needs you", "done": "done", "archived": "done", "complete": "done", "completed": "done", "failed": "failed"}
@@ -444,7 +446,7 @@ def flow(home, since, router_jobs):
         # over `boardName` wherever a team is printed (the live strip, the hand-off log), so the raw id
         # `movie` this used to carry is what the owner read instead of the team. The script lane's own
         # cards arrive with `team: movie-pro` and are named through team_short_name — the same team.
-        handoffs.append({"id": job["id"], "source": "kanban", "board": "movie", "boardName": "MoviePro", "from": "指示元未記録",
+        handoffs.append({"id": job["id"], "source": "kanban", "board": "movie", "boardName": "MovieAgent", "from": "指示元未記録",
                          "to": job["member"], "title": job["title"], "state": "working", "active": True, "at": job["startedAt"],
                          "activityKind": "gpu" if job["gpu"] else "process", "note": note, "steps": [{"to": job["member"], "state": "working"}]})
     # Session activity records a recipient, but does not prove who instructed it.
@@ -478,11 +480,11 @@ def flow(home, since, router_jobs):
 # the team a piece of work belongs to has to be able to print the lane as MoviePro. It cannot bring a
 # second card back: `teams()` skips the lane before it ever reads this table, so the name here is only
 # ever reached through team_short_name.
-TEAM_SHORT = {"app-dev": "AppPro", "accountpro": "AccountPro", "hs-school-ops": "ClassPro",
+TEAM_SHORT = {"app-dev": "AppAgent", "accountpro": "AccountAgent", "hs-school-ops": "ClassAgent",
               # The `marketing` Router lane is the Marketing team inside CreativePro (owner
               # 2026-10-17), not a department of its own, so the tab says which department it sits in.
-              "investment": "InvestPro", "igataya-web": "RentPro", "marketing": "CreativePro Marketing",
-              "movie": "MoviePro", "movie-pro": "MoviePro", "securitypro": "SecurityPro"}
+              "investment": "InvestAgent", "igataya-web": "Igataya", "marketing": "CreativePro Marketing",
+              "movie": "MovieAgent", "movie-pro": "MovieAgent", "securitypro": "SecurityAgent"}
 
 
 def team_short_name(team_id):
@@ -529,7 +531,7 @@ MOVIE_CREW = [("MovieProTop-Mame", "production director"), ("HideoKojima", "scen
 # name -> Hermes profile mapping). HideoKojima and RyūichiSakamoto are
 # departments that run under MovieProTop-Mame's profile, so they are reached through MovieProTop-Mame.
 MOVIE_DIRECT = ["MovieProTop-Mame", "Kuro", "Ame", "Shimajiro", "Maru"]
-MOVIE_PROFILE = {"moviepro": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru"}
+MOVIE_PROFILE = {"moviepro": "MovieProTop-Mame", "movieagent": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru"}
 # CreativePro (owner 2026-10-17: BlogPro renamed, MarketPro merged in as the Marketing team;
 # originally owner 2026-09-29): blogs, SNS and AI influencer. Lead is the `creativepro` profile,
 # displayed CreativeProTop-Momo. The internal team id stays `blog` — it is an identifier the
@@ -538,7 +540,7 @@ MOVIE_PROFILE = {"moviepro": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "
 CREATIVE_CREW = [("CreativeProTop-Momo", "lead: content and SNS"), ("Coco", "AI influencer"), ("Blog QA", "H&S blog 95-point gate"),
                  ("Tech Blog QA", "tech blog 95-point gate")]
 # Both profile ids resolve to the same lead: cards filed before the rename still exist.
-CREATIVE_PROFILE = {"creativepro": "CreativeProTop-Momo", "blogpro": "CreativeProTop-Momo"}
+CREATIVE_PROFILE = {"creativepro": "CreativeProTop-Momo", "creativeagent": "CreativeProTop-Momo", "blogpro": "CreativeProTop-Momo"}
 CREATIVE_SKILLS = ["blog pipeline", "sns studio", "influencer studio", "blog qa", "tech blog qa"]
 CREATIVE_QUEUE = os.path.expanduser("~/Documents/AI/AgentsDB/Admin/SNSStudioSora/_queue")
 MOVIE_SKILLS = ["film scenario", "film preproduction", "film identity", "movie character reference",
@@ -559,11 +561,11 @@ MOVIE_WORKFLOW = ("MovieProTop-Mame directs → brief and research → scenario 
 # Read live from the owning configs so the label follows a config change: Hermes profile
 # config.yaml (model.default), Router config/workers.yaml, Router adapters/mimo (UI lane).
 # Members with no config of their own (tools, departments) name the files that prove it.
-PROFILE_OF = {"Bigkiji": None, "MovieProTop-Mame": "moviepro", "Kuro": "kuro", "Ame": "eduresearchpro", "Shimajiro": "eduleadpro",
-              "Maru": "gpupro", "CreativeProTop-Momo": "creativepro", "Tora": "appdebugpro", "Hana": "hana",
-              "AppProTop-Sora": "apppro", "AccountProTop-Riku": "accountpro", "ClassProTop-Nana": "classpro",
-              "InvestProTop-Rin": "investment", "RentProTop-Kai": "igataya-web", "MarketProTop-Yui": "marketpro",
-              "SecurityProTop-Taiga": "securitypro"}
+PROFILE_OF = {"Bigkiji": None, "MovieProTop-Mame": "movieagent", "Kuro": "kuro", "Ame": "eduresearchpro", "Shimajiro": "eduleadpro",
+              "Maru": "gpupro", "CreativeProTop-Momo": "creativeagent", "Tora": "appdebugpro", "Hana": "hana",
+              "AppProTop-Sora": "appagent", "AccountProTop-Riku": "accountagent", "ClassProTop-Nana": "classagent",
+              "InvestProTop-Rin": "investagent", "RentProTop-Kai": "igataya-web", "MarketProTop-Yui": "marketagent",
+              "SecurityProTop-Taiga": "securityagent"}
 
 
 def _profile_model(home, profile):
@@ -803,7 +805,7 @@ def teams(home, router_config, router_jobs):
     members = [{"name": member, "role": role, "live": member in movie_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_CREW]
     if script_team:  # the lane exists only while the Router config keeps it
         members += [{"name": member, "role": role, "live": member in script_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_SCRIPT_CREW]
-    out.append({"id": "movie", "name": "MoviePro", "label": "Lesson videos, scripts and GPU",
+    out.append({"id": "movie", "name": "MovieAgent", "label": "Lesson videos, scripts and GPU",
                 "live": bool(movie_busy) or bool(script_busy) or script_live,
                 "members": members,
                 # The film unit's own six department skills plus the script lane's role files, read from
@@ -845,7 +847,7 @@ def blog_team(home):
         if conn is None:
             continue
         try:
-            for title, status, assignee in conn.execute("select title, status, assignee from tasks where assignee in ('creativepro', 'blogpro') and status in ('running','ready','blocked','todo') order by created_at desc limit 5"):
+            for title, status, assignee in conn.execute("select title, status, assignee from tasks where assignee in ('creativeagent', 'creativepro', 'blogpro') and status in ('running','ready','blocked','todo') order by created_at desc limit 5"):
                 cards.append({"title": (title or "")[:120], "state": KANBAN_OUTCOME.get(status, status)})
                 if status == "running":
                     busy.add(CREATIVE_PROFILE.get(assignee, assignee))
@@ -864,7 +866,9 @@ def blog_team(home):
 
 def security_team(home):
     """Existing native oversight department, not a Router lane or activation request."""
-    profile_present = os.path.isdir(os.path.join(home, "profiles", "securitypro"))
+    # profile id renamed securitypro -> securityagent on 2026-10-19; the old directory name is still accepted
+    profile_id = next((n for n in ("securityagent", "securitypro") if os.path.isdir(os.path.join(home, "profiles", n))), None)
+    profile_present = profile_id is not None
     db = os.path.join(home, "kanban", "boards", "securitypro", "kanban.db")
     conn = connect(db) if os.path.isfile(db) else None
     board_present = conn is not None
@@ -877,15 +881,15 @@ def security_team(home):
             board_present = False
         finally:
             conn.close()
-    evidence = profile_model_evidence(home, ["securitypro"])["securitypro"] if profile_present else {}
+    evidence = profile_model_evidence(home, [profile_id])[profile_id] if profile_present else {}
     configured = evidence.get("configured")
     observed = evidence.get("observed")
     inference = "observed_session" if observed else "configured_not_verified" if configured else "unbound"
-    return {"id": "securitypro", "name": "SecurityPro", "label": "Security oversight (execution connection unverified)",
-            "live": bool(observed), "members": [{"name": "SecurityPro", "role": "Security oversight lead; registration is not execution admission", "parent": None, "live": bool(observed), **({"model": observed} if observed else {})}],
+    return {"id": "securitypro", "name": "SecurityAgent", "label": "Security oversight (execution connection unverified)",
+            "live": bool(observed), "members": [{"name": "SecurityAgent", "role": "Security oversight lead; registration is not execution admission", "parent": None, "live": bool(observed), **({"model": observed} if observed else {})}],
             "specialists": ["securitypro-operations"], "work": work, "board": "securitypro" if board_present else None,
             "direct": [], "registration": {"profilePresent": profile_present, "boardPresent": board_present, "inference": inference, "configuredModel": configured, "observedModel": observed, "routerAdmission": "unverified", "independentSecurityQA": "unverified"},
-            "workflow": "Bigkiji → SecurityPro triage → existing owning-team implementation → Pi checks → independent qualified review → Bigkiji verification and delivery",
+            "workflow": "Bigkiji → SecurityAgent triage → existing owning-team implementation → Pi checks → independent qualified review → Bigkiji verification and delivery",
             "workflow_note": "Registered oversight department. No new worker or direct dispatch is enabled. Missing/unbound inference and pending SEC findings are not a security PASS."}
 
 

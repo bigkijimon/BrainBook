@@ -11,10 +11,10 @@ import { requireWorkerLaneOpen, submitWorkerText } from './worker-router.mjs';
 // Display names are meeting roles, never a request for a particular worker or model.
 export const ATTENDEES = {
   Bigkiji: { persona: 'Bigkiji', group: 'Host · chief orchestrator', profile: null },
-  'MovieProTop-Mame': { persona: 'Steven Spielberg', group: 'MoviePro (lesson videos)' },
+  'MovieProTop-Mame': { persona: 'MovieAgent', group: 'MovieAgent (lesson videos)' },
   'Claude Code': { persona: 'Grace Hopper', group: 'Engineering QA' },
   'Space Bunny': { persona: 'Grace Hopper', group: 'Engineering QA' },
-  MiMo: { persona: 'Linus Torvalds', group: 'AppPro (app building)' },
+  MiMo: { persona: 'Linus Torvalds', group: 'AppAgent (app building)' },
   'CreativeProTop-Momo': { persona: 'Seth Godin', group: 'CreativePro (blogs, social, marketing)' },
 };
 const MEMBERS = ['MovieProTop-Mame', 'Space Bunny', 'MiMo', 'CreativeProTop-Momo'];
