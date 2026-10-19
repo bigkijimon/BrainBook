@@ -3154,6 +3154,17 @@ body:has([role="dialog"]) .toast-stack { display: none; }
   font-weight: 600;
   color: var(--text);
   min-width: 110px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.products-overview-product-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: #fff;
+  flex: none;
 }
 .products-overview-stats {
   display: flex;

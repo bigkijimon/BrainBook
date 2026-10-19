@@ -5,6 +5,7 @@ import { NeonAccent } from './NeonAccent';
 export interface ProductsOverviewItem {
   productName: string;
   apiUrl: string;
+  iconUrl?: string;
 }
 
 interface ProductMetricsData {
@@ -101,7 +102,10 @@ export function ProductsOverview({ products, refreshIntervalMs = 30000 }: Produc
           const d = row?.data;
           return (
             <div key={p.apiUrl} className="products-overview-row" role="listitem">
-              <span className="products-overview-name">{p.productName}</span>
+              <span className="products-overview-name">
+                {p.iconUrl && <img className="products-overview-product-icon" src={p.iconUrl} alt="" aria-hidden="true" loading="lazy" />}
+                {p.productName}
+              </span>
               {row?.error ? (
                 <span className="product-metrics-error">
                   <AlertCircle size={13} aria-hidden="true" />

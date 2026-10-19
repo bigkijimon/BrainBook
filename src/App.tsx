@@ -784,6 +784,7 @@ function App() {
           {page === 'home' && <ProductsOverview products={[
             { productName: 'StudyAbroadOS', apiUrl: '/api/product-metrics/studyabroados' },
             { productName: 'EikenPrep', apiUrl: '/api/product-metrics/eikenprep' },
+            { productName: 'Mr.INV', apiUrl: '/api/product-metrics/mrinv', iconUrl: 'https://shop.hsacademy202404.site/assets/logo.png' },
             { productName: '予約SaaS', apiUrl: '/api/product-metrics/reservation-saas' },
           ]} refreshIntervalMs={30000} />}
           {page === 'home' && <ActivityPanel

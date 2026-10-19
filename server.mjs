@@ -544,7 +544,7 @@ const kanbanBody = (task, gpu) => [
 // Members the owner can instruct directly (display name -> Hermes profile and board).
 // Must match MOVIE_DIRECT / "direct" in agent-feed.py.
 const DIRECT_MEMBERS = {
-  'MovieProTop-Mame': { profile: 'moviepro', board: 'movie', team: 'movie' },
+  'MovieProTop-Mame': { profile: 'movieagent', board: 'movie', team: 'movie' },
   Kuro: { profile: 'kuro', board: 'movie', team: 'movie' },
   Ame: { profile: 'eduresearchpro', board: 'movie', team: 'movie' },
   Shimajiro: { profile: 'eduleadpro', board: 'movie', team: 'movie' },
@@ -553,14 +553,14 @@ const DIRECT_MEMBERS = {
   // Marketing team): the Content & SNS lead and the Marketing lead both sit under it. Yui's
   // profile id is `marketpro`; this entry used to name the Router team id `marketing`, which
   // is not a profile, so instructing Yui from the sheet never reached a profile at all.
-  'CreativeProTop-Momo': { profile: 'creativepro', board: 'owner', team: 'blog' },
-  'AppProTop-Sora': { profile: 'apppro', board: 'owner', team: 'app-dev' },
-  'AccountProTop-Riku': { profile: 'accountpro', board: 'owner', team: 'accountpro' },
-  'ClassProTop-Nana': { profile: 'classpro', board: 'owner', team: 'hs-school-ops' },
-  'InvestProTop-Rin': { profile: 'investment', board: 'owner', team: 'investment' },
+  'CreativeProTop-Momo': { profile: 'creativeagent', board: 'owner', team: 'blog' },
+  'AppProTop-Sora': { profile: 'appagent', board: 'owner', team: 'app-dev' },
+  'AccountProTop-Riku': { profile: 'accountagent', board: 'owner', team: 'accountpro' },
+  'ClassProTop-Nana': { profile: 'classagent', board: 'owner', team: 'hs-school-ops' },
+  'InvestProTop-Rin': { profile: 'investagent', board: 'owner', team: 'investment' },
   'RentProTop-Kai': { profile: 'igataya-web', board: 'owner', team: 'igataya-web' },
-  'MarketProTop-Yui': { profile: 'marketpro', board: 'owner', team: 'marketing' },
-  'SecurityProTop-Taiga': { profile: 'securitypro', board: 'owner', team: 'securitypro' },
+  'MarketProTop-Yui': { profile: 'marketagent', board: 'owner', team: 'marketing' },
+  'SecurityProTop-Taiga': { profile: 'securityagent', board: 'owner', team: 'securitypro' },
 };
 // Router teams (AppPro, AccountPro, ClassPro, VIT, Igataya; owner 2026-10-01: "各グループにオーナーが
 // 直接指示できる項目ですが、Movieproにしか反映されていない"). Every team gets the same three members:
@@ -1232,6 +1232,26 @@ const handleApi = async (req, res, url) => {
     const targetUrl = 'https://eikenprep.hsacademy202404.site/api/admin/metrics';
     const adminToken = process.env.EIKENPREP_ADMIN_TOKEN || settings.eikenprepAdminToken;
     if (!adminToken) return json(res, { error: 'eikenprepAdminToken not configured in config.json' }, 500);
+    try {
+      const response = await fetch(targetUrl, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+        headers: { 'x-admin-token': adminToken }
+      });
+      if (!response.ok) throw new Error(`Upstream ${response.status}`);
+      const data = await response.json();
+      return json(res, data);
+    } catch (error) {
+      return json(res, { error: `Failed to fetch metrics: ${String(error.message || error).slice(0, 200)}` }, 502);
+    }
+  }
+  // Mr.INV metrics proxy (served by the sales-site worker, which is the only place real
+  // aggregate order/revenue data actually lives -- the app itself is a per-customer local
+  // install with no central telemetry)
+  if (url.pathname === '/api/product-metrics/mrinv' && req.method === 'GET') {
+    const targetUrl = 'https://shop.hsacademy202404.site/api/admin/metrics';
+    const adminToken = process.env.MRINV_ADMIN_TOKEN || settings.mrinvAdminToken;
+    if (!adminToken) return json(res, { error: 'mrinvAdminToken not configured in config.json' }, 500);
     try {
       const response = await fetch(targetUrl, {
         cache: 'no-store',
