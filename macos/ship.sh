@@ -72,7 +72,22 @@ INSTALLED_HASH=$(cd /Applications/BrainBook.app/Contents/Resources/app/dist/asse
 [[ "$BUILT_HASH" == "$INSTALLED_HASH" ]] || FAIL "installed /Applications/BrainBook.app dist/assets hash ($INSTALLED_HASH) != freshly built dist/assets hash ($BUILT_HASH) — the install step silently did not copy the new build"
 echo "   OK — installed bundle hash matches the build just produced: $BUILT_HASH"
 
-echo "── 5/6 restart the running app ──"
+echo "── 5/6 restart the server + the app ──"
+# The backend (server.mjs, and everything it imports: agent-feed.py via child_process,
+# managed-apps.mjs, meeting.mjs, etc.) runs as the separately launchd-managed
+# com.bigkiji.brainbookserver job (KeepAlive, RunAtLoad), NOT as a child process the GUI app
+# spawns and kills. Quitting/reopening the GUI app alone does nothing to that job: the GUI's
+# own health check only kickstarts it when the server is UNREACHABLE, and a server running
+# perfectly healthy OLD code still answers 200 — so a backend-only source change silently kept
+# serving stale code after every "restart" until someone noticed and killed the process by hand
+# (observed 3 times in one session, 2026-10-19). Kickstart it explicitly, every ship, whether or
+# not this ship touched backend files — cheap, and removes the class of bug entirely.
+if launchctl print "gui/$(id -u)/com.bigkiji.brainbookserver" >/dev/null 2>&1; then
+  launchctl kickstart -k "gui/$(id -u)/com.bigkiji.brainbookserver" || FAIL "launchctl kickstart of com.bigkiji.brainbookserver failed"
+  echo "   kickstarted com.bigkiji.brainbookserver (launchd-managed backend)"
+else
+  echo "   NOTE: com.bigkiji.brainbookserver is not a loaded launchd job on this machine — skipping kickstart (older/dev setup?)"
+fi
 osascript -e 'tell application "BrainBook" to quit' 2>/dev/null || true
 sleep 2
 open -a /Applications/BrainBook.app

@@ -407,7 +407,7 @@
 			outputPaths = ();
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
-			shellScript = "# Generate Info.plist from release/release-info.mjs\nset -euo pipefail\nINFO_PLIST=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Info.plist\"\nNODE_BIN=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources/node\"\nWRITE_PLIST=\"${SRCROOT}/../scripts/write-macos-plist.mjs\"\nif [[ ! -f \"${NODE_BIN}\" ]]; then\n  echo \"ERROR: Node binary not found at ${NODE_BIN}\" >&2\n  exit 1\nfi\nif [[ ! -f \"${WRITE_PLIST}\" ]]; then\n  echo \"ERROR: write-macos-plist.mjs not found at ${WRITE_PLIST}\" >&2\n  exit 1\nfi\n\"${NODE_BIN}\" \"${WRITE_PLIST}\" \"${INFO_PLIST}\"\n";
+			shellScript = "# Generate Info.plist from release/release-info.mjs.\n# Writes to DERIVED_FILE_DIR (an intermediate path), not the bundle's own Contents/Info.plist\n# directly: with GENERATE_INFOPLIST_FILE=NO + INFOPLIST_FILE=$(DERIVED_FILE_DIR)/Info.plist,\n# Xcode's own ProcessInfoPlistFile step COPIES this file into the bundle as its last packaging\n# step instead of generating a fresh (and much emptier) one that would silently stomp this --\n# that stomping caused the shipped app to have no Dock/.app icon and no menu-bar display name.\nset -euo pipefail\nINFO_PLIST=\"${DERIVED_FILE_DIR}/Info.plist\"\nNODE_BIN=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources/node\"\nWRITE_PLIST=\"${SRCROOT}/../scripts/write-macos-plist.mjs\"\nif [[ ! -f \"${NODE_BIN}\" ]]; then\n  echo \"ERROR: Node binary not found at ${NODE_BIN}\" >&2\n  exit 1\nfi\nif [[ ! -f \"${WRITE_PLIST}\" ]]; then\n  echo \"ERROR: write-macos-plist.mjs not found at ${WRITE_PLIST}\" >&2\n  exit 1\nfi\nmkdir -p \"${DERIVED_FILE_DIR}\"\n\"${NODE_BIN}\" \"${WRITE_PLIST}\" \"${INFO_PLIST}\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -416,15 +416,16 @@
 		2531A81BAB4A4098021FDB7F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				COMBINE_HIDPI_IMAGES = YES;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+								ARCHS = arm64;
+								ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+								ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+								COMBINE_HIDPI_IMAGES = YES;
+								COPY_PHASE_STRIP = YES;
+								DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+								GENERATE_INFOPLIST_FILE = NO;
+								INFOPLIST_FILE = "$(DERIVED_FILE_DIR)/Info.plist";
+								LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+								MACOSX_DEPLOYMENT_TARGET = 13.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bku.brainbook;
 				CODE_SIGN_IDENTITY = "BKU Dev Signer";
@@ -443,21 +444,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = BrainBook;
-				INFOPLIST_KEY_CFBundleExecutable = "$(EXECUTABLE_NAME)";
-				INFOPLIST_KEY_CFBundleIdentifier = "$(PRODUCT_BUNDLE_IDENTIFIER)";
-				INFOPLIST_KEY_CFBundleInfoDictionaryVersion = 6.0;
-				INFOPLIST_KEY_CFBundleName = "$(PRODUCT_NAME)";
-				INFOPLIST_KEY_CFBundlePackageType = APPL;
-				INFOPLIST_KEY_CFBundleShortVersionString = 1.0;
-				INFOPLIST_KEY_CFBundleVersion = 1;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2024 Bigkiji. All rights reserved.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "BrainBook uses the microphone for voice input in the BrainBook pane.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "BrainBook uses speech recognition for voice input in the BrainBook pane.";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+								GENERATE_INFOPLIST_FILE = NO;
+								INFOPLIST_FILE = "$(DERIVED_FILE_DIR)/Info.plist";
+								LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+								MACOSX_DEPLOYMENT_TARGET = 13.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bku.brainbook;
 				CODE_SIGN_IDENTITY = "BKU Dev Signer";
