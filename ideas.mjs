@@ -168,5 +168,43 @@ export const createIdeaStore = ({ vaultPath, ideasPath, projectsPath }) => {
     return { path: note.relative, entry: entry.slice(2), next: nextText || null };
   };
 
-  return { create, link, resolveNote, setDone, logStep };
+  // Save a chat-box idea with its AI score + roadmap baked into the note (owner 2026-10-21).
+  // origin: 'owner' (typed by the owner) or 'trend' (from the weekly Trend Radar scan — kept in a
+  // separate folder, never mixed into the owner's own raw idea list).
+  const createAnalyzed = async ({ text, area, analysis, origin = 'owner', sources = [] }) => {
+    const clean = String(text || '').trim().slice(0, MAX_TEXT);
+    if (!clean) throw Object.assign(new Error('Nothing to save'), { status: 400 });
+    const dir = origin === 'trend' ? path.join(ideasPath, 'trend-radar') : ideasPath;
+    await fs.mkdir(dir, { recursive: true });
+    const id = newId();
+    const relative = path.relative(vaultPath, path.join(dir, `${id}.md`));
+    const stamp = new Date().toISOString();
+    const title = titleOf(clean);
+    const rest = clean.split(/\r?\n/).slice(1).join('\n').trim();
+    const score = Number.isFinite(analysis?.score) ? analysis.score : null;
+    const roadmapLines = (analysis?.roadmap || []).flatMap((stage) => [
+      '', `### ${stage.stage}`, '',
+      ...stage.actions.map((action) => `- [ ] ${action}`),
+    ]);
+    const criteriaLines = analysis?.criteria
+      ? Object.entries(analysis.criteria).map(([key, value]) => `- **${key}** (${value.score}/20): ${value.why}`)
+      : [];
+    const lines = [
+      '---', `id: ${yamlString(id)}`, 'status: "seed"', 'source: "brainbook"', 'privacy: local-draft',
+      `origin: ${yamlString(origin)}`,
+      ...(score !== null ? [`score: ${score}`, `score_source: ${yamlString(analysis.source)}`] : []),
+      ...(area ? [`area: ${yamlString(area)}`] : []),
+      `created_at: ${yamlString(stamp)}`, `updated_at: ${yamlString(stamp)}`, '---', '',
+      `# ${title}`, '', '## Summary', '', rest || title, '',
+      ...(analysis?.reason ? ['## Why this score', '', analysis.reason, '', ...criteriaLines, ''] : []),
+      ...(roadmapLines.length ? ['## Roadmap', ...roadmapLines, ''] : []),
+      ...(sources.length ? ['## Sources', '', ...sources.map((s) => `- [${s.title || s.url}](${s.url})`), ''] : []),
+    ];
+    await fs.writeFile(path.join(vaultPath, relative), lines.join('\n'), { encoding: 'utf8', flag: 'wx' });
+    const created = { path: relative, title, score, origin };
+    for (const linked of analysis?.links || []) { if (linked.path) { try { await link({ from: relative, to: linked.path }); } catch { /* keep the idea even if one link fails */ } } }
+    return created;
+  };
+
+  return { create, createAnalyzed, link, resolveNote, setDone, logStep };
 };
