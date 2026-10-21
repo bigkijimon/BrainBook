@@ -4,6 +4,8 @@ import { TermsHelp } from './TermsHelp';
 import {ActivityPanel} from './ActivityPanel';
 import {ManagedApps,useManagedApps} from './ManagedApps';
 import {ProductsOverview} from './ProductsOverview';
+import {IdeaComposer} from './IdeaComposer';
+import {TrendRadar} from './TrendRadar';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -193,6 +195,7 @@ function App() {
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [routineOpen, setRoutineOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [ideaTab, setIdeaTab] = useState<'mine' | 'new' | 'trends'>('mine');
   const PAGE_ROUTES = ['ideas', 'tasks', 'goals', 'office', 'chat'] as const;
   type Page = 'home' | typeof PAGE_ROUTES[number];
   const [page, setPage] = useState<Page>(() => (PAGE_ROUTES as readonly string[]).includes(location.hash.slice(1)) ? location.hash.slice(1) as Page : 'home');
@@ -832,10 +835,18 @@ function App() {
           ) : <TimelineView tasks={visibleTasks} selectedId={selectedId} onSelect={setSelectedId} />}
 
           </>}
-          {page === 'ideas' && <><IdeaShelf streams={streams} notes={areaNotes} loading={vaultLoading} onSend={sendToHermes} onArea={moveNoteToArea} onKind={setNoteKind} />
+          {page === 'ideas' && <><div className="idea-chips shelf-switch" role="tablist" aria-label="Ideas views">
+            <button type="button" role="tab" aria-selected={ideaTab === 'mine'} className={ideaTab === 'mine' ? 'on' : ''} onClick={() => setIdeaTab('mine')}>My ideas</button>
+            <button type="button" role="tab" aria-selected={ideaTab === 'new'} className={ideaTab === 'new' ? 'on' : ''} onClick={() => setIdeaTab('new')}>New idea</button>
+            <button type="button" role="tab" aria-selected={ideaTab === 'trends'} className={ideaTab === 'trends' ? 'on' : ''} onClick={() => setIdeaTab('trends')}>Trend picks</button>
+          </div>
+          {ideaTab === 'mine' && <><IdeaShelf streams={streams} notes={areaNotes} loading={vaultLoading} onSend={sendToHermes} onArea={moveNoteToArea} onKind={setNoteKind} />
           <details className="tree-fold"><summary>Idea progress</summary>
             <IdeaTree taskPaths={taskLikePaths} character={character} brain={brain} area={area} selected={brainPick?.id || null} onSelect={(node) => { setBrainPick(node); setBrainOpen(true); }} onStart={(node) => { const note = vaultNotes.find((entry) => entry.path === node.id); if (note) sendToHermes(note); }} onBranch={(node) => setDump({ parent: { id: node.id, title: node.title } })} />
           </details></>}
+          {ideaTab === 'new' && <IdeaComposer area={area} onSaved={() => { setIdeaTab('mine'); void refreshBrain(); }} />}
+          {ideaTab === 'trends' && <TrendRadar />}
+          </>}
 
           <p className="page-foot"><span className="status-pip" />Saved on this Mac{attentionCount > 0 ? ` · ${attentionCount} waiting for you` : ""}</p>
         </main>
