@@ -60,6 +60,16 @@
 .roadmap-action.done .roadmap-check{background:var(--theme-pink);border-color:var(--theme-pink)}
 .trend-tag{font-size:.65rem;font-weight:700;letter-spacing:.04em;padding:2px 6px;border-radius:6px;background:var(--theme-lavender);margin-right:6px}
 @media (prefers-reduced-motion: reduce){.roadmap-stage.active::before{animation:none}}
+/* Page-level Ideas section switch (My ideas / New idea / Trend picks). Deliberately NOT the
+   .shelf-switch pill-chip look used by IdeaShelf's own internal "Ideas / Already tasks" filter
+   below it — two identical-looking pill rows stacked read as a duplicated control (owner report
+   2026-10-21). This is a wider underline-tab bar: bigger type, full-bleed bottom border, an
+   accent underline on the active tab, no chip/pill fill. */
+.idea-page-tabs{display:flex;gap:4px;border-bottom:1px solid rgba(255,255,255,.14);margin-bottom:14px}
+.idea-page-tabs button{appearance:none;background:none;border:none;color:var(--theme-text,#eee8f2);opacity:.6;font:700 15px/1 'Manrope',sans-serif;padding:10px 4px;margin-right:22px;position:relative;cursor:pointer}
+.idea-page-tabs button:hover{opacity:.85}
+.idea-page-tabs button.on{opacity:1}
+.idea-page-tabs button.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--theme-pink),var(--theme-coral))}
 .navigation-hint { position:fixed; z-index:100; pointer-events:none; width:max-content; max-width:210px; padding:9px 12px; border:1px solid var(--theme-lavender); border-radius:10px; background:var(--theme-deep); color:var(--theme-text); font:600 12px/1.5 'Manrope',sans-serif; box-shadow:0 8px 24px #0007,inset 0 1px 0 #ffffff0c; }
 .rail-mobile-trigger { display:none !important; }
 .app-shell .toast-stack { bottom: calc(64px + 16px + env(safe-area-inset-bottom)); }

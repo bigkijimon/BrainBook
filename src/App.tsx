@@ -835,7 +835,7 @@ function App() {
           ) : <TimelineView tasks={visibleTasks} selectedId={selectedId} onSelect={setSelectedId} />}
 
           </>}
-          {page === 'ideas' && <><div className="idea-chips shelf-switch" role="tablist" aria-label="Ideas views">
+          {page === 'ideas' && <><div className="idea-page-tabs" role="tablist" aria-label="Ideas views">
             <button type="button" role="tab" aria-selected={ideaTab === 'mine'} className={ideaTab === 'mine' ? 'on' : ''} onClick={() => setIdeaTab('mine')}>My ideas</button>
             <button type="button" role="tab" aria-selected={ideaTab === 'new'} className={ideaTab === 'new' ? 'on' : ''} onClick={() => setIdeaTab('new')}>New idea</button>
             <button type="button" role="tab" aria-selected={ideaTab === 'trends'} className={ideaTab === 'trends' ? 'on' : ''} onClick={() => setIdeaTab('trends')}>Trend picks</button>
