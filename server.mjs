@@ -14,6 +14,7 @@ import { createMeetings } from './meeting.mjs';
 import { resolveRouterSubmit, routeTaskLane, submitWorkerText } from './worker-router.mjs';
 import { JEV_CONFIDENCE_FLOOR, JEV_DECISIONS, JEV_SEND_BACK_CODES, ROUTER_OWN_DECISION_CONFIDENCE, formatJevSendBack, judgeJevAnswer } from './jev-decisions.mjs';
 import { AREA_IDS, classifyArea, createAreaOverrides, normalizeArea, classifyNoteKind, createKindOverrides } from './areas.mjs';
+import { analyzeIdea } from './idea-score.mjs';
 import { buildBrain } from './brain.mjs';
 import { handleEvolutionRequest } from './investment-evolution.mjs';
 import { createIdeaStore } from './ideas.mjs';
@@ -1050,7 +1051,10 @@ const stageOf = (status, progress) => {
 };
 const readVaultSnapshot = async () => {
   // ideas/archive holds retired notes (Pi's ideas sweep); they are kept on disk, never shown.
-  const [projectFiles, ideaFiles] = await Promise.all([walkMarkdown(projectsPath), walkMarkdown(ideasPath).then((files) => files.filter((file) => !path.relative(ideasPath, file).startsWith(`archive${path.sep}`)))]);
+  const [projectFiles, ideaFiles] = await Promise.all([walkMarkdown(projectsPath), walkMarkdown(ideasPath).then((files) => files.filter((file) => {
+    const rel = path.relative(ideasPath, file);
+    return !rel.startsWith(`archive${path.sep}`) && !rel.startsWith(`trend-radar${path.sep}`);
+  }))]);
   const notes = [];
   const tasks = [];
   for (const absolute of [...projectFiles, ...ideaFiles]) {
@@ -1467,6 +1471,51 @@ const handleApi = async (req, res, url) => {
     } catch (error) {
       return json(res, { error: error.code === 'ENOENT' ? 'Note not found' : error.message }, error.status || (error.code === 'ENOENT' ? 404 : 500));
     }
+  }
+  // Chat-box idea scoring (owner 2026-10-21): analyze only, no save, so the owner can see the
+  // score/roadmap before deciding to keep it.
+  if (url.pathname === '/api/ideas/analyze' && req.method === 'POST') {
+    const { text } = await readBody(req);
+    if (!String(text || '').trim()) return json(res, { error: 'Write an idea first' }, 400);
+    return json(res, await analyzeIdea({ text: String(text), candidates: await captureCandidates(), cwd: root, routerSubmitPath }));
+  }
+  // Save an analyzed idea as a tracked note.
+  if (url.pathname === '/api/ideas/compose' && req.method === 'POST') {
+    const { text, area, analysis } = await readBody(req);
+    try {
+      const normalizedArea = AREA_IDS.has(area) ? area : null;
+      const created = await ideaStore.createAnalyzed({ text: String(text || ''), area: normalizedArea, analysis, origin: 'owner' });
+      if (normalizedArea) await areaOverrides.set(created.path, normalizedArea);
+      return json(res, { created }, 201);
+    } catch (error) { return json(res, { error: error.message }, error.status || 500); }
+  }
+  // Trend Radar intake: a Hermes cron job POSTs here after real web research. Kept in a separate
+  // vault subfolder (ideas/trend-radar/) and never mixed into the owner's own raw idea list.
+  if (url.pathname === '/api/ideas/suggest' && req.method === 'POST') {
+    const { text, analysis, sources } = await readBody(req);
+    if (!String(text || '').trim()) return json(res, { error: 'Nothing to suggest' }, 400);
+    try {
+      const created = await ideaStore.createAnalyzed({ text: String(text), area: null, analysis, origin: 'trend', sources: Array.isArray(sources) ? sources : [] });
+      return json(res, { created }, 201);
+    } catch (error) { return json(res, { error: error.message }, error.status || 500); }
+  }
+  // List Trend Radar picks separately from the owner's own ideas.
+  if (url.pathname === '/api/ideas/trends' && req.method === 'GET') {
+    const dir = path.join(ideasPath, 'trend-radar');
+    let files = [];
+    try { files = await walkMarkdown(dir); } catch { files = []; }
+    const picks = [];
+    for (const absolute of files) {
+      const relative = path.relative(vaultPath, absolute);
+      let lines; try { lines = (await fs.readFile(absolute, 'utf8')).split(/\r?\n/); } catch { continue; }
+      picks.push({
+        path: relative, title: readNoteTitle(lines, relative), summary: readNoteSummary(lines),
+        score: Number(readFrontmatterValue(lines, 'score')) || null,
+        createdAt: readFrontmatterValue(lines, 'created_at'),
+        adopted: Boolean(readFrontmatterValue(lines, 'adopted_at')),
+      });
+    }
+    return json(res, { picks: picks.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')) });
   }
   // Image attachment from a phone (owner 2026-09-29). The image is stored in BrainBook's own data
   // folder and its path is pasted on the Hermes input line; Hermes attaches a pasted image path
