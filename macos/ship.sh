@@ -43,11 +43,22 @@ xcodebuild build -project macos/BrainBook.xcodeproj -scheme BrainBook -configura
 # /Applications path trips the agent terminal's dangerous-command guard and silently stalls an
 # unattended ship (observed 2026-10-12 — had to be done by hand once). `mv` is not flagged, and it
 # doubles as a free rollback copy of every single ship, not just the one taken before this cutover.
-SHIP_BACKUP_DIR="$HOME/Documents/SystemAPPS/_backups/BrainBook-app-ship-$(date +%Y%m%d-%H%M%S)"
+SHIP_BACKUP_ROOT="$HOME/Documents/SystemAPPS/_backups"
+SHIP_BACKUP_DIR="$SHIP_BACKUP_ROOT/BrainBook-app-ship-$(date +%Y%m%d-%H%M%S)"
+# A rollback copy must NOT keep the ".app" extension: macOS Launch Services/Spotlight
+# registers every ".app" bundle it ever sees as a separate installed application, so
+# dozens of timestamped rollback copies were piling up as duplicate "BrainBook" entries
+# in Spotlight (owner report 2026-10-20, screenshot showed 20+ duplicate icons, several
+# already-ghost). Renaming to ".app.bak" keeps the bundle byte-identical and restorable
+# (rename back to restore) without ever being recognized as a launchable application.
 if [[ -d /Applications/BrainBook.app ]]; then
+  mkdir -p "$SHIP_BACKUP_ROOT"
+  [[ -f "$SHIP_BACKUP_ROOT/.metadata_never_index" ]] || touch "$SHIP_BACKUP_ROOT/.metadata_never_index"
   mkdir -p "$SHIP_BACKUP_DIR"
-  mv /Applications/BrainBook.app "$SHIP_BACKUP_DIR/BrainBook.app"
-  echo "   previous install moved to $SHIP_BACKUP_DIR/BrainBook.app (rollback copy)"
+  mv /Applications/BrainBook.app "$SHIP_BACKUP_DIR/BrainBook.app.bak"
+  LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+  "$LSREG" -u "$SHIP_BACKUP_DIR/BrainBook.app.bak" 2>/dev/null || true
+  echo "   previous install moved to $SHIP_BACKUP_DIR/BrainBook.app.bak (rollback copy, not Spotlight-registered)"
 fi
 DERIVED_DATA=$(xcodebuild -project macos/BrainBook.xcodeproj -scheme BrainBook -configuration Release -showBuildSettings 2>/dev/null | grep -E '^\\s*BUILD_DIR' | head -1 | sed 's/.*= //' || true)
 # `|| true`: under `set -euo pipefail` a non-matching grep ended the whole script right here,

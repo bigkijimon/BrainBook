@@ -11,6 +11,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Bot, BookOpen, Clapperboard, Cpu, Eye, GraduationCap, Hammer, MemoryStick, Music, PenTool, Rabbit, Route, Scale, ScanEye, SearchCheck, Sparkles, Wrench, X } from 'lucide-react';
 import { AgentInfo, memberTone } from './TeamRail';
 import { personaOf } from './agentRoster';
+import { Chip, type Tone } from './ui';
 
 type Step = { to: string; state: string };
 export type Handoff = { id: string; source: 'kanban' | 'router' | 'session'; board: string; boardName: string; from: string; to: string; title: string; state: string; active: boolean; at: number | null; note: string; outcome?: string | null; steps?: Step[]; team?: string; recipientKind?: string; activityKind?: string; cardIdentity?: {board:string;id:string}; fromDepartment?: string; toDepartment?: string; senderBasis?: string; stage?: string; progress?: {percent?:number;completed?:number;total?:number;unit?:string;at?:number;basis?:string}; eta?: {finishAt?:number;at?:number;basis?:string} };
@@ -51,6 +52,7 @@ const ICON: Record<string, LucideIcon> = {
 const HIDDEN_AGENTS = new Set(['yuma', 'team', 'e2e', 'probe', 'user', 'owner', 'brainbook', 'terminal', 'human_review']);
 export const isHiddenAgent = (name: string) => HIDDEN_AGENTS.has((name || '').trim().toLowerCase());
 export const agentTone = (name: string) => (name === HUB ? themePalette.pink : memberTone(name));
+const FLOW_CHIP: Record<string, Tone> = { working: 'live', done: 'ok', failed: 'bad', 'needs you': 'warn', queued: 'info', scheduled: 'info' };
 const STATE_TONE: Record<string, string> = { working: themePalette.pink, done: themePalette.peach, failed: '#ff5a6e', 'needs you': themePalette.coral, queued: themePalette.lavender, waiting: themePalette.secondary, scheduled: themePalette.lilac, 'left over': '#8a7896' };
 const ago = (at: number | null) => {
   if (!at) return '';
@@ -636,7 +638,7 @@ export function AgentFlow({ open, onClose }: { open: boolean; onClose: () => voi
               return <li key={handoff.id} className={handoff.active ? 'is-active' : ''}>
                 <div className="flow-route">
                   <b style={{ color: agentTone(handoff.from) }}>{personaOf(handoff.from)}</b>
-                  {hops.map((hop, i) => <span key={i} className="flow-hop"><i className="flow-arrow" aria-hidden="true">→</i><b style={{ color: agentTone(hop.to) }}>{personaOf(hop.to)}</b><em style={{ color: STATE_TONE[hop.state] || themePalette.secondary }}>{hop.state}</em></span>)}
+                  {hops.map((hop, i) => <span key={i} className="flow-hop"><i className="flow-arrow" aria-hidden="true">→</i><b style={{ color: agentTone(hop.to) }}>{personaOf(hop.to)}</b><Chip tone={FLOW_CHIP[hop.state] || 'unknown'}>{hop.state}</Chip></span>)}
                   <time>{ago(handoff.at)}</time>
                 </div>
                 <strong>{handoff.title}</strong>

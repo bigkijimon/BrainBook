@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react';
+import { Chip } from './ui';
 
 export type RoadmapStage = { stage: string; actions: string[] };
 export type IdeaScore = {
@@ -11,9 +12,9 @@ export type IdeaScore = {
 const CRITERIA_LABEL: Record<string, string> = { originality: 'Originality', demand: 'Demand', feasibility: 'Feasibility', monetization: 'Monetization', fit: 'Fit' };
 
 export function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="score-badge score-unknown">Not scored</span>;
-  const tone = score >= 70 ? 'good' : score >= 40 ? 'mid' : 'low';
-  return <span className={`score-badge tone-${tone}`}>{score}<small>/100</small></span>;
+  if (score === null) return <Chip tone="unknown">Not scored</Chip>;
+  const tone = score >= 70 ? 'ok' : score >= 40 ? 'warn' : 'bad';
+  return <Chip tone={tone}>{score}/100</Chip>;
 }
 
 export function IdeaRoadmap({ analysis, doneActions = [], onToggle }: { analysis: IdeaScore; doneActions?: string[]; onToggle?: (stage: string, action: string) => void }) {

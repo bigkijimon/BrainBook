@@ -7,10 +7,11 @@ import { TeamMark } from './TeamMark';
 import { markFor } from './team-marks.mjs';
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Boxes, CircleAlert, Calculator, Clapperboard, Car, Cpu, GraduationCap, LineChart, Megaphone, Send, Target, Users, X } from 'lucide-react';
+import { CircleAlert, Cpu, Send, Users, X } from 'lucide-react';
 import { ROSTER, personaOf } from './agentRoster';
 import { VoiceRow } from './VoiceInput';
 import { joinSpoken } from './voice';
+import { Chip } from './ui';
 
 // InvestPro only (owner 2026-10-04): the Evolution Arena view loads when its tab is first shown.
 const InvestProEvolution = lazy(() => import('./InvestProEvolution'));
@@ -66,7 +67,7 @@ export function useTeams() {
   return teams;
 }
 
-export function TeamRail({ teams, allCount, onAll, allActive, selectedTeam=null, onSelect }: { teams: Team[]; allCount: number; onAll: () => void; allActive: boolean; selectedTeam?:string|null; onSelect?:(id:string)=>void }) {
+export function TeamRail({ teams, allCount, onAll, allActive, selectedTeam=null, onSelect, itemClass='area-item' }: { itemClass?: string; teams: Team[]; allCount: number; onAll: () => void; allActive: boolean; selectedTeam?:string|null; onSelect?:(id:string)=>void }) {
   const [open, setOpen] = useState<string | null>(null);
   const team = teams.find((entry) => entry.id === open) || null;
   return <>
@@ -74,7 +75,7 @@ export function TeamRail({ teams, allCount, onAll, allActive, selectedTeam=null,
         the sidebar's unrelated "Office" page link (App.tsx), so the two looked like duplicate
         buttons pointing at the same place even though one filters the rail and the other opens the
         3D office page. Users (people) reads as "everyone" without colliding with Office's icon. */}
-    <button type="button" className={`area-item area-all ${allActive ? 'active' : ''}`} aria-pressed={allActive} aria-label="All teams" data-nav-label={`All teams · ${allCount} records`} title="All teams" onClick={() => { setOpen(null); onAll(); }}>
+    <button type="button" className={`${itemClass} area-all ${allActive ? 'active' : ''}`} aria-pressed={allActive} aria-label="All teams" data-nav-label={`All teams · ${allCount} records`} title="All teams" onClick={() => { setOpen(null); onAll(); }}>
       <Users size={26} strokeWidth={1.8} aria-hidden="true"/><span className="sr-only">All · {allCount}</span>
     </button>
     {teams.map((entry) => {
@@ -83,7 +84,7 @@ export function TeamRail({ teams, allCount, onAll, allActive, selectedTeam=null,
       // "idle" only describes who is running. Work that stopped and waits on the owner is a separate
       // fact the rail used to hide (a team with nothing running read as fine while 5 cards waited).
       const needs = entry.work.filter((item) => item.state === 'needs you' || item.state === 'failed').length;
-      return <button type="button" key={entry.id} className={`area-item team-item ${needs > 0 ? 'has-need' : ''} ${entry.live ? 'is-live' : ''} ${selectedTeam === entry.id ? 'active' : ''}`}
+      return <button type="button" key={entry.id} className={`${itemClass} team-item ${needs > 0 ? 'has-need' : ''} ${entry.live ? 'is-live' : ''} ${selectedTeam === entry.id ? 'active' : ''}`}
         style={{ '--tone': teamTone(entry.id) } as React.CSSProperties}
         // `data-team` is the id the server sent (agent-feed.py `teams()`), and it is the only handle that
         // ties a rail card to the team it came from. Without it, "every team is measured" can only be
@@ -93,7 +94,7 @@ export function TeamRail({ teams, allCount, onAll, allActive, selectedTeam=null,
         aria-pressed={selectedTeam === entry.id} aria-haspopup="dialog" aria-expanded={open===entry.id} title={needs > 0 ? `${entry.label} - ${needs} need you` : entry.label} onClick={() => { if(onSelect)onSelect(entry.id); setOpen(entry.id); }}>
         <TeamMark id={entry.id}/><span className="sr-only">{entry.name}</span>
         <span className="team-status sr-only" id={`team-nav-meta-${entry.id}`}>
-          {entry.live ? <b className="team-live"><i />LIVE{liveCount > 1 ? ` ${liveCount}` : ''}</b> : <b className="team-idle">idle</b>}
+          {entry.live ? <Chip tone="live" dot>LIVE{liveCount > 1 ? ` ${liveCount}` : ''}</Chip> : <Chip tone="unknown">idle</Chip>}
           {needs > 0 && <b className="team-need" role="img" aria-label={`${needs} ${needs === 1 ? 'task needs' : 'tasks need'} you`}><CircleAlert size={10} strokeWidth={2.6} aria-hidden="true" />{needs}</b>}
         </span>
       </button>;
@@ -218,7 +219,7 @@ function TeamSheet({ team, onClose }: { team: Team; onClose: () => void }) {
   return <div className="team-sheet-backdrop" onClick={onClose}>
     <section ref={sheet} tabIndex={-1} className={`team-sheet${wide ? ' team-sheet--wide' : ''}`} role="dialog" aria-modal="true" aria-label={`${team.name} team`} onKeyDown={onTrapTab} onClick={(event) => event.stopPropagation()}>
       <header>
-        <div><p className="eyebrow">{team.label.toUpperCase()}</p><h3>{team.name}{team.live && <span className="team-live big"><i />LIVE</span>}</h3></div>
+        <div><p className="eyebrow">{team.label.toUpperCase()}</p><h3>{team.name}{team.live && <Chip tone="live" dot >LIVE</Chip>}</h3></div>
         <button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
       </header>
       {hasEvolution && <div className="team-tabs" role="tablist" aria-label={`${team.name} views`} onKeyDown={onTabKey}>
@@ -281,8 +282,11 @@ function TeamSheet({ team, onClose }: { team: Team; onClose: () => void }) {
   </div>;
 }
 
-// Owner → one member, no Bigkiji in between (owner 2026-09-30). The server files one
-// Kanban card on that member's profile; the existing dispatcher runs it.
+// Owner → one member, no Bigkiji in between (owner 2026-09-30). For a single named Hermes
+// profile the server now runs a direct CLI session on that member (owner 2026-10-14: Kanban
+// cards stopped being an execution trigger, so ad-hoc card creation is banned here); for a
+// team-lane member it still files a Kanban card that the team runner reads. See server.mjs
+// POST /api/agents/instruct for which path a given member takes.
 function DirectBox({ team, direct, to, onTo }: { team: Team; direct: string[]; to: string; onTo: (name: string) => void }) {
   const [text, setText] = useState('');
   const [state, setState] = useState<{ kind: 'idle' | 'sending' | 'sent' | 'error'; message?: string }>({ kind: 'idle' });
@@ -311,7 +315,7 @@ function DirectBox({ team, direct, to, onTo }: { team: Team; direct: string[]; t
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
       setText('');
-      setState({ kind: 'sent', message: `Sent to ${personaOf(to)} · card ${body.id} (${body.status})` });
+      setState({ kind: 'sent', message: body.mode === 'direct' ? `Sent to ${personaOf(to)} · session ${body.slug} (${body.status})` : `Sent to ${personaOf(to)} · card ${body.id} (${body.status})` });
     } catch (error) {
       setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
     }
@@ -328,7 +332,7 @@ function DirectBox({ team, direct, to, onTo }: { team: Team; direct: string[]; t
       onChange={(event) => { setText(event.target.value); if (state.kind !== 'sending') setState({ kind: 'idle' }); }}
       onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void send(); } }} />
     <div className="direct-foot">
-      <small className={`direct-state is-${state.kind}`} role="status">{state.message || (state.kind === 'sending' ? 'Sending…' : (team.workflow || team.workflow_note ? "Queued work starts after the execution gates pass. ⌘↵ sends." : `${personaOf(to)} gets it as a Kanban card and starts within a minute. ⌘↵ sends.`))}</small>
+      <small className={`direct-state is-${state.kind}`} role="status">{state.message || (state.kind === 'sending' ? 'Sending…' : (team.workflow || team.workflow_note ? "Queued work starts after the execution gates pass. ⌘↵ sends." : `${personaOf(to)} runs this directly within a minute — no Kanban card. ⌘↵ sends.`))}</small>
       <button type="button" className="direct-send" disabled={!text.trim() || state.kind === 'sending'} onClick={() => void send()}><Send size={14} strokeWidth={1.8} />Send</button>
     </div>
   </div>;
@@ -367,7 +371,7 @@ export function MemberFrame({ member, picked = false, describedBy, onPick }: { m
       <small>{member.role}</small>
       {member.model && <span className="member-model"><Cpu size={10} strokeWidth={2} /><span className="member-model-text">{member.model}</span></span>}
     </div>
-    {member.live && <span className="team-live"><i />LIVE</span>}
+    {member.live && <Chip tone="live" dot className="member-live">LIVE</Chip>}
   </>;
   if (onPick) return <button type="button" className={`member-frame can-talk ${member.live ? 'live' : ''} ${picked ? 'picked' : ''}`} style={{ '--member': tone } as React.CSSProperties}
     aria-haspopup="dialog" aria-describedby={describedBy} onClick={onPick}>{body}</button>;
@@ -442,7 +446,7 @@ export function AgentInfo({ name, model, description, role, reportsTo, live, onC
       <header>
         <span className="member-badge">{(entry?.persona || name).slice(0, 1)}</span>
         <div>
-          <h4>{entry?.persona || name}{live && <span className="team-live"><i />LIVE</span>}</h4>
+          <h4>{entry?.persona || name}{live && <span><i />LIVE</span>}</h4>
           <p>{entry && entry.persona !== name ? `${name} · ` : ''}{entry?.field || role}</p>
         </div>
         <button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={15} /></button>

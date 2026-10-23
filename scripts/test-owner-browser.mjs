@@ -27,7 +27,7 @@ try {
   await page.waitForTimeout(1200);
   const measurements=await page.evaluate(()=>{
    const box=s=>{const r=document.querySelector(s).getBoundingClientRect();return {height:r.height,width:r.width,x:r.x,y:r.y};};
-   return {search:box('.control-search input'),searchLabel:box('.control-search'),header:box('.topbar'),nav:[...document.querySelectorAll('.console-nav button')].map(b=>({text:b.textContent,height:b.getBoundingClientRect().height,width:b.getBoundingClientRect().width})),overflow:document.documentElement.scrollWidth>innerWidth};
+   return {search:box('.control-search input'),searchLabel:box('.control-search'),header:box('.topbar'),nav:[...document.querySelectorAll('.app-nav .nav-pages button')].map(b=>({text:b.textContent,height:b.getBoundingClientRect().height,width:b.getBoundingClientRect().width})),overflow:document.documentElement.scrollWidth>innerWidth};
   });report.measurements.push({label,...measurements});
   const capture=path.join(out,'captures',`continuation-${label}-top.png`);
   await page.screenshot({path:capture});report.captures.push(capture);
@@ -40,22 +40,22 @@ try {
   assert.ok(measurements.nav.every(b=>b.height>=44&&b.width>=44),`${label}: primary navigation targets`);
   assert.equal(measurements.overflow,false,`${label}: horizontal overflow`);
   await page.getByRole('button',{name:'Close Other work',exact:true}).click();
-  const nav=page.locator('.console-nav');
-  for(const [name,route] of [['Ideas','ideas'],['Tasks','tasks'],['Home','home']]) {
-   const button=nav.getByRole('button',{name,exact:true});await button.focus();await button.press('Enter');
+  await page.waitForFunction(()=>document.activeElement?.classList.contains('other-work-show')); // focus returns to the opener before the nav is exercised
+  const nav=page.getByRole('navigation',{name:'Main navigation'});
+  for(const [name,route] of [['Ideas','ideas'],['Today','tasks'],['Home','home']]) {
+   const button=nav.getByRole('button',{name:new RegExp('^'+name)});await button.focus();await button.press('Enter');
    await page.waitForFunction(route=>location.hash==='#'+route,route);
    assert.equal(await button.getAttribute('aria-current'),'page');assert.equal(new URL(page.url()).hash,'#'+route);
   }
   // Exercise the native menu's web event bridge and the existing filters sidebar by keyboard.
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('brainbook:navigate',{detail:'ideas'})));
   await page.waitForFunction(()=>location.hash==='#ideas');
-  if(viewport.width<761)await page.locator('.rail-mobile-trigger').click();
-  const filters=page.locator('.rail-toggle');await filters.focus();await filters.press('Enter');
-  await page.locator('aside.sidebar').waitFor({state:'visible'});
-  const allTasks=page.locator('aside.sidebar').getByRole('button',{name:/All tasks/});await allTasks.focus();await allTasks.press('Enter');
+  // One nav: on desktop the compact toggle collapses it to icons; on phones the Menu button opens the sheet.
+  const allTasks=nav.getByRole('button',{name:/^All tasks/});
+  if(viewport.width>=761){const compact=page.locator('.nav-compact-btn');await compact.focus();await compact.press('Enter');await page.locator('.app-nav.is-compact').waitFor();await compact.press('Enter');await page.locator('.app-nav:not(.is-compact)').waitFor();}
+  await allTasks.focus();await allTasks.press('Enter');
   await page.waitForFunction(()=>location.hash==='#tasks');assert.ok((await allTasks.getAttribute('class')).includes('active'));
-  await filters.focus();await filters.press('Enter');await page.locator('aside.sidebar').waitFor({state:'hidden'});
-  await nav.getByRole('button',{name:'Home',exact:true}).click();
+  await nav.getByRole('button',{name:/^Home/}).click();
   await page.waitForFunction(()=>location.hash==='#home');
   const more=page.getByLabel('More actions');await more.focus();await more.press('Enter');
   assert.equal(await page.locator('.topbar-more').getAttribute('open'),'');
@@ -67,6 +67,7 @@ try {
   await page.locator('.control-search input').fill('存在しない検索語');
   assert.equal(await page.locator('.control-search input').inputValue(),'存在しない検索語');await page.locator('.control-search input').fill('');
   await page.getByRole('button',{name:'Close Other work',exact:true}).click();
+  await page.waitForFunction(()=>document.activeElement?.classList.contains('other-work-show')); // focus returns to the opener before the nav is exercised
   // No fixture data is stored or submitted. Exercise the same default toast presenter as real feed.
   const raw='🧹 Pi cleanup: no test server left running; kept /Users/test/root_lock.py\nDetails:\nstdout t_123abc https://example.com/result https://example.com/log';
   await page.route('**/api/agents/feed**',route=>route.fulfill({json:{items:[{id:'presentation-only-fixture-'+label,kind:'comment',author:'pi',taskTitle:'作業の報告',text:raw,at:Math.floor(Date.now()/1000),boardName:'fixture'}]}}));

@@ -2,24 +2,20 @@ import {useModalFocus} from './useModalFocus';
 import {NavigationHints} from './NavigationHints';
 import { TermsHelp } from './TermsHelp';
 import {ActivityPanel} from './ActivityPanel';
-import {ManagedApps,useManagedApps} from './ManagedApps';
+import {useManagedApps} from './ManagedApps';
+import {AppNav} from './AppNav';
 import {ProductsOverview} from './ProductsOverview';
 import {IdeaComposer} from './IdeaComposer';
 import {TrendRadar} from './TrendRadar';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Archive, House, ListTodo, Menu, SlidersHorizontal, Bot,
-  ArrowUpRight,
+  Archive, ListTodo, ArrowUpRight,
   CalendarDays,
   Check,
   ChevronDown,
-  Circle,
-  CircleDot,
   Clock3,
   Command,
-  Flag,
-  Inbox,
   ListFilter,
   MoreHorizontal,
   PanelRight,
@@ -29,48 +25,33 @@ import {
   Smartphone,
   Brain,
   ExternalLink,
-  PanelLeftClose,
-  PanelLeftOpen,
   GitBranch,
   Link2,
-  Wallet,
-  GraduationCap,
-  HeartPulse,
-  Briefcase,
-  Gamepad2,
-  LayoutGrid,
   Sparkles,
-  History,
   SquareTerminal,
-  Lightbulb,
-  LayoutList,
-  Trash2,
   X,
   FileText, Folder, FolderOpen, Play,
-  TriangleAlert,
-  Workflow,
-  Target,
+  TriangleAlert
 } from 'lucide-react';
 import { SetupDialog, type SetupState } from './SetupDialog';
-import { liveWork, elapsedLabel } from './live-work.mjs';
-import { displayTitle, statusLabel } from './owner-console.mjs';
-import { AgentFlow, agentTone, isHiddenAgent, useAgentFlow } from './AgentFlow';
-import { ControlCenter, RunButton } from './ControlCenter';
+import { AgentFlow
+} from './AgentFlow';
+import { RunButton } from './ControlCenter';
 import { GoalsPanel } from './GoalsPanel';
+import { DataPage } from './DataPage';
 import { AgentChatPanel } from './AgentChatPanel';
-import { SessionActivity } from './SessionActivity';
 import { OfficeView } from './OfficeView';
-import { personaOf } from './agentRoster';
 import { AgentFeed, type AgentMessage } from './AgentFeed';
 import { IdeaDump, type DumpItem } from './IdeaDump';
 import { IdeaTree, STAGE_LABEL } from './IdeaTree';
 import { AREA_COLOR, BrainScene, type BrainData, type BrainNode } from './BrainScene';
 import PhoneDialog from './PhoneDialog';
-import { TeamRail, useTeams } from './TeamRail';
+import { useTeams } from './TeamRail';
 import { LIFE_AREAS, STATUSES, isTaskStatus, statusMeta, type LifeArea, type Priority, type Task, type TaskDomain, type TaskStatus, type VaultNote, type VaultTask } from './types';
 import { matchesFocus, scheduledTasks as listScheduledTasks } from './task-focus.mjs';
 import { runState, runSummary } from './next-work.mjs';
 import { purchaseLink, purchaseNotice, release } from '../release/release-info.mjs';
+import { Chip, StateNote, PageHeader } from './ui';
 
 const API = '/api';
 type Stream = { id: string; label: string; color: string };
@@ -196,10 +177,10 @@ function App() {
   const [routineOpen, setRoutineOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [ideaTab, setIdeaTab] = useState<'mine' | 'new' | 'trends'>('mine');
-  const PAGE_ROUTES = ['ideas', 'tasks', 'goals', 'office', 'chat'] as const;
+  const PAGE_ROUTES = ['ideas', 'tasks', 'goals', 'office', 'data', 'chat'] as const;
   type Page = 'home' | typeof PAGE_ROUTES[number];
   const [page, setPage] = useState<Page>(() => (PAGE_ROUTES as readonly string[]).includes(location.hash.slice(1)) ? location.hash.slice(1) as Page : 'home');
-  const navigate = useCallback((next: Page) => { setPage(next); if(next!=='home')setSelectedTeam(null); setBrainOpen(false); setSelectedId(null); if(location.hash !== `#${next}`) location.hash = next; }, []);
+  const navigate = useCallback((next: Page) => { setPage(next); if(next!=='home'&&next!=='office')setSelectedTeam(null); setBrainOpen(false); setSelectedId(null); if(location.hash !== `#${next}`) location.hash = next; }, []);
   useEffect(() => {
     const hash = () => { const route=((PAGE_ROUTES as readonly string[]).includes(location.hash.slice(1)) ? location.hash.slice(1) as Page : 'home'); setPage(route); if(route!=='home')setSelectedTeam(null); };
     const native = (event: Event) => { const route = (event as CustomEvent<string>).detail; navigate((PAGE_ROUTES as readonly string[]).includes(route) ? route as Page : 'home'); if(route==='agents') window.requestAnimationFrame(()=>document.getElementById('agent-status')?.scrollIntoView({behavior:'auto'})); };
@@ -207,7 +188,7 @@ function App() {
     return () => {window.removeEventListener('hashchange',hash);window.removeEventListener('brainbook:navigate',native);};
   }, [navigate]);
   // Filters sidebar starts collapsed; the choice is remembered.
-  const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('brainbook.sidebar') === 'open');
+  const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('brainbook.sidebar') !== 'closed');
   const teams = useTeams();
   useEffect(() => { localStorage.setItem('brainbook.sidebar', sidebarOpen ? 'open' : 'closed'); }, [sidebarOpen]);
   const [localFeed, setLocalFeed] = useState<AgentMessage[]>([]);
@@ -633,7 +614,7 @@ function App() {
           </div>
         </div>
         <div className="topbar-actions">
-          <nav className="console-nav" aria-label="Pages"><button type="button" aria-label="Home" data-nav-label="Home" aria-current={page==='home'?'page':undefined} onClick={()=>navigate('home')}><House size={23} aria-hidden="true"/></button><button type="button" aria-label="Tasks" data-nav-label="Tasks" aria-current={page==='tasks'?'page':undefined} onClick={()=>navigate('tasks')}><ListTodo size={23} aria-hidden="true"/></button><button type="button" aria-label="Ideas" data-nav-label="Ideas" aria-current={page==='ideas'?'page':undefined} onClick={()=>navigate('ideas')}><Lightbulb size={23} aria-hidden="true"/></button></nav>
+
           <details className="topbar-more" onKeyDown={(event) => {
             if (event.key === 'Escape') {
               event.preventDefault();
@@ -654,7 +635,7 @@ function App() {
                 <span className={`routine-dot tone-${statusMeta[task.status].tone}`} />
                 <span className="routine-copy"><strong>{task.title}</strong><small>{task.dueAt ? formatDate(task.dueAt) : 'No date'} · {matchesFocus(task, 'work') ? 'Work' : 'Personal'}</small></span>
                 <ArrowUpRight size={13} />
-              </button>) : <p className="routine-empty">No scheduled tasks yet.</p>}
+              </button>) : <StateNote kind="empty">No scheduled tasks yet.</StateNote>}
             </div>}
           </div>
           <TermsHelp />
@@ -733,46 +714,19 @@ function App() {
       {brainOpen && brainHover && !brainPick && <div className="brain-tip" style={{ left: brainHover.x + 14, top: brainHover.y + 14 }}><b>{brainHover.node.title}</b><small>{LIFE_AREAS.find((entry) => entry.id === brainHover.node.lifeArea)?.label}</small></div>}
 
       <div className={`workspace ${sidebarOpen ? '' : 'sidebar-collapsed'} ${selectedTask ? 'has-selection' : ''}`}>
-        <AreaRail page={page} area={area} counts={areaCounts} selectedTeam={selectedTeam} onSelectTeam={(id)=>{setSelectedTeam(id);setArea('all');navigate('home');window.requestAnimationFrame(()=>document.getElementById('agent-status')?.scrollIntoView({behavior:'auto'}));}} onAll={()=>{setSelectedTeam(null);setArea('all');navigate('home');}} onChoose={(next)=>{setSelectedTeam(null);setArea(next);}} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((value) => !value)} teams={teams} />
-        <aside className="sidebar" aria-label="Main navigation" hidden={!sidebarOpen}>
-          <div className="sidebar-intro">
-            <p className="eyebrow">YOUR OPERATING FIELD</p>
-            <h1>Focus, with<br /><em>less noise.</em></h1>
-            <p className="sidebar-copy">Tasks, ideas and live work from your Obsidian vault, in one place.</p>
-          </div>
-          <nav className="nav-list">
-            <button className={`nav-item ${page === 'tasks' && viewFilter === 'open' ? 'active' : ''}`} type="button" onClick={() => chooseView('open')}><Inbox size={16} strokeWidth={1.5} /><span>Today</span><b>{activeCount}</b></button>
-            <button className={`nav-item ${page === 'tasks' && viewFilter === 'all' ? 'active' : ''}`} type="button" onClick={() => chooseView('all')}><CircleDot size={16} strokeWidth={1.5} /><span>All tasks</span><b>{tasks.filter((task) => !task.isArchived && task.status !== 'done').length}</b></button>
-            <button className={`nav-item ${page === 'tasks' && viewFilter === 'high' ? 'active' : ''}`} type="button" onClick={() => chooseView('high')}><Flag size={16} strokeWidth={1.5} /><span>High signal</span><b>{tasks.filter((task) => !task.isArchived && task.priority === 'high').length}</b></button>
-            <button className={`nav-item ${page === 'goals' ? 'active' : ''}`} type="button" onClick={() => navigate('goals')}><Target size={16} strokeWidth={1.5} /><span>Goals</span></button>
-            <button className={`nav-item ${page === 'office' ? 'active' : ''}`} type="button" onClick={() => navigate('office')}><LayoutGrid size={16} strokeWidth={1.5} /><span>Office</span></button>
-            <button className={`nav-item ${page === 'chat' ? 'active' : ''}`} type="button" onClick={() => navigate('chat')}><Bot size={16} strokeWidth={1.5} /><span>Chat</span></button>
-            <button className={`nav-item ${historyOpen ? 'active' : ''}`} type="button" aria-haspopup="dialog" onClick={() => setHistoryOpen(true)}><History size={16} strokeWidth={1.5} /><span>履歴</span><b>{tasks.filter((task) => task.status === 'done').length}</b></button>
-            <button className={`nav-item ${teamOpen ? 'active' : ''}`} type="button" aria-haspopup="dialog" aria-label="Open orchestration graph" onClick={() => setTeamOpen(true)}><Workflow size={16} strokeWidth={1.5} /><span>Orchestration</span></button>
-          </nav>
-          <div className="stream-heading"><span>STREAMS</span><small>{domainFilter === 'all' ? 'DOMAIN FILTERS' : domainFilters.find((domain) => domain.value === domainFilter)?.label}</small></div>
-          <nav className="stream-list" aria-label="Tasks by stream">
-            {domainFilters.map((domain) => <button className={`stream-item ${page === 'tasks' && domainFilter === domain.value ? 'active' : ''}`} style={{ '--stream': domain.color } as React.CSSProperties} type="button" key={domain.value} onClick={() => chooseDomain(domain.value)}><i /><span>{domain.label}</span><b>{domainCounts[domain.value] || 0}</b></button>)}
-          </nav>
-          <ManagedApps inventory={managedAppsInventory} error={managedAppsError} />
-          <div className="sidebar-footer">
-            <div className="mini-orbit" aria-hidden="true"><span /><span /><span /></div>
-            <p>Clear space.<br />Keep the signal.</p>
-            <span className="version-label">BRAINBOOK / {release.version}</span>
-          </div>
-        </aside>
+        <AppNav page={page as Parameters<typeof AppNav>[0]['page']} viewFilter={viewFilter} domainFilter={domainFilter} counts={{ today: activeCount, open: tasks.filter((task) => !task.isArchived && task.status !== 'done').length, high: tasks.filter((task) => !task.isArchived && task.priority === 'high').length, done: tasks.filter((task) => task.status === 'done').length }}
+          historyOpen={historyOpen} orchestrationOpen={teamOpen} onPage={navigate} onView={chooseView} onHistory={() => setHistoryOpen(true)} onOrchestration={() => setTeamOpen(true)}
+          teams={teams} selectedTeam={selectedTeam} allTeamsCount={areaCounts.all || 0}
+          onSelectTeam={(id) => { setSelectedTeam(id); setArea('all'); navigate('office'); window.requestAnimationFrame(() => document.getElementById('agent-status')?.scrollIntoView({ behavior: 'auto' })); }}
+          onAllTeams={() => { setSelectedTeam(null); setArea('all'); navigate('office'); }}
+          area={area} onChooseArea={(next) => { setSelectedTeam(null); setArea(next); }}
+          streams={domainFilters} streamCounts={domainCounts} onStream={(value) => chooseDomain(value as TaskDomain)}
+          inventory={managedAppsInventory} inventoryError={managedAppsError}
+          compact={!sidebarOpen} onToggleCompact={() => setSidebarOpen((value) => !value)} version={release.version} />
 
-        <main id="main-content" className="main-content">
-          <div className="content-header">
-            <div>
-              <p className="eyebrow">{new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date()).toUpperCase().replace(/,/g, ' ·')}</p>
-              <h2>{page==='home'?'Company now':page==='ideas'?'Ideas':page==='tasks'?'Tasks':page==='goals'?'Goals':page==='office'?'Office':'Chat'}<span className="title-dot">.</span></h2>
-              <p className="content-lede">{page==='home'?'Who is working, and what needs your decision.':page==='ideas'?'Find and organize your Obsidian ideas.':page==='tasks'?'View work on the board or timeline.':page==='goals'?'Your tracked goals, live from the vault.':page==='office'?'The 3D office: every team, every room.':'Talk directly with an agent.'}</p>
-            </div>
-            <button className="primary-button" type="button" title="Add a task in the Control Center" onClick={() => openControl(!composerOpen)}>
-              <span>New request</span><span className="button-icon"><Plus size={16} strokeWidth={1.7} /></span>
-            </button>
-          </div>
+        <main id="main-content" className="main-content" key={page} data-page={page}>
+          <PageHeader eyebrow={new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date()).toUpperCase().replace(/,/g, ' ·')} title={PAGE_META[page].title} purpose={PAGE_META[page].purpose}
+            action={<button className="primary-button" type="button" title="Add a task in the Control Center" onClick={() => openControl(!composerOpen)}><span>New request</span><span className="button-icon"><Plus size={16} strokeWidth={1.7} /></span></button>} />
 
           {setup && setup.configured && !setup.vaultReady && !remote && <div className="vault-missing" role="alert">Your vault folder can’t be reached: <code>{setup.vaultPath.replace(/^\/Users\/[^/]+/, '~')}</code>. If it’s in iCloud, wait for it to download, or <button type="button" className="link-button" onClick={() => setSettingsOpen(true)}>choose another folder</button>.</div>}
           <AgentFlow open={teamOpen} onClose={() => setTeamOpen(false)} />
@@ -790,7 +744,7 @@ function App() {
             { productName: 'Mr.INV', apiUrl: '/api/product-metrics/mrinv', iconUrl: 'https://shop.hsacademy202404.site/assets/logo.png' },
             { productName: '予約SaaS', apiUrl: '/api/product-metrics/reservation-saas' },
           ]} refreshIntervalMs={30000} />}
-          {page === 'home' && <ActivityPanel
+          {page === 'home' && <ActivityPanel onOpenRoster={() => navigate('office')}
             teams={teams} workOpen={workOpen} onCloseWork={()=>{setWorkOpen(false);setComposerOpen(false);}} onOpenWork={openControl}
             problem={Boolean(taskProblem || vaultProblem)}
             sectionRef={controlRef}
@@ -809,9 +763,14 @@ function App() {
             loading={vaultLoading}
           />}
           <div className="company-panels">{page === 'home' && <>
-            <SessionActivity />
+            <section className="card-shell session-link" aria-labelledby="session-link-heading">
+              <header className="agent-chat-head"><h3 id="session-link-heading"><ListTodo size={16} strokeWidth={1.8} aria-hidden="true" /> Sessions</h3></header>
+              <p className="content-lede">Every Hermes session (live first, with the data and skills each one used) now lives in one place.</p>
+              <button type="button" className="ghost-button" onClick={() => { navigate('data'); window.setTimeout(() => document.getElementById('sessions')?.scrollIntoView({ behavior: 'auto' }), 400); }}>Open Sessions in Data</button>
+            </section>
           </>}{page === 'goals' && <GoalsPanel refreshKey={goalsKey} notify={notify} onToggle={toggleVaultTask} onRun={runVaultTask} />}
-          {page === 'office' && <OfficeView remote={remote} teams={teams} selectedTeam={selectedTeam} onAll={()=>{setSelectedTeam(null);setArea('all');}} />}
+          {page === 'office' && <OfficeView onOpenHome={() => navigate('home')} remote={remote} teams={teams} selectedTeam={selectedTeam} onAll={()=>{setSelectedTeam(null);setArea('all');}} />}
+          {page === 'data' && <DataPage />}
           {page === 'chat' && <AgentChatPanel remote={remote} />}</div>
 
           {page === 'tasks' && <><div className="board-toolbar">
@@ -819,14 +778,14 @@ function App() {
             <div className="toolbar-controls">
               <label className="search-box"><Search size={15} strokeWidth={1.5} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" aria-label="Search tasks" /></label>
               <label className="filter-box"><ListFilter size={14} strokeWidth={1.5} /><select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as 'all' | Priority)} aria-label="Filter by priority"><option value="all">All priorities</option><option value="high">High only</option><option value="normal">Normal</option><option value="low">Low</option></select><ChevronDown size={13} strokeWidth={1.5} /></label>
-              {liveCount > 0 && <span className="live-toolbar"><i /> {liveCount} LIVE</span>}
+              {liveCount > 0 && <Chip tone="live" dot>{liveCount} LIVE</Chip>}
             </div>
           </div>
 
           {message && <div className="toast" role="status"><Check size={15} strokeWidth={1.6} />{message}</div>}
 
           {!loading && visibleTasks.length===0 && <div className="board-empty-hint"><p>No tasks match these filters.</p><button type="button" className="ghost-button" onClick={()=>openControl(true)}>New request</button></div>}
-          {loading ? <div className="loading-state"><span className="loading-orbit" />Loading tasks…</div> : visibleTasks.length === 0 ? null : viewMode === 'board' ? (
+          {loading ? <StateNote kind="loading">Loading tasks…</StateNote> : visibleTasks.length === 0 ? null : viewMode === 'board' ? (
             <div className="board" aria-label="Task board">
               {STATUSES.map((status) => (
                 <TaskColumn key={status} status={status} tasks={visibleTasks.filter((task) => task.status === status)} selectedId={selectedId} onSelect={setSelectedId} onMove={moveTask} onDropTask={moveTask} onOpenComposer={() => openControl(true)} onRun={runTask} />
@@ -862,6 +821,16 @@ function App() {
   );
 }
 
+const PAGE_META: Record<string, { title: string; purpose: string }> = {
+  home: { title: 'Company now', purpose: 'Who is working, and what needs your decision.' },
+  tasks: { title: 'Tasks', purpose: 'View work on the board or timeline.' },
+  ideas: { title: 'Ideas', purpose: 'Find and organize your Obsidian ideas.' },
+  goals: { title: 'Goals', purpose: 'Your tracked goals, live from the vault.' },
+  office: { title: 'Office', purpose: 'The full agent roster: every team, every room.' },
+  data: { title: 'Data', purpose: 'What the agents know, and which data they actually read.' },
+  chat: { title: 'Chat', purpose: 'Talk directly with an agent.' },
+};
+
 type AgentAsk = { taskId: string; taskTitle: string; boardName: string; kind: string; text: string; at: number };
 
 type Character = { name: string; image: string; custom: boolean };
@@ -877,22 +846,6 @@ function ideaDate(value?: string) {
 type Session = { local: boolean; device: { id: string; name: string } | null; terminal?: 'hermes' | 'missing'; dashboard?: boolean };
 // Inside the macOS app the terminal pane is native; the app opens it and pastes the idea there.
 
-
-const AREA_ICON: Record<'all' | LifeArea, typeof Wallet> = { all: LayoutGrid, finance: Wallet, learning: GraduationCap, 'mental-health': HeartPulse, work: Briefcase, play: Gamepad2 };
-
-// Left menu: the five life areas. Everything on the page (ideas, reminders, tasks) follows the choice.
-function AreaRail({ page, area, counts, onChoose, sidebarOpen, onToggleSidebar, teams, selectedTeam, onSelectTeam, onAll }: { page:string; selectedTeam:string|null; onSelectTeam:(id:string)=>void;onAll:()=>void; area: 'all' | LifeArea; counts: Record<string, number>; onChoose: (area: 'all' | LifeArea) => void; sidebarOpen: boolean; onToggleSidebar: () => void; teams: Parameters<typeof TeamRail>[0]['teams'] }) {
-  const [mobileOpen,setMobileOpen]=useState(false);
-  const trigger=useRef<HTMLButtonElement>(null);
-  useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&mobileOpen&&!document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')){setMobileOpen(false);trigger.current?.focus({preventScroll:true});}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[mobileOpen]);
-  return <><button type="button" ref={trigger} className="rail-mobile-trigger ghost-button" aria-label={mobileOpen?'Close menu':'Menu'} data-nav-label={mobileOpen?'Close menu':'Menu'} aria-expanded={mobileOpen} aria-controls="left-navigation" onClick={()=>setMobileOpen(v=>!v)}><Menu size={24} aria-hidden="true"/></button>
-  <nav id="left-navigation" className={`area-rail ${mobileOpen?'mobile-open':''}`} aria-label="Hermes Agents">
-    <h3 className="rail-section-label" title="Hermes departments"><Bot size={18} aria-hidden="true"/><span className="sr-only">Hermes Agents {teams.length}</span></h3>
-    <TeamRail teams={teams} allCount={counts.all || 0} selectedTeam={selectedTeam} onSelect={id=>{onSelectTeam(id);setMobileOpen(false);}} allActive={area === 'all' && selectedTeam===null} onAll={()=>{onAll();setMobileOpen(false);}} />
-    {page!=='home'&&<details className="rail-life-filters"><summary aria-label="Personal filters" data-nav-label="Personal filters"><SlidersHorizontal size={24} aria-hidden="true"/><span className="sr-only">Personal filters</span></summary><div className="rail-areas" role="group" aria-label="Life areas">{LIFE_AREAS.map(item=>{const Icon=AREA_ICON[item.id];return <button type="button" key={item.id} className="rail-area" aria-label={item.label} data-nav-label={item.label} aria-pressed={area===item.id} onClick={()=>onChoose(area===item.id?'all':item.id)}><Icon size={24} aria-hidden="true"/><span className="sr-only">{item.label}</span></button>;})}</div></details>}
-    <button type="button" className={`area-item rail-toggle ${sidebarOpen ? 'active' : ''}`} aria-label="Toggle filters" data-nav-label="Toggle filters" aria-expanded={sidebarOpen} onClick={onToggleSidebar}>{sidebarOpen?<PanelLeftClose size={19}/>:<PanelLeftOpen size={19}/>}<span className="sr-only">Filters</span></button>
-  </nav></>;
-}
 
 function IdeaShelf({ streams, notes, loading, onSend, onArea, onKind, feed }: { streams: Stream[]; notes: VaultNote[]; loading: boolean; onSend: (idea: VaultNote) => void; onArea: (idea: VaultNote, area: LifeArea) => void; onKind: (idea: VaultNote, kind: 'idea' | 'task') => void; feed?: React.ReactNode }) {
   const [query, setQuery] = useState('');
@@ -910,7 +863,7 @@ function IdeaShelf({ streams, notes, loading, onSend, onArea, onKind, feed }: { 
   const filtered = ideas.filter((idea) => (group === 'all' || idea.domain === group) && (!q || `${idea.title} ${idea.summary}`.toLowerCase().includes(q)));
   const groups = IDEA_GROUP_ORDER.map((key) => ({ key, items: filtered.filter((idea) => idea.domain === key) })).filter((entry) => entry.items.length > 0);
   const PREVIEW = 4;
-  return <section className="idea-shelf" aria-label="Obsidian idea collection">
+  return <section className="idea-shelf card-shell" aria-label="Obsidian idea collection">
     <div className="idea-shelf-head">
       <div><span className="eyebrow">OBSIDIAN / IDEAS</span><div className="shelf-switch" role="tablist" aria-label="Ideas or task-like notes">
         <button type="button" role="tab" aria-selected={shelf === 'idea'} className={shelf === 'idea' ? 'on' : ''} onClick={() => setShelf('idea')}>💡 Ideas <b>{loading ? '…' : allIdeaNotes.length - taskLikeCount}</b></button>
@@ -922,7 +875,7 @@ function IdeaShelf({ streams, notes, loading, onSend, onArea, onKind, feed }: { 
       <button type="button" className={group === 'all' ? 'active' : ''} onClick={() => setGroup('all')}>All <b>{ideas.length}</b></button>
       {IDEA_GROUP_ORDER.filter((key) => counts[key]).map((key) => <button type="button" key={key} className={group === key ? 'active' : ''} onClick={() => setGroup(key)}>{IDEA_GROUP_LABEL[key]} <b>{counts[key]}</b></button>)}
     </div>
-    {groups.length === 0 ? <p className="idea-empty">{loading ? 'Loading…' : 'No matching ideas.'}</p> : <ul className="dir-tree idea-dir" role="tree">
+    {groups.length === 0 ? <StateNote kind={loading ? 'loading' : 'empty'}>{loading ? 'Loading ideas…' : 'No matching ideas.'}</StateNote> : <ul className="dir-tree idea-dir" role="tree">
       {groups.map(({ key, items }) => {
         // Folders start open when filtered/searched; otherwise only the first shows its full list.
         const folderOpen = open[`f:${key}`] ?? (group !== 'all' || q.length > 0 || key === groups[0].key);
@@ -1039,7 +992,7 @@ function TaskCard({ task, selected, onSelect, onMove, onRun }: { task: Task; sel
   const live = run === 'running' || task.status === 'working' || task.planStatus === 'analyzing';
   return (
     <article className={`task-card ${selected ? 'selected' : ''} ${live ? 'is-live' : ''} run-${run} priority-${task.priority}`} draggable onDragStart={(event) => { event.dataTransfer.setData('text/task-id', task.id); event.dataTransfer.effectAllowed = 'move'; }} onClick={onSelect}>
-      <div className="task-card-top"><span className="task-index">{live && <span className="live-badge"><i /> LIVE</span>} {meta.short} / {task.id.slice(-4).toUpperCase()}</span><button className="card-more" type="button" aria-label={`Open details for ${task.title}`} onClick={(event) => { event.stopPropagation(); onSelect(); }}><MoreHorizontal size={15} strokeWidth={1.5} /></button></div>
+      <div className="task-card-top"><span className="task-index">{live && <Chip tone="live" dot>LIVE</Chip>} {meta.short} / {task.id.slice(-4).toUpperCase()}</span><button className="card-more" type="button" aria-label={`Open details for ${task.title}`} onClick={(event) => { event.stopPropagation(); onSelect(); }}><MoreHorizontal size={15} strokeWidth={1.5} /></button></div>
       <h4>{task.title}</h4>
       {task.description && <p className="task-description">{task.description}</p>}
       <RunButton task={task} onRun={onRun} />

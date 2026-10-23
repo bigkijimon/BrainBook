@@ -8,6 +8,7 @@ import { ChevronDown, ListTodo } from 'lucide-react';
 import { memberTone } from './TeamRail';
 import { personaOf } from './agentRoster';
 import { sessionGroups, messageSummary, resultLinks, displayTitle } from './owner-console.mjs';
+import { StateNote } from './ui';
 
 type Item = { id: string; taskId?: string; taskTitle: string; kind: string; author: string; text: string; at: number; boardName: string; board?: string; from?: string; to?: string | null; taskRecipient?: string | null };
 const KIND: Record<string, string> = { blocked: 'Needs you', done: 'Completion reported', failed: 'Stop reported', progress: 'Start reported', new: 'Added', comment: 'Report' };
@@ -43,7 +44,7 @@ export function SessionActivity() {
       <small>What's being built, grouped per task. Last 3 days.</small>
     </header>
     {error && <p role="status">{error}</p>}
-    {!groups.length && !error && <p className="agent-chat-empty">No session activity recorded in the last 3 days.</p>}
+    {!groups.length && !error && <StateNote kind="empty">No session activity recorded in the last 3 days.</StateNote>}
     <ol className="agent-chat-list">{groups.slice(0, all ? undefined : 5).map((group) => {
       const expanded = open === group.key;
       const latest = group.last;

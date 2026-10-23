@@ -4,6 +4,7 @@ import {ChevronDown} from 'lucide-react';
 import {memberTone} from './TeamRail';
 import {personaOf} from './agentRoster';
 import {conversationGroups,messageSummary,resultLinks,displayTitle} from './owner-console.mjs';
+import { StateNote } from './ui';
 type Item={id:string;taskId?:string;taskTitle:string;kind:string;author:string;text:string;at:number;boardName:string;board?:string;from?:string;to?:string|null;taskRecipient?:string|null};
 const KIND:Record<string,string>={blocked:'Needs you',done:'Completion reported',failed:'Stop reported',progress:'Start reported',new:'Added',comment:'Report'};
 const when=(at:number)=>new Date(at*1000).toLocaleString('en-GB',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -19,7 +20,7 @@ export function AgentChat({onActiveChange}:{onActiveChange?:(count:number)=>void
  return <>
   {error && <p role="status">{error}</p>}
   <label className="console-search"><span className="sr-only">Search chat</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search agents or work"/></label>
-  {!groups.length && !error && <p className="agent-chat-empty">No chat recorded in the last 3 days.</p>}
+  {!groups.length && !error && <StateNote kind="empty">No chat recorded in the last 3 days.</StateNote>}
   <ol className="agent-chat-list">{filtered.slice(0,all||query?undefined:5).map(group=>{
    const expanded=open===group.key;const latest=group.last;
    const taskCount=new Set(group.items.map(item=>`${item.board || item.boardName}:${item.taskId||item.taskTitle}`)).size;

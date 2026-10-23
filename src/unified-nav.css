@@ -1,0 +1,131 @@
+/* ONE navigation landmark (owner 2026-10-21, "メニューバーの１本化"). Supersedes the 2026-10-13
+   bottom-dock-only decision: <AppNav> is a left column on desktop and the same element becomes a
+   fixed bottom bar on phones. Loaded last so it wins over the retired .sidebar/.area-rail/.console-nav
+   rules still present in styles.css and neon-navigation.css. */
+.app-shell { --topbar-h: 62px; --nav-w: 236px; }
+.app-shell .workspace { --nav-w: 236px; grid-template-columns: var(--nav-w) minmax(0,1fr); padding-bottom: 0; }
+.app-shell .workspace.sidebar-collapsed { --nav-w: 76px; grid-template-columns: var(--nav-w) minmax(0,1fr); padding-bottom: 0; }
+.app-shell .workspace.has-selection, .app-shell .workspace.sidebar-collapsed.has-selection { grid-template-columns: var(--nav-w) minmax(0,1fr) 318px; padding-bottom: 0; }
+.app-shell .workspace > .app-nav { grid-column: 1; }
+.app-shell .workspace .main-content { grid-column: 2; }
+.app-shell .workspace .inspector { grid-column: 3; }
+
+.app-nav { position: sticky; top: var(--topbar-h); align-self: start; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; width: auto; height: calc(100dvh - var(--topbar-h)); padding: 14px 12px 18px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: rgba(var(--theme-night-rgb), .72); backdrop-filter: blur(10px); border-right: 1px solid rgba(var(--theme-pink-rgb), .22); scrollbar-width: thin; z-index: 30; }
+.app-nav .nav-menu-btn { display: none; }
+.app-nav .nav-compact-btn { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; border: 1px solid transparent; border-radius: 10px; background: none; color: var(--theme-lavender); font: 700 11px/1 'DM Mono', monospace; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+.app-nav .nav-compact-btn:hover { color: var(--theme-text); background: rgba(255,241,255,.05); }
+.app-nav .nav-pages { display: grid; gap: 3px; }
+.app-nav .nav-panel { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.app-nav .nav-group { display: grid; gap: 3px; }
+.app-nav .nav-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 14px 8px 5px; color: var(--theme-lavender); font: 400 9px/1.2 'DM Mono', monospace; letter-spacing: .14em; }
+.app-nav .nav-heading small { max-width: 120px; overflow: hidden; color: var(--theme-lilac); font-size: 9px; letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap; }
+.app-nav .nav-team-list, .app-nav .nav-areas, .app-nav .nav-streams { display: grid; gap: 3px; }
+.app-nav .nav-streams { max-height: 260px; overflow-y: auto; padding-right: 2px; }
+
+/* Items: every row (page, team, life-area) is a .nav-item, so one rule set styles them all. */
+.app-nav .nav-item { position: relative; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border-radius: 11px; color: var(--muted); text-align: left; cursor: pointer; }
+.app-nav .nav-item:hover { transform: none; }
+.app-nav .nav-item svg { flex: none; }
+.app-nav .nav-item > span:not(.sr-only):not(.team-status):not(.team-mark) { flex: 1; min-width: 0; overflow: hidden; font: 600 12px/1.3 'Manrope', sans-serif; letter-spacing: 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+/* TeamRail renders the team name / "All" label as .sr-only (it was an icon-only rail); show it here. */
+.app-nav .team-item > .sr-only:not(.team-status), .app-nav .area-all > .sr-only { position: static; width: auto; height: auto; margin: 0; overflow: hidden; clip-path: none; flex: 1; min-width: 0; font: 600 12px/1.3 'Manrope', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.app-nav .team-item .team-mark { flex: none; width: 28px; height: 28px; border-radius: 9px; }
+.app-nav .team-item .team-mark svg { width: 16px; height: 16px; }
+.app-nav .team-item.is-live .team-mark { border-color: var(--theme-pink); }
+.app-nav .team-item.has-need::after { content: ''; position: absolute; top: 8px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--theme-coral); box-shadow: 0 0 8px var(--theme-coral); }
+.app-nav .nav-item b { font: 400 13px 'VT323', monospace; }
+/* Selected item: the shared "flowing light" border (same recipe as .task-card.run-running::before). */
+.app-nav .nav-item.active, .app-nav .nav-item[aria-current="page"], .app-nav .nav-item[aria-pressed="true"] { color: var(--theme-text); border-color: transparent; background: linear-gradient(90deg, rgba(var(--theme-pink-rgb), .22), rgba(var(--theme-lilac-rgb), .10)); box-shadow: none; }
+.app-nav .nav-item.active::before, .app-nav .nav-item[aria-current="page"]::before, .app-nav .nav-item[aria-pressed="true"]::before { content: ''; position: absolute; inset: -1px; z-index: 0; padding: 1.5px; border-radius: inherit; background: conic-gradient(from var(--run-angle, 0deg), var(--theme-pink), var(--theme-lavender), var(--theme-lilac), var(--theme-pink)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: run-rotate 3s linear infinite; pointer-events: none; }
+.app-nav .nav-item.active svg { color: var(--theme-pink); filter: drop-shadow(0 0 6px var(--theme-pink)); }
+
+.app-nav .nav-stream { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--muted); text-align: left; cursor: pointer; }
+.app-nav .nav-stream:hover { color: var(--theme-text); background: rgba(255,241,255,.045); }
+.app-nav .nav-stream.active { color: var(--theme-text); border-color: rgba(var(--theme-pink-rgb), .45); background: rgba(255,241,255,.06); }
+.app-nav .nav-stream i { flex: none; width: 6px; height: 6px; border-radius: 2px; background: var(--stream, #b69bc4); box-shadow: 0 0 6px var(--stream, transparent); }
+.app-nav .nav-stream span { flex: 1; min-width: 0; overflow: hidden; font: 600 11px/1.3 'Manrope', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.app-nav .nav-stream b { color: var(--muted-2); font: 400 12px 'VT323', monospace; }
+.app-nav .managed-apps { margin-top: 10px; }
+.app-nav .managed-apps h3 { display: flex; align-items: center; gap: 8px; margin: 8px 8px 6px; }
+.app-nav .managed-apps h3::after { content: 'APPS'; font: 400 9px/1.2 'DM Mono', monospace; letter-spacing: .14em; color: var(--theme-lavender); }
+.app-nav .nav-foot { margin: auto 0 0; padding: 12px 8px 0; border-top: 1px solid var(--line); }
+.app-nav .nav-foot .version-label { font: 400 9px 'DM Mono', monospace; letter-spacing: .12em; color: var(--muted-2); }
+
+/* Compact desktop rail: icons only; names stay in aria-label and the hover hint. */
+.app-nav.is-compact { padding-inline: 10px; }
+.app-nav.is-compact .nav-compact-btn { justify-content: center; padding: 0; }
+.app-nav.is-compact .nav-compact-btn span, .app-nav.is-compact .nav-heading, .app-nav.is-compact .nav-foot, .app-nav.is-compact .nav-streams, .app-nav.is-compact .nav-item > span:not(.team-mark), .app-nav.is-compact .nav-item > b, .app-nav.is-compact .team-item > .sr-only, .app-nav.is-compact .area-all > .sr-only, .app-nav.is-compact .managed-app-name { display: none; }
+.app-nav.is-compact .nav-item { justify-content: center; padding: 0; }
+.app-nav.is-compact .managed-app-item { justify-content: center; padding: 6px 0; }
+.app-nav.is-compact .managed-apps h3::after { display: none; }
+
+/* ---- Phone: the same <nav> is a fixed bottom bar; teams, filters and apps open as a sheet above it. ---- */
+@media (max-width: 760px) {
+  .app-shell { --topbar-h: 62px; }
+  .app-shell .workspace, .app-shell .workspace.sidebar-collapsed, .app-shell .workspace.has-selection, .app-shell .workspace.sidebar-collapsed.has-selection { display: block; grid-template-columns: minmax(0,1fr); padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .app-nav, .app-nav.is-compact { position: fixed; inset: auto 0 0 0; top: auto; z-index: 45; height: auto; max-height: none; flex-direction: row; align-items: center; gap: 2px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); overflow: visible; background: linear-gradient(0deg, #20142f, #171125 70%); border-right: 0; border-top: 1px solid rgba(var(--theme-magentaGlow-rgb), .35); backdrop-filter: none; }
+  .app-nav .nav-compact-btn { display: none; }
+  .app-nav .nav-menu-btn { display: flex; flex: none; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 54px; min-height: 56px; padding: 0; border: 1px solid var(--theme-lavender); border-radius: 12px; background: #21172f; color: var(--theme-text); cursor: pointer; }
+  .app-nav .nav-menu-btn span { font: 700 9px/1 'Manrope', sans-serif; }
+  .app-nav .nav-pages { display: flex; flex: 1; min-width: 0; gap: 2px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); mask-image: linear-gradient(90deg, #000 92%, transparent); }
+  .app-nav .nav-pages::-webkit-scrollbar { display: none; }
+  .app-nav .nav-pages .nav-item, .app-nav.is-compact .nav-pages .nav-item { flex: none; scroll-snap-align: center; flex-direction: column; justify-content: center; gap: 3px; width: 58px; min-height: 56px; padding: 4px 2px; border-radius: 12px; }
+  .app-nav .nav-pages .nav-item > span, .app-nav.is-compact .nav-pages .nav-item > span { display: block; flex: none; max-width: 100%; font: 700 9px/1.1 'Manrope', sans-serif; }
+  .app-nav .nav-pages .nav-item > b, .app-nav.is-compact .nav-pages .nav-item > b { display: block; position: absolute; top: 2px; right: 6px; font-size: 12px; color: var(--theme-pink); }
+  .app-nav .nav-panel { display: none; position: absolute; left: 8px; right: 8px; bottom: calc(100% + 8px); max-height: calc(100dvh - var(--topbar-h) - 100px); overflow-y: auto; padding: 8px 10px 14px; background: #1c1229; border: 1px solid var(--theme-pink); border-radius: 14px; box-shadow: 0 -10px 30px #000a; }
+  .app-nav.is-open .nav-panel, .app-nav.is-compact.is-open .nav-panel { display: flex; }
+  .app-nav.is-compact .nav-heading, .app-nav.is-compact .nav-foot, .app-nav.is-compact .nav-streams { display: grid; }
+  .app-nav.is-compact .nav-heading { display: flex; }
+  .app-nav.is-compact .nav-panel .nav-item > span, .app-nav.is-compact .nav-panel .team-item > .sr-only, .app-nav.is-compact .nav-panel .area-all > .sr-only, .app-nav.is-compact .managed-app-name { display: block; }
+  .app-nav.is-compact .nav-panel .nav-item > b { display: block; }
+  .app-nav.is-compact .nav-panel .nav-item { justify-content: flex-start; padding: 0 12px; }
+  .app-nav .nav-team-list { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .app-nav .nav-areas { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .app-nav .nav-streams { max-height: none; }
+  .app-nav .nav-stream { min-height: 44px; }
+  .app-nav .managed-app-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .app-shell .toast-stack { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) { .app-nav .nav-item.active::before, .app-nav .nav-item[aria-current="page"]::before, .app-nav .nav-item[aria-pressed="true"]::before { animation: none; } }
+
+/* ---- Page layout system (Outcome 3): every page body is one full-width column of .card-shell sections. ---- */
+.company-panels > .dp, .company-panels > .goals, .company-panels > .office { grid-column: 1 / -1; }
+/* One card chrome for every page section: .card-shell + 16px padding + 18px radius; 16px rhythm between sections. */
+.app-shell .dp, .app-shell .company-panels, .app-shell .main-content > .card-shell + .card-shell { gap: 16px; }
+.app-shell .goals.card-shell, .app-shell .office.card-shell, .app-shell .agent-chat.card-shell, .app-shell .dp-card.card-shell, .app-shell .idea-shelf.card-shell, .app-shell .products-overview.card-shell { padding: 16px; border-radius: 18px; }
+.app-shell .main-content > .card-shell, .app-shell .main-content > .activity-panel { margin-bottom: 16px; }
+
+/* ---- Shared primitives (src/ui.tsx) ---- */
+/* Chip: the one status badge. Tones ok / warn / bad / unknown / live / info; `dot` adds a pulsing lamp. */
+.dp-chip.info { color: var(--theme-lavender); background: rgba(var(--theme-lavender-rgb), .14); }
+.dp-chip > i { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; vertical-align: 1px; animation: run-breathe 2.4s ease-in-out infinite; }
+.member-frame > .member-live { flex: none; white-space: nowrap; margin-inline-start: auto; }
+/* StateNote: one empty / loading / error line for every card. */
+.state-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border: 1px dashed rgba(var(--theme-lavender-rgb), .35); border-radius: 12px; color: var(--theme-muted); font-size: 13px; line-height: 1.5; }
+.state-note p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.state-note.state-error { border-style: solid; border-color: rgba(var(--theme-danger-rgb), .6); color: var(--theme-danger); background: rgba(var(--theme-danger-rgb), .08); }
+.state-note .loading-orbit { flex: none; width: 16px; height: 16px; }
+/* PageHeader: eyebrow, title, one-line purpose, one primary action - identical on every page. */
+.app-shell .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin-bottom: 16px; }
+.app-shell .page-header .content-lede { margin: 6px 0 0; }
+@media (max-width: 760px) { .app-shell .page-header { flex-direction: column; align-items: stretch; } .app-shell .page-header .primary-button { margin-top: 12px; } }
+
+/* ---- Motion: one press, one curve, one staged entrance ---- */
+:root { --ease-out: cubic-bezier(0.2, 0, 0, 1); }
+.app-shell :where(button:not(.toolbar-tab), summary, a.ghost-button):active:not(:disabled) { transform: scale(0.96); } /* text tabs have no pressed surface */
+.app-shell :where(button, summary, .dp-chip) { transition-timing-function: var(--ease-out); }
+/* Staged entrance only when the page changes (the page wrapper is re-keyed per page), ~100ms apart. */
+.app-shell .main-content[data-page] > :where(.card-shell, .page-header, .board-toolbar, .company-panels, .idea-page-tabs, .activity-panel) { animation: rise-in 420ms var(--ease-out) both; }
+.app-shell .main-content[data-page] > :nth-child(2) { animation-delay: 0ms; }
+.app-shell .main-content[data-page] > :nth-child(3) { animation-delay: 100ms; }
+.app-shell .main-content[data-page] > :nth-child(4) { animation-delay: 200ms; }
+.app-shell .main-content[data-page] > :nth-child(n+5) { animation-delay: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :where(button, summary, a.ghost-button):active:not(:disabled) { transform: none; }
+  .app-shell .main-content[data-page] > *, .dp-chip > i { animation: none; }
+}
+
+/* Touch target floor: every interactive control is at least 44px, on every page. */
+.app-shell .product-metrics-refresh, .app-shell .session-link .ghost-button, .app-shell .active-work .link-button { min-height: 44px; min-width: 44px; }
+.app-shell .idea-page-tabs button { min-height: 45px; padding-block: 15px; }
+.app-shell .toolbar-tab, .app-shell .board-toolbar .search-box, .app-shell .board-toolbar .filter-box { min-height: 45px; }

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ArrowUpRight, Check, ChevronDown, Lightbulb, Link2, ListChecks, Play, Target, Trophy } from 'lucide-react';
 import type { VaultTask } from './types';
 import { goalPresentation, goalSummary, stepPresentation, displayTitle, type GoalPresentation } from './owner-console.mjs';
+import { StateNote } from './ui';
 
 type GoalLink = { kind: string; title: string; why: string; url?: string; status?: string; id?: string };
 export type Goal = {
@@ -55,12 +56,12 @@ export function GoalsPanel({ refreshKey, onToggle, onRun, notify }: { refreshKey
 
   return <section className="goals card-shell" aria-labelledby="goals-heading">
     <header className="goals-head">
-      <h3 id="goals-heading"><Target size={16} strokeWidth={1.8} /> Goals <b>{goals.length}</b></h3>
+      <h3 id="goals-heading"><Target size={16} strokeWidth={1.8} aria-hidden="true" /><span className="sr-only">Goals ({goals.length})</span></h3>
       <GoalCounts originalCount={goals.length} unarchivedCount={unarchived.length} groupCount={active.groupCount} />
       <small>{problem ? 'Update failed. Showing the last report.' : readAt ? `${new Date(readAt).toLocaleTimeString('en-GB')} read` : 'Loading'} · {pilot?.enabled ? 'Auto advance on' : 'Auto advance off'}</small>
 
     </header>
-    {goals.length === 0 && <p className="goals-empty">No goals yet.<b>New request</b> lets you describe what you want to achieve.</p>}
+    {goals.length === 0 && <StateNote kind="empty">No goals yet. “New request” lets you describe what you want to achieve.</StateNote>}
     <GoalPresentationList presentation={active} open={open} onOpen={setOpen} all={all} renderSource={renderSource} />
     {active.groupCount>4 && <button type="button" className="console-more" aria-expanded={all} onClick={()=>setAll(v=>!v)}>{all?'Show less':`All display groups (${active.groupCount})`}</button>}
     {achieved.length > 0 && <details className="goals-archive">
@@ -95,7 +96,7 @@ export function GoalSource({goal,busy,onToggle,run,setStatus}: {goal:Goal;busy:s
           </section>
           <section>
             <h4><Link2 size={13} /> Related work</h4>
-            {goal.links.length === 0 && goal.tasks.length === 0 ? <p className="goals-empty">No related records.</p> : <ul className="goal-links">
+            {goal.links.length === 0 && goal.tasks.length === 0 ? <StateNote kind="empty">No related records.</StateNote> : <ul className="goal-links">
               {goal.links.map((link, index) => <li key={`${link.title}-${index}`}>
                 <em className={`capture-tag is-${link.kind}`}>{KIND_LABEL[link.kind] || link.kind}</em>
                 <span><b>{link.url ? <a href={link.url}>{link.title} <ArrowUpRight size={11} /></a> : link.title}</b>{link.status && <i> · {link.status}</i>}<small>{link.why}</small></span>

@@ -13,6 +13,7 @@ import '@fontsource/vt323/400.css';
 import './theme-palette.mjs';
 import './styles.css';
 import './neon-navigation.css';
+import './unified-nav.css';
 
 // /vr (Office in 3D and WebXR) loads on its own, so the main page does not carry it.
 const OfficeVR = lazy(() => import('./OfficeVR'));

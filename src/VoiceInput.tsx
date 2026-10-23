@@ -1,6 +1,10 @@
 // Voice input UI (Hermes3D goal, step 3). VoiceRow is the mic for any instruction box;
 // VoiceCommand is the Office's "tell Bigkiji" box. Speech only fills the text box — the owner
-// reads it and presses Send, so a misheard word never becomes a Kanban card by itself.
+// reads it and presses Send, so a misheard word is never filed by itself.
+// Owner decision 2026-10-14: Kanban cards stopped being an execution trigger (work now goes by
+// direct instruction to the owning department Top). This box still files a task/card via
+// queueTaskRun for the record, but nothing dispatches it automatically from the card alone —
+// the hint text below must not promise a start time it cannot keep.
 import { useState } from 'react';
 import { Mic, MicOff, Send } from 'lucide-react';
 import { joinSpoken, useVoiceInput, type VoiceLang } from './voice';
@@ -83,7 +87,7 @@ export function VoiceCommand({ tone, remote = false }: { tone: string; remote?: 
       onChange={(event) => { setText(event.target.value); if (state.kind !== 'sending') setState({ kind: 'idle' }); }}
       onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void send(); } }} />
     <div className="direct-foot">
-      <small className={`direct-state is-${state.kind}`} role="status">{state.message || (state.kind === 'sending' ? 'Sending…' : remote ? 'On the phone this is saved to Tasks. Run it on the Mac.' : 'Bigkiji routes it to a team as a Kanban card. ⌘↵ sends.')}</small>
+      <small className={`direct-state is-${state.kind}`} role="status">{state.message || (state.kind === 'sending' ? 'Sending…' : remote ? 'On the phone this is saved to Tasks. Run it on the Mac.' : 'Filed as a task for Bigkiji to triage — cards no longer auto-start (2026-10-14); check Tasks or ask Bigkiji directly if it is urgent. ⌘↵ sends.')}</small>
       <button type="button" className="direct-send" disabled={!text.trim() || state.kind === 'sending'} onClick={() => void send()}><Send size={14} strokeWidth={1.8} />Send</button>
     </div>
   </div>;

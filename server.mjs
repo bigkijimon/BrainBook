@@ -93,6 +93,37 @@ const findVaults = async () => {
   vaultCache = { at: Date.now(), list: [...found.values()].slice(0, 12) };
   return vaultCache.list;
 };
+// DBAgent (read-only): registry/usage/selfcheck written by ~/.hermes. Usage is re-measured by a fresh audit run
+// (cached 15 s, never two at once); our scratch output lives in appHome, never under the DBAgent state dir.
+const dbagentDir = expandHome(process.env.BRAINBOOK_DBAGENT_DIR || '~/.hermes/state/dbagent');
+const dbagentAudit = expandHome(process.env.BRAINBOOK_DBAGENT_AUDIT || '~/.hermes/scripts/agent_usage_audit.py');
+const dbagentPython = process.env.BRAINBOOK_DBAGENT_PYTHON || 'python3';
+const dbagentScratch = path.join(appHome, 'dbagent-usage.scratch.json');
+let dbagentUsage = { at: 0, hours: 0, data: null };
+let dbagentInflight = null;
+const readJsonFile = (file) => fs.readFile(file, 'utf8').then(JSON.parse);
+const measureDbagentUsage = async (hours) => {
+  try {
+    await fs.mkdir(appHome, { recursive: true });
+    await fs.rm(dbagentScratch, { force: true });
+    await execFileAsync(dbagentPython, [dbagentAudit, '--hours', String(hours), '--out', dbagentScratch, '--quiet'], { timeout: 20_000, maxBuffer: 4 * 1024 * 1024 });
+    dbagentUsage = { at: Date.now(), hours, data: { usage: await readJsonFile(dbagentScratch), usage_error: null } };
+  } catch (error) {
+    const why = `${error.killed ? 'audit timed out after 20 s' : 'audit failed'}: ${String(error.message || error).split('\n')[0].slice(0, 200)}`;
+    const cached = await readJsonFile(path.join(dbagentDir, 'usage.json')).catch(() => null);
+    // A failure is shown, not cached: the next request tries the audit again.
+    return { usage: cached, usage_error: cached ? `${why}; showing cached usage.json` : `${why}; no cached usage.json either` };
+  }
+  return dbagentUsage.data;
+};
+const dbagentUsageFor = async (hours) => {
+  for (;;) {
+    if (dbagentUsage.data && dbagentUsage.hours === hours && Date.now() - dbagentUsage.at < 15_000) return dbagentUsage.data;
+    if (dbagentInflight) { await dbagentInflight.catch(() => {}); continue; }
+    dbagentInflight = measureDbagentUsage(hours);
+    try { return await dbagentInflight; } finally { dbagentInflight = null; }
+  }
+};
 const setupState = async () => ({
   vaultPath,
   vaultReady: await isDirectory(vaultPath, 4000),
@@ -546,7 +577,7 @@ const kanbanBody = (task, gpu) => [
 // Must match MOVIE_DIRECT / "direct" in agent-feed.py.
 const DIRECT_MEMBERS = {
   'MovieProTop-Mame': { profile: 'movieagent', board: 'movie', team: 'movie' },
-  Kuro: { profile: 'kuro', board: 'movie', team: 'movie' },
+  Kuro: { profile: 'qapro', board: 'movie', team: 'movie' },
   Ame: { profile: 'eduresearchpro', board: 'movie', team: 'movie' },
   Shimajiro: { profile: 'eduleadpro', board: 'movie', team: 'movie' },
   Maru: { profile: 'gpupro', board: 'movie', team: 'movie' },
@@ -559,7 +590,7 @@ const DIRECT_MEMBERS = {
   'AccountProTop-Riku': { profile: 'accountagent', board: 'owner', team: 'accountpro' },
   'ClassProTop-Nana': { profile: 'classagent', board: 'owner', team: 'hs-school-ops' },
   'InvestProTop-Rin': { profile: 'investagent', board: 'owner', team: 'investment' },
-  'RentProTop-Kai': { profile: 'igataya-web', board: 'owner', team: 'igataya-web' },
+  'RentProTop-Kai': { profile: 'rentpro', board: 'owner', team: 'igataya-web' },
   'MarketProTop-Yui': { profile: 'marketagent', board: 'owner', team: 'marketing' },
   'SecurityProTop-Taiga': { profile: 'securityagent', board: 'owner', team: 'securitypro' },
 };
@@ -570,9 +601,11 @@ const DIRECT_MEMBERS = {
 // (teams.yaml "profiles", e.g. tora, hana) are direct targets too. Must match agent-feed.py.
 const ROUTER_DIRECT = {
   MiMo: { assignee: 'team', board: 'owner', viaTeamLane: true },
-  'Claude Code': { profile: 'claudecode', board: 'owner' },
+  // No 'Claude Code' entry: it is the Router's own `claude` CLI worker, not a Hermes profile
+  // (there is no `claudecode` profile), so it cannot take a direct Hermes session.
   Bigkiji: { profile: 'default', board: 'owner' },
 };
+const directRunning = new Set();
 const TEAMS_FILE = path.join(os.homedir(), 'Documents/AI/router/config/teams.yaml');
 // MoviePro is one team (owner 2026-10-02, "まとめて"), so its card carries the script-fix lane as
 // well. That lane is the Router team `movie-pro`, so a member of the merged card that is not in
@@ -1323,6 +1356,50 @@ const handleApi = async (req, res, url) => {
     if (text.length > 4000) return json(res, { error: 'Keep the instruction under 4000 characters.' }, 400);
     const title = text.split('\n')[0].slice(0, 120);
     const key = `brainbook-direct-${crypto.createHash('sha256').update(`${target.profile}:${text}:${Math.floor(Date.now() / 60000)}`).digest('hex').slice(0, 24)}`;
+    if (!target.viaTeamLane) {
+      // Single named Hermes profile: run a direct CLI session, never a Kanban card (owner banned
+      // ad-hoc card creation as an execution trigger 2026-10-14). Detached; the HTTP response
+      // returns once the process has launched. Log + exit record land in direct-instruct-logs/.
+      const memberSlug = String(body.member).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'member';
+      const slug = `brainbook-direct-${memberSlug}-${key.slice('brainbook-direct-'.length, 'brainbook-direct-'.length + 12)}`;
+      const logDir = path.join(appHome, 'direct-instruct-logs');
+      const logFile = path.join(logDir, `${slug}.log`);
+      const reply = { ok: true, mode: 'direct', member: body.member, profile: target.profile, slug, logFile, id: slug, status: 'running' };
+      if (directRunning.has(slug)) return json(res, reply); // same instruction re-sent within the minute
+      const prompt = [
+        `Direct instruction from Yuma (owner) to ${body.member}, sent from BrainBook${req.remoteDevice ? ' on the paired phone' : ''}.`,
+        '', '## Instruction', text, '',
+        '## Rules for this run',
+        `- You are ${body.member} (Hermes profile \`${target.profile}\`). Do this yourself within your role. Do not create Kanban cards; if part of it needs another member, say so in your final summary.`,
+        target.team === 'movie' ? '- GPU work goes through `gpu-job` / `movie-pro` only. Never start ComfyUI directly. If `~/Documents/LLM-Local/.local/state/ai-stack/movie-pro.operator-hold` exists, do not start generation: stop and say so. Only Yuma clears that hold.' : '- Do not start or wake the GPU.',
+        '- Publication, deployment, spending, credentials, or production-data changes need the owner: stop and state the exact decision needed.',
+        '- Finish with a short summary of what changed and how it was verified. If you cannot finish, state the exact blocker.',
+      ].join('\n');
+      const startedAt = new Date().toISOString();
+      let logHandle;
+      try {
+        await fs.mkdir(logDir, { recursive: true });
+        logHandle = await fs.open(logFile, 'a');
+        const child = spawn(hermes.bin, ['-p', target.profile, 'chat', '--cli', '-Q', '--continue', slug, '--create-if-missing', '--query-file', '-'], { detached: true, stdio: ['pipe', logHandle.fd, logHandle.fd], env: { ...process.env, PATH: hermes.path || process.env.PATH } });
+        await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+        directRunning.add(slug);
+        const record = (exitCode, error) => {
+          directRunning.delete(slug);
+          const line = JSON.stringify({ slug, member: body.member, profile: target.profile, startedAt, endedAt: new Date().toISOString(), exitCode, ...(error ? { error } : {}) }) + '\n';
+          fs.appendFile(path.join(logDir, `${slug}.result.json`), line).catch(() => {});
+        };
+        child.on('error', (error) => record(null, String(error.message || error)));
+        child.on('close', (code, signal) => record(code, signal ? `signal ${signal}` : undefined));
+        child.stdin.on('error', () => {});
+        child.stdin.end(prompt);
+        child.unref();
+        return json(res, reply);
+      } catch (error) {
+        return json(res, { error: `Could not file the instruction: ${String(error.message || error).slice(0, 200)}` }, 502);
+      } finally {
+        await logHandle?.close().catch(() => {});
+      }
+    }
     const cardBody = [
       ...(target.viaTeamLane ? [`team: ${target.team}`, ''] : []),
       `Direct instruction from Yuma (owner) to ${body.member}, sent from BrainBook${req.remoteDevice ? ' on the paired phone' : ''}.`,
@@ -1359,6 +1436,15 @@ const handleApi = async (req, res, url) => {
     } catch (error) {
       return json(res, { rooms: [], desk: [], error: `Could not read Hermes: ${String(error.message || error).slice(0, 200)}` }, 502);
     }
+  }
+  if (url.pathname === '/api/dbagent' && req.method === 'GET') {
+    const hours = Math.min(72, Math.max(1, Math.round(Number(url.searchParams.get('hours')) || 6)));
+    const [registry, selfcheck, measured] = await Promise.all([
+      readJsonFile(path.join(dbagentDir, 'registry.json')).catch((error) => ({ error: `registry unavailable: ${String(error.message || error).slice(0, 160)}` })),
+      readJsonFile(path.join(dbagentDir, 'selfcheck.json')).catch(() => null),
+      dbagentUsageFor(hours),
+    ]);
+    return json(res, { registry, usage: measured.usage, ...(measured.usage_error ? { usage_error: measured.usage_error } : {}), selfcheck, served_at: new Date().toISOString() });
   }
   if (url.pathname === '/api/agents/live' && req.method === 'GET') {
     const hermesHome = expandHome(process.env.HERMES_HOME || settings.hermesHome || '~/.hermes');

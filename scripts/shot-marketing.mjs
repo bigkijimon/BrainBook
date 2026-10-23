@@ -19,7 +19,7 @@ for (const [name, viewport] of [['marketing-1440', { width: 1440, height: 900 }]
   await page.screenshot({ path: `${OUT}/${name}.png` });
   // Narrow layouts scroll the tab strip, so scroll CreativePro Marketing next to its neighbours
   // before judging that it looks like them.
-  const strip = page.locator('.area-rail').first();
+  const strip = page.locator('.app-nav').first();
   if (await strip.evaluate((el) => el.scrollWidth > el.clientWidth + 4)) {
     await page.locator('.team-item').filter({ has: page.locator('[aria-label="CreativePro Marketing"]') }).first().evaluate((el) => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
     await page.waitForTimeout(400);

@@ -483,8 +483,19 @@ def flow(home, since, router_jobs):
 TEAM_SHORT = {"app-dev": "AppAgent", "accountpro": "AccountAgent", "hs-school-ops": "ClassAgent",
               # The `marketing` Router lane is the Marketing team inside CreativePro (owner
               # 2026-10-17), not a department of its own, so the tab says which department it sits in.
-              "investment": "InvestAgent", "igataya-web": "Igataya", "marketing": "CreativePro Marketing",
+              # Owner order 2026-10-19 (Agents/Teams/WebServices.md): RentPro/Igataya left the list of
+              # department Tops and became a Web Services category member supervised by ClassAgent.
+              # Router team id, profile (`rentpro`) and dispatch are unchanged in phase 1 -- only the
+              # rail label changes, so the owner sees the current org structure instead of a stale
+              # standalone department icon.
+              "investment": "InvestAgent", "igataya-web": "Igataya (Web Services)", "marketing": "CreativePro Marketing",
               "movie": "MovieAgent", "movie-pro": "MovieAgent", "securitypro": "SecurityAgent"}
+# teams.yaml's own `label` text is control-plane protected (external-operator release lane only), so
+# a stale subtitle there cannot be fixed at the source the way TEAM_SHORT above fixes the rail name.
+# Override it here instead, read-only, for the one team whose label text is confirmed stale against
+# canon (Agents/Teams/WebServices.md, owner order 2026-10-19: RentPro/Igataya is a Web Services
+# category member managed by ClassAgent, no longer its own department Top).
+TEAM_LABEL_OVERRIDE = {"igataya-web": "Web Services category (managed by ClassAgent) \u00b7 rent-a-car web"}
 
 
 def team_short_name(team_id):
@@ -531,7 +542,7 @@ MOVIE_CREW = [("MovieProTop-Mame", "production director"), ("HideoKojima", "scen
 # name -> Hermes profile mapping). HideoKojima and RyūichiSakamoto are
 # departments that run under MovieProTop-Mame's profile, so they are reached through MovieProTop-Mame.
 MOVIE_DIRECT = ["MovieProTop-Mame", "Kuro", "Ame", "Shimajiro", "Maru"]
-MOVIE_PROFILE = {"moviepro": "MovieProTop-Mame", "movieagent": "MovieProTop-Mame", "kuro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru"}
+MOVIE_PROFILE = {"moviepro": "MovieProTop-Mame", "movieagent": "MovieProTop-Mame", "qapro": "Kuro", "eduleadpro": "Shimajiro", "eduresearchpro": "Ame", "gpupro": "Maru"}
 # CreativePro (owner 2026-10-17: BlogPro renamed, MarketPro merged in as the Marketing team;
 # originally owner 2026-09-29): blogs, SNS and AI influencer. Lead is the `creativepro` profile,
 # displayed CreativeProTop-Momo. The internal team id stays `blog` — it is an identifier the
@@ -561,10 +572,10 @@ MOVIE_WORKFLOW = ("MovieProTop-Mame directs → brief and research → scenario 
 # Read live from the owning configs so the label follows a config change: Hermes profile
 # config.yaml (model.default), Router config/workers.yaml, Router adapters/mimo (UI lane).
 # Members with no config of their own (tools, departments) name the files that prove it.
-PROFILE_OF = {"Bigkiji": None, "MovieProTop-Mame": "movieagent", "Kuro": "kuro", "Ame": "eduresearchpro", "Shimajiro": "eduleadpro",
-              "Maru": "gpupro", "CreativeProTop-Momo": "creativeagent", "Tora": "appdebugpro", "Hana": "hana",
+PROFILE_OF = {"Bigkiji": None, "MovieProTop-Mame": "movieagent", "Kuro": "qapro", "Ame": "eduresearchpro", "Shimajiro": "eduleadpro",
+              "Maru": "gpupro", "CreativeProTop-Momo": "creativeagent", "Tora": "appdebugpro", "Hana": "edureviewpro",
               "AppProTop-Sora": "appagent", "AccountProTop-Riku": "accountagent", "ClassProTop-Nana": "classagent",
-              "InvestProTop-Rin": "investagent", "RentProTop-Kai": "igataya-web", "MarketProTop-Yui": "marketagent",
+              "InvestProTop-Rin": "investagent", "RentProTop-Kai": "rentpro", "MarketProTop-Yui": "marketagent",
               "SecurityProTop-Taiga": "securityagent"}
 
 
@@ -771,12 +782,15 @@ def teams(home, router_config, router_jobs):
         for profile, role in (team.get("profiles") or {}).items():
             members.append({"name": profile.capitalize(), "role": role, "live": False, "parent": "Claude Code"})
         roles = role_labels(team)
-        out.append({"id": name, "name": TEAM_SHORT.get(name, team.get("label", name)), "label": team.get("label", name),
+        out.append({"id": name, "name": TEAM_SHORT.get(name, team.get("label", name)), "label": TEAM_LABEL_OVERRIDE.get(name, team.get("label", name)),
                     "live": bool(jobs) or any(c["state"] == "working" for c in cards), "members": members,
                     "specialists": roles[:16], "work": [{"title": j["title"], "member": j["member"]} for j in jobs][:5] + cards[:5],
                     # Owner 2026-10-01: every group takes direct instructions, not only MoviePro.
-                    # Must match ROUTER_DIRECT / directTarget in server.mjs.
-                    "direct": ["MiMo", "Claude Code", "Bigkiji"] + [p.capitalize() for p in (team.get("profiles") or {})]})
+                    # Must match ROUTER_DIRECT / directTarget in server.mjs. "Claude Code" removed
+                    # 2026-10-20: it is the Router's own `claude` CLI worker, not a Hermes profile,
+                    # so it was never a real direct-instruct target (server.mjs's ROUTER_DIRECT no
+                    # longer lists it either).
+                    "direct": ["MiMo", "Bigkiji"] + [p.capitalize() for p in (team.get("profiles") or {})]})
     # MoviePro is the film unit (ComfyUI/MovieProduction/AGENTS.md) plus the script-fix lane. It
     # runs through the movie board + movie-pro/gpu-job, not through the Router team lane.
     movie_db = os.path.join(home, "kanban", "boards", "movie", "kanban.db")
@@ -805,7 +819,7 @@ def teams(home, router_config, router_jobs):
     members = [{"name": member, "role": role, "live": member in movie_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_CREW]
     if script_team:  # the lane exists only while the Router config keeps it
         members += [{"name": member, "role": role, "live": member in script_busy, "parent": MOVIE_PARENT.get(member)} for member, role in MOVIE_SCRIPT_CREW]
-    out.append({"id": "movie", "name": "MovieAgent", "label": "Lesson videos, scripts and GPU",
+    out.append({"id": "movie", "name": "MovieAgent", "label": "CommercialPro division (with CreativePro) \u00b7 Lesson videos, scripts and GPU",
                 "live": bool(movie_busy) or bool(script_busy) or script_live,
                 "members": members,
                 # The film unit's own six department skills plus the script lane's role files, read from
@@ -859,7 +873,7 @@ def blog_team(home):
         waiting = []
     if waiting:
         cards.append({"title": f"{len(waiting)} post(s) in the SNS queue waiting for your approval", "state": "waiting"})
-    return {"id": "blog", "name": "CreativePro", "label": "Blogs, SNS, AI influencer (publication needs Yuma)", "live": bool(busy),
+    return {"id": "blog", "name": "CreativePro", "label": "CommercialPro division (with MovieAgent) \u00b7 Blogs, SNS, AI influencer (publication needs Yuma)", "live": bool(busy),
             "members": [{"name": member, "role": role, "live": member in busy, "parent": None if member == "CreativeProTop-Momo" else "CreativeProTop-Momo"} for member, role in CREATIVE_CREW],
             "specialists": CREATIVE_SKILLS, "work": cards[:6], "board": None, "direct": ["CreativeProTop-Momo"]}
 

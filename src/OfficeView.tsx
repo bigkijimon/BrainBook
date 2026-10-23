@@ -1,5 +1,5 @@
-import { TermsHelp } from './TermsHelp';
 // Read-only Hermes-wide console. Counts come from unique board/card identities in office.mjs.
+import { StateNote } from './ui';
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, ChevronDown } from 'lucide-react';
 import { memberTone } from './TeamRail';
@@ -21,7 +21,7 @@ function TaskDetails({card}:{card:Card}) {
     <details><summary>Source</summary><small>{card.board} · {card.id} · {card.who || 'Worker unknown'}</small></details>
   </details>;
 }
-export function OfficeView({remote=false, teams=[], selectedTeam=null, onAll=()=>{}}:{remote?:boolean;teams?:TeamAssociation[];selectedTeam?:string|null;onAll?:()=>void}) {
+export function OfficeView({remote=false, teams=[], selectedTeam=null, onAll=()=>{}, onOpenHome=()=>{}}:{onOpenHome?:()=>void;remote?:boolean;teams?:TeamAssociation[];selectedTeam?:string|null;onAll?:()=>void}) {
  const flow=useAgentFlow(false);
  const [office,setOffice]=useState<Office|null>(null);
  const [error,setError]=useState('');
@@ -39,10 +39,10 @@ export function OfficeView({remote=false, teams=[], selectedTeam=null, onAll=()=
   window.addEventListener(OFFICE_REFRESH,load);document.addEventListener('visibilitychange',visible);
   return()=>{alive=false;window.clearInterval(timer);window.removeEventListener(OFFICE_REFRESH,load);document.removeEventListener('visibilitychange',visible);};
  },[]);
- return <OfficeStatus office={office} flow={flow} teams={teams} selectedTeam={selectedTeam} onAll={onAll} remote={remote} error={error}/>;
+ return <OfficeStatus office={office} flow={flow} teams={teams} selectedTeam={selectedTeam} onAll={onAll} onOpenHome={onOpenHome} remote={remote} error={error}/>;
 }
 
-export function OfficeStatus({office,flow,teams,selectedTeam=null,onAll,remote=false,error=''}:{office:Office|null;flow:OfficeFlow;teams:TeamAssociation[];selectedTeam?:string|null;onAll:()=>void;remote?:boolean;error?:string}) {
+export function OfficeStatus({office,flow,teams,selectedTeam=null,onAll,onOpenHome=()=>{},remote=false,error=''}:{onOpenHome?:()=>void;office:Office|null;flow:OfficeFlow;teams:TeamAssociation[];selectedTeam?:string|null;onAll:()=>void;remote?:boolean;error?:string}) {
  const [view,setView]=useState<'agents'|'teams'>('agents');
  const [all,setAll]=useState(false);
  const [query,setQuery]=useState('');
@@ -56,8 +56,8 @@ export function OfficeStatus({office,flow,teams,selectedTeam=null,onAll,remote=f
   <p className="console-totals">Scope: {projection.scopeLabel} (agents and associated room cards){selectedTeam && <button type="button" className="console-more" onClick={onAll}>Reset to ALL</button>}</p>
   {selectedTeam && <p className="console-totals">Only agent status is filtered. Goals, next work and chat remain company-wide. Shared members show company-wide activity.</p>}
   {!projection.roomAssociationKnown && <p role="status">Room association unknown. Unassigned cards are not added to this team.</p>}
-  <p className="console-totals" role="status">{projection.activeActors===null?'Activity unknown (loading or update failed)':`Active ${projection.activeActors} (activity record)`}{flow.readAt ? ` · ${new Date(flow.readAt*1000).toLocaleTimeString('en-GB')} read` : ' · Read time unknown'}</p>
-  {error && <p role="status">{error}</p>}
+  <p className="console-totals">Who is running right now lives on Home. <button type="button" className="console-more" onClick={onOpenHome}>Open Active Agents</button></p>
+  {error && <StateNote kind="error">{error}</StateNote>}
   {totals && <p className="console-totals">Cards: Working {totals.working} · Queued {totals.waiting} · Stopped {totals.stopped} · Done {totals.delivered} (7 days)</p>}
   <div className="console-tools"><div role="group" aria-label="Status view"><button type="button" aria-pressed={view==='agents'} onClick={()=>{setView('agents');setAll(false);}}>Agents</button><button type="button" aria-pressed={view==='teams'} onClick={()=>{setView('teams');setAll(false);}}>Teams</button></div><label className="console-search"><span className="sr-only">Search agents</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name or team"/></label></div>
   {view==='agents' ? <ul className="console-list">{filtered.slice(0,all||query ? undefined : 5).map(agent=><li key={agent.name}>
@@ -72,7 +72,6 @@ export function OfficeStatus({office,flow,teams,selectedTeam=null,onAll,remote=f
   </li>)}</ul> : <ul className="console-list">{rooms.filter(r=>`${r.label} ${r.teams?.join(' ')}`.toLowerCase().includes(query.toLowerCase())).slice(0,all||query?undefined:5).map(room=><li key={room.id}><details className="console-team"><summary><b>{room.label}</b><span className="console-counts">Cards: Working {room.board.working.length} · Queued {room.board.waiting.filter(c=>c.room===room.id).length} · Stopped {room.board.stopped.length} · Done {room.delivered}</span><ChevronDown size={14}/></summary><div className="console-body"><p>{room.agents.map(a=>`${personaOf(a.name)} (${a.name})`).join(', ') || 'Worker unknown'}</p>{[...room.board.working,...room.board.stopped,...room.board.waiting.filter(c=>c.room===room.id),...room.shelf].map(card=><TaskDetails key={`${card.board}:${card.id}`} card={card}/>)}</div></details></li>)}</ul>}
   {!query && (view==='agents'?filtered.length:rooms.length)>5 && <button className="console-more" type="button" aria-expanded={all} onClick={()=>setAll(v=>!v)}>{all?'Show less':`Show all (${view==='agents'?filtered.length:rooms.length})`}</button>}
   <div className="console-tools"><details className="compose-fold"><summary>Send a request by voice or text</summary><VoiceCommand tone={memberTone('Bigkiji')} remote={remote}/></details><a className="office-vr-link" href="/vr" target="_blank" rel="noreferrer">3D / VR</a></div>
-  <TermsHelp />
   <details className="console-source"><summary>Count sources</summary><p>Read from Hermes boards, saved profiles, the team roster and /api/agents/flow. Active flags and recipient activity show the last recorded activity; historical count is never a current-job count. Sessions are separate from cards. GPU or service activity without a proven card match stays unmatched. Team filtering uses recorded room/team IDs and member names only. Cards are counted once per board and card ID. Completed counts cover 7 days; team result previews show the last 5 items. Set models and session models are separate evidence, and do not prove the model used for any card.</p></details>
  </section>;
 }

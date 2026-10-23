@@ -11,45 +11,17 @@
    neon decoration already uses a theme-color gradient, this one alone stayed one color. */
 .deco-sunset { background:repeating-linear-gradient(0deg,transparent 0 2px,var(--theme-coral) 2px 3.5px,var(--theme-magentaGlow) 3.5px 5px); }
 
-/* Owner 2026-10-13 ("メニューバーを下に固定して", round 2): back to a fixed bottom dock, at every
-   window width including the narrow end — this time proven narrow (scripts/.tmp-* tests down to
-   680px in both Chromium and WebKit) before shipping, since round 1 was reverted for an unfinished
-   narrow-width pass. Managed Apps stays in the left sidebar (App.tsx) — that move was a separate,
-   still-wanted decision, not undone by bringing the rail back to the bottom. The rail is
-   `position:fixed`, so it no longer occupies a workspace grid column; styles.css's explicit
-   grid-column rule for .sidebar/.main-content/.inspector (added for the WebKit auto-placement bug)
-   is updated to match the now rail-less column count. */
+/* Navigation layout now lives in unified-nav.css (one <AppNav> landmark). The workspace grid below is
+   overridden there; this file keeps the synthwave backdrop, team-mark badge and the Ideas-page tab styles. */
 .app-shell .workspace { grid-template-columns:220px minmax(0,1fr); padding-bottom:64px; }
 .app-shell .workspace.sidebar-collapsed { grid-template-columns:minmax(0,1fr); padding-bottom:64px; }
 .app-shell .workspace.has-selection { grid-template-columns:220px minmax(0,1fr) 318px; padding-bottom:64px; }
 .app-shell .workspace.sidebar-collapsed.has-selection { grid-template-columns:minmax(0,1fr) 318px; padding-bottom:64px; }
-.app-shell .area-rail { position:fixed; left:0; right:0; bottom:0; top:auto; z-index:40; width:100%; height:64px; max-height:64px; min-height:0; box-sizing:border-box; display:flex; flex-direction:row; flex-wrap:nowrap; align-items:center; justify-content:safe center; overflow-x:auto; overflow-y:hidden; overscroll-behavior:contain; scroll-snap-type:x proximity; padding:7px 10px calc(7px + env(safe-area-inset-bottom)); gap:5px; background:linear-gradient(0deg,#20142f,#171125 65%); border-right:0; border-top:1px solid rgba(var(--theme-magentaGlow-rgb),.25); scrollbar-width:none; }
-.app-shell .area-rail::-webkit-scrollbar { display:none; }
-.app-shell .area-rail .area-item { flex:none; scroll-snap-align:center; width:48px; min-width:48px; height:48px; min-height:48px; padding:3px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:0; border-radius:14px; }
-.app-shell .area-rail .area-item > svg { width:20px; height:20px; }
-.area-rail .rail-section-label { display:flex; flex:none; justify-content:center; margin:0 1px; }
 .team-mark { display:inline-grid; place-items:center; flex:none; width:44px; height:44px; border-radius:12px; color:var(--mark-color); border:1px solid color-mix(in srgb,var(--mark-color) 48%,transparent); background:linear-gradient(145deg,rgba(var(--theme-cyanGlow-rgb),.10),rgba(var(--theme-pink-rgb),.05) 50%,rgba(var(--theme-magentaGlow-rgb),.13)); box-shadow:inset 0 1px 0 #ffffff12,inset 0 -1px 0 #0005,0 4px 12px #0003; }
 .team-mark svg { width:26px; height:26px; color:inherit; }
 /* Rail badge scaled for the 48px dock item instead of the old 60px column item. */
-.area-rail .team-mark { width:40px; height:40px; border-radius:11px; }
-.area-rail .team-mark svg { width:21px; height:21px; }
-.area-rail .team-item.active .team-mark,.area-rail .team-item:focus-visible .team-mark { border-color:var(--mark-color); box-shadow:inset 0 1px 0 #ffffff22,0 0 14px color-mix(in srgb,var(--mark-color) 24%,transparent); }
-.area-rail .team-item.has-need { border-color:var(--theme-coral); }
-.area-rail .team-item.is-live { border-color:var(--theme-pink); }
-.area-rail .rail-life-filters > summary { display:flex; flex:none; width:48px; min-width:48px; min-height:48px; align-items:center; justify-content:center; list-style:none; }
-.area-rail .rail-life-filters > summary::-webkit-details-marker { display:none; }
-.app-shell .area-rail .rail-area { height:44px; min-height:44px; justify-content:center; }
-.app-shell .console-nav button { width:48px; height:48px; min-width:48px; min-height:48px; padding:8px; display:grid; place-items:center; }
-.app-shell .console-nav svg { display:block; }
 .idea-composer-box{display:flex;flex-direction:column;gap:10px}
 .idea-composer-box textarea{width:100%;resize:vertical;min-height:72px;background:var(--panel-bg,#1a0f22);color:inherit;border:1px solid var(--theme-lilac);border-radius:10px;padding:10px 12px;font:inherit}
-.score-badge{display:inline-flex;align-items:baseline;gap:2px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--theme-lavender)}
-.score-badge.tone-good{background:#2fae6a}
-.score-badge.tone-mid{background:#d9a23b}
-.score-badge.tone-low{background:#c0485a}
-.score-badge.score-unknown{background:transparent;border:1px dashed var(--theme-lilac);color:var(--theme-lilac)}
-.score-bar{height:6px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
-.score-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--theme-pink),var(--theme-coral))}
 .roadmap-stages{display:flex;flex-direction:column;gap:12px;list-style:none;margin:0;padding:0}
 .roadmap-stage{border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 12px;position:relative}
 .roadmap-stage.active{position:relative;border-color:transparent}
@@ -58,7 +30,6 @@
 .roadmap-action{display:flex;align-items:center;gap:8px;background:none;border:none;color:inherit;text-align:left;padding:4px 0;width:100%}
 .roadmap-check{width:16px;height:16px;border-radius:4px;border:1px solid var(--theme-lilac);display:flex;align-items:center;justify-content:center}
 .roadmap-action.done .roadmap-check{background:var(--theme-pink);border-color:var(--theme-pink)}
-.trend-tag{font-size:.65rem;font-weight:700;letter-spacing:.04em;padding:2px 6px;border-radius:6px;background:var(--theme-lavender);margin-right:6px}
 @media (prefers-reduced-motion: reduce){.roadmap-stage.active::before{animation:none}}
 /* Page-level Ideas section switch (My ideas / New idea / Trend picks). Deliberately NOT the
    .shelf-switch pill-chip look used by IdeaShelf's own internal "Ideas / Already tasks" filter
@@ -71,7 +42,6 @@
 .idea-page-tabs button.on{opacity:1}
 .idea-page-tabs button.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--theme-pink),var(--theme-coral))}
 .navigation-hint { position:fixed; z-index:100; pointer-events:none; width:max-content; max-width:210px; padding:9px 12px; border:1px solid var(--theme-lavender); border-radius:10px; background:var(--theme-deep); color:var(--theme-text); font:600 12px/1.5 'Manrope',sans-serif; box-shadow:0 8px 24px #0007,inset 0 1px 0 #ffffff0c; }
-.rail-mobile-trigger { display:none !important; }
 .app-shell .toast-stack { bottom: calc(64px + 16px + env(safe-area-inset-bottom)); }
 @media(min-width:761px) and (max-width:900px), (min-width:761px) and (max-width:960px) and (max-height:500px) { .app-shell .workspace,.app-shell .workspace.sidebar-collapsed { display:grid; } }
 @media(max-width:760px) { .app-shell .workspace,.app-shell .workspace.sidebar-collapsed,.app-shell .workspace.has-selection,.app-shell .workspace.sidebar-collapsed.has-selection { grid-template-columns:minmax(0,1fr); } .synthwave-backdrop { background-position:center top; opacity:.48; } }

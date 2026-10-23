@@ -10,7 +10,7 @@ export function NavigationHints(){
     const hide=()=>{anchor=null;setHint(null);};
     const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){suppressRestoredFocus=true;hide();}else if(e.key==='Tab')suppressRestoredFocus=false;};
     const position=(item:HTMLElement)=>{
-      const b=item.getBoundingClientRect(),rail=Boolean(item.closest('.area-rail'));
+      const b=item.getBoundingClientRect(),rail=Boolean(item.closest('.app-nav'));
       if(!b.width||!b.height){hide();return;}
       setHint({text:item.getAttribute('data-nav-label')!,left:Math.min(innerWidth-230,Math.max(8,rail?b.right+12:b.left-100)),top:Math.min(innerHeight-70,Math.max(8,rail?b.top:b.bottom+10))});
     };

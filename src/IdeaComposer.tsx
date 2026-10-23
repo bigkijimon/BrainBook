@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { IdeaRoadmap, IdeaScore } from './IdeaRoadmap';
 import type { LifeArea } from './types';
+import { StateNote } from './ui';
 
 export function IdeaComposer({ area, onSaved }: { area: LifeArea | 'all'; onSaved: () => void }) {
   const [text, setText] = useState('');
@@ -36,6 +37,6 @@ export function IdeaComposer({ area, onSaved }: { area: LifeArea | 'all'; onSave
       <IdeaRoadmap analysis={analysis} />
       {analysis.score !== null && <button type="button" className="submit-button idea-save" disabled={busy} onClick={save}>Save as tracked idea</button>}
     </>}
-    {saved && <p className="idea-empty">Saved — see it under "My ideas".</p>}
+    {saved && <StateNote kind="empty">Saved — see it under "My ideas".</StateNote>}
   </section>;
 }

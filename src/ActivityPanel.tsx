@@ -1,5 +1,5 @@
 import {useMemo,useState,type Ref} from 'react';
-import {Radio,Plus,Cpu,GitBranch,ClipboardList,HelpCircle} from 'lucide-react';
+import {Radio,Cpu,GitBranch,ClipboardList,HelpCircle} from 'lucide-react';
 import {useAgentFlow,type Handoff} from './AgentFlow';
 import {ControlCenter,type ControlWork} from './ControlCenter';
 import {OwnerDialog} from './OwnerDialog';
@@ -10,12 +10,13 @@ import {memberTone} from './TeamRail';
 import {NeonAccent} from './NeonAccent';
 import {elapsedLabel} from './live-work.mjs';
 import type {TeamAssociation} from './office-projection.mjs';
+import {Chip,StateNote} from './ui';
 const KIND={gpu:'GPU activity (outside cards)',session:'Session (outside cards)',router:'Dispatched job',card:'Matched card',unlinked:'Activity without a matched card'};
 const KIND_ICON:Record<keyof typeof KIND,typeof Radio>={gpu:Cpu,session:Radio,router:GitBranch,card:ClipboardList,unlinked:HelpCircle};
 const CATEGORY={queued:'Queued',attention:'Needs attention / stopped',scheduled:'Scheduled',completed:'Completed',unverified:'Activity unverified'};
-type Props={work:ControlWork;teams:TeamAssociation[];entry:Parameters<typeof ControlCenter>[0]['entry'];actions:Parameters<typeof ControlCenter>[0]['actions'];notes:number;loading:boolean;problem:boolean;sectionRef:Ref<HTMLElement>;workOpen:boolean;onCloseWork:()=>void;onOpenWork:(compose:boolean)=>void};
+type Props={onOpenRoster?:()=>void;work:ControlWork;teams:TeamAssociation[];entry:Parameters<typeof ControlCenter>[0]['entry'];actions:Parameters<typeof ControlCenter>[0]['actions'];notes:number;loading:boolean;problem:boolean;sectionRef:Ref<HTMLElement>;workOpen:boolean;onCloseWork:()=>void;onOpenWork:(compose:boolean)=>void};
 export function ActivityPanel(props:Props){const flow=useAgentFlow(false);return <ActivityConsole {...props} flow={flow}/>;}
-export function ActivityConsole({work,teams,entry,actions,notes,loading,problem,sectionRef,workOpen,onCloseWork,onOpenWork,flow}:Props&{flow:{handoffs:Handoff[];agents:{name:string;active:boolean;count:number}[];available:boolean;readAt:number|null}}){
+export function ActivityConsole({onOpenRoster,work,teams,entry,actions,notes,loading,problem,sectionRef,workOpen,onCloseWork,onOpenWork,flow}:Props&{flow:{handoffs:Handoff[];agents:{name:string;active:boolean;count:number}[];available:boolean;readAt:number|null}}){
  const rows=useMemo(()=>projectLiveActivity(flow,teams,work.tasks),[flow.handoffs,flow.available,teams,work.tasks]);
  // One card per AGENT, not per activity record (owner 2026-10-13: two Bigkiji cards back to back
  // read as two different agents until you read both). `aggregateByAgent` (activity-console.mjs)
@@ -36,10 +37,10 @@ export function ActivityConsole({work,teams,entry,actions,notes,loading,problem,
  const activeActors=new Set(rows.filter(r=>r.toKnown&&r.original.recipientKind!=='team').map(r=>r.agent)).size;
  const companyWorking=work.tasks.filter(t=>['running','working'].includes(t.kanban?.status||'')).length;
  return <section ref={sectionRef} className="active-work card-shell" aria-labelledby="active-work-heading">
- <NeonAccent/><header className="active-work-head"><h3 id="active-work-heading"><Radio size={17}/>Active Agents <b>{flow.available?activeActors:'?'}</b>{flow.available&&rows.length>0&&<span className="live-badge"><i/>LIVE</span>}</h3><span className="activity-supervision">Bigkiji · Company overview</span><div><button type="button" className="ghost-button other-work-show" aria-haspopup="dialog" aria-expanded={workOpen||localOpen} onClick={()=>{setCategory('all');setLocalOpen(true);}}>Show ({inventory.total})</button></div></header>
- <p className="active-work-scope">Live activity records only · {flow.readAt?`Read ${new Date(flow.readAt*1000).toLocaleTimeString('en-GB')}`:'Read time unavailable'} · Working cards in BrainBook: {companyWorking}</p>
+ <NeonAccent/><header className="active-work-head"><h3 id="active-work-heading"><Radio size={17}/>Active Agents <b>{flow.available?activeActors:'?'}</b>{flow.available&&rows.length>0&&<Chip tone="live" dot>LIVE</Chip>}</h3><span className="activity-supervision">Bigkiji · Company overview</span><div><button type="button" className="ghost-button other-work-show" aria-haspopup="dialog" aria-expanded={workOpen||localOpen} onClick={()=>{setCategory('all');setLocalOpen(true);}}>Show ({inventory.total})</button></div></header>
+ <p className="active-work-scope">Live activity records only · {flow.readAt?`Read ${new Date(flow.readAt*1000).toLocaleTimeString('en-GB')}`:'Read time unavailable'} · Working cards in BrainBook: {companyWorking} · <button type="button" className="link-button" onClick={onOpenRoster}>Full agent roster in Office</button></p>
  {flow.available&&rows.length>0&&<LivePulseMeter rows={rows}/>}
- {!flow.available?<p role="status">Activity unavailable. No live state is inferred from card reports.</p>:!rows.length?<p>No current live work recorded.</p>:<ul className="active-work-list" aria-label="Live work only">{groups.map(group=><LiveAgentCard group={group} key={group.key} selected={group.rows.some(row=>row.key===selected)} onSelect={()=>setSelected(group.rows[0].key)}/>)}</ul>}
+ {!flow.available?<StateNote kind="error">Activity unavailable. No live state is inferred from card reports.</StateNote>:!rows.length?<StateNote kind="empty">No current live work recorded.</StateNote>:<ul className="active-work-list" aria-label="Live work only">{groups.map(group=><LiveAgentCard group={group} key={group.key} selected={group.rows.some(row=>row.key===selected)} onSelect={()=>setSelected(group.rows[0].key)}/>)}</ul>}
  {flow.available&&rows.length>0&&<LiveDistribution rows={rows}/>}
  {(workOpen||localOpen)&&<OwnerDialog title="Other work" onClose={close} className="other-work-dialog"><p>Next Work sources: Board {inventory.sources.board} · Obsidian checklist {inventory.sources.notes} · Agent requests {inventory.sources.requests}. These are BrainBook’s records, not company-wide card totals.</p><WorkDistribution counts={inventory.counts} total={inventory.total}/><div className="work-categories" role="group" aria-label="Other work categories"><button type="button" aria-pressed={category==='all'} onClick={()=>setCategory('all')}>All ({inventory.total})</button>{(Object.keys(CATEGORY) as (keyof typeof CATEGORY)[]).map(key=><button type="button" key={key} aria-pressed={category===key} onClick={()=>setCategory(key)}>{CATEGORY[key]} ({inventory.counts[key]})</button>)}</div><ControlCenter work={work} entry={entry} actions={actions} notes={notes} loading={loading} problem={problem} rowsOverride={category==='all'?inventory.rows:inventory.groups[category]}/></OwnerDialog>}
  </section>;

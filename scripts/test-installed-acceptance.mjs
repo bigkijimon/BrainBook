@@ -5,7 +5,7 @@ const b=await launchTestBrowser();try{
   const ctx=await b.newContext({viewport,hasTouch:touch,isMobile:touch});const p=await ctx.newPage();
   await p.route('**/api/**',r=>r.request().method()==='GET'?r.continue():r.abort());await p.routeWebSocket('**/*',w=>w.close());
   await p.goto('http://127.0.0.1:4183');await p.locator('#bb-boot').waitFor({state:'detached'});await p.locator('[data-team="app-dev"]').waitFor({state:'attached'});
-  if(touch&&await p.locator('.rail-mobile-trigger').isVisible())await p.locator('.rail-mobile-trigger').tap();
+  if(touch&&await p.locator('.nav-menu-btn').isVisible())await p.locator('.nav-menu-btn').tap();
   const team=p.locator('[data-team="app-dev"]');await team.scrollIntoViewIfNeeded();await team.focus();
   await p.getByRole('tooltip').filter({hasText:'AppPro'}).waitFor({state:'visible'});
   assert.equal(await team.getAttribute('aria-label'),'AppPro');

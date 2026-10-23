@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Wallet, Users, Activity, CreditCard, AlertCircle, RefreshCw } from 'lucide-react';
-import { NeonAccent } from './NeonAccent';
 
 export interface ProductsOverviewItem {
   productName: string;
@@ -66,7 +65,6 @@ export function ProductsOverview({ products, refreshIntervalMs = 30000 }: Produc
 
   return (
     <section className="products-overview card-shell" aria-labelledby="products-overview-heading">
-      <NeonAccent/>
       <div className="products-overview-head">
         <h3 id="products-overview-heading" className="products-overview-title">
           <span className="products-overview-icon" aria-hidden="true">
