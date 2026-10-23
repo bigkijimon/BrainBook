@@ -1,12 +1,15 @@
 import {useModalFocus} from './useModalFocus';
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, FolderOpen, Sparkles, X } from 'lucide-react';
+import { DEFAULT_THEME, isThemeName, themeLabels, themeNames, themePalettes } from './theme-palette.mjs';
+import { applyTheme } from './theme';
 
 export type SetupState = {
   vaultPath: string;
   vaultReady: boolean;
   configured: boolean;
   ownerName: string;
+  theme?: string;
   suggestedVault: string;
   vaults: { path: string; name: string; source: string }[];
   hermes: boolean;
@@ -17,10 +20,15 @@ export type SetupState = {
 export function SetupDialog({ state, firstRun, onSave, onClose }: {
   state: SetupState;
   firstRun: boolean;
-  onSave: (patch: { ownerName: string; vaultPath: string; create: boolean }) => Promise<string | null>;
+  onSave: (patch: { ownerName: string; vaultPath: string; create: boolean; theme: string }) => Promise<string | null>;
   onClose: () => void;
 }) {
-  const panel=useRef<HTMLFormElement>(null);useModalFocus(panel,onClose,!firstRun);
+  const saved = isThemeName(state.theme) ? state.theme! : DEFAULT_THEME;
+  const [theme, setTheme] = useState(saved);
+  // Closing without saving puts the page back on the saved palette (the picker previews live).
+  const close = () => { applyTheme(saved); onClose(); };
+  const panel=useRef<HTMLFormElement>(null);useModalFocus(panel,close,!firstRun);
+  const pick = (next: string) => { setTheme(next); applyTheme(next); };
   const [name, setName] = useState(state.ownerName);
   const initial = state.vaultReady ? state.vaultPath : state.vaults[0]?.path || state.suggestedVault;
   const [vault, setVault] = useState(initial);
@@ -33,14 +41,14 @@ export function SetupDialog({ state, firstRun, onSave, onClose }: {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true); setError('');
-    const problem = await onSave({ ownerName: name.trim(), vaultPath: vault.trim(), create: creating });
+    const problem = await onSave({ ownerName: name.trim(), vaultPath: vault.trim(), create: creating, theme });
     setBusy(false);
     if (problem) setError(problem);
   };
 
   return <div className="setup-backdrop" role="presentation">
     <form ref={panel} tabIndex={-1} className="setup-dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title" onSubmit={submit}>
-      {!firstRun && <button type="button" className="icon-button setup-close" aria-label="Close" onClick={onClose}><X size={16} /></button>}
+      {!firstRun && <button type="button" className="icon-button setup-close" aria-label="Close" onClick={close}><X size={16} /></button>}
       <span className="eyebrow">{firstRun ? 'WELCOME TO BRAINBOOK' : 'SETTINGS'}</span>
       <h2 id="setup-title">{firstRun ? 'Let’s set up your idea space' : 'Your idea space'}</h2>
       {firstRun && <p className="setup-lead">BrainBook keeps every idea as a Markdown note in an Obsidian vault on this Mac. Nothing leaves your computer.</p>}
@@ -49,6 +57,16 @@ export function SetupDialog({ state, firstRun, onSave, onClose }: {
         <span>Your name</span>
         <input value={name} onChange={(event) => setName(event.target.value)} maxLength={40} placeholder="What should BrainBook call you?" />
       </label>
+
+      <fieldset className="setup-field setup-theme">
+        <legend>Theme</legend>
+        <div className="setup-theme-row" role="radiogroup" aria-label="Theme">
+          {themeNames.map((key) => <button type="button" key={key} role="radio" aria-checked={theme === key} className={`setup-theme-option ${theme === key ? 'on' : ''}`} onClick={() => pick(key)}>
+            <span className="setup-theme-swatch" aria-hidden="true">{(['night', 'pink', 'cyanGlow', 'coral'] as const).map((tone) => <i key={tone} style={{ background: themePalettes[key][tone] }} />)}</span>
+            <b>{themeLabels[key] || key}</b>
+          </button>)}
+        </div>
+      </fieldset>
 
       <fieldset className="setup-field">
         <legend>Where your ideas live</legend>

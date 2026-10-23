@@ -7,6 +7,7 @@ import {AppNav} from './AppNav';
 import {ProductsOverview} from './ProductsOverview';
 import {IdeaComposer} from './IdeaComposer';
 import {TrendRadar} from './TrendRadar';
+import {IdeaCards} from './IdeaCards';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -34,6 +35,8 @@ import {
   TriangleAlert
 } from 'lucide-react';
 import { SetupDialog, type SetupState } from './SetupDialog';
+import { applyTheme } from './theme';
+import { activePalette } from './theme-palette.mjs';
 import { AgentFlow
 } from './AgentFlow';
 import { RunButton } from './ControlCenter';
@@ -44,7 +47,7 @@ import { OfficeView } from './OfficeView';
 import { AgentFeed, type AgentMessage } from './AgentFeed';
 import { IdeaDump, type DumpItem } from './IdeaDump';
 import { IdeaTree, STAGE_LABEL } from './IdeaTree';
-import { AREA_COLOR, BrainScene, type BrainData, type BrainNode } from './BrainScene';
+import { areaColors, BrainScene, type BrainData, type BrainNode } from './BrainScene';
 import PhoneDialog from './PhoneDialog';
 import { useTeams } from './TeamRail';
 import { LIFE_AREAS, STATUSES, isTaskStatus, statusMeta, type LifeArea, type Priority, type Task, type TaskDomain, type TaskStatus, type VaultNote, type VaultTask } from './types';
@@ -176,7 +179,7 @@ function App() {
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [routineOpen, setRoutineOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
-  const [ideaTab, setIdeaTab] = useState<'mine' | 'new' | 'trends'>('mine');
+  const [ideaTab, setIdeaTab] = useState<'mine' | 'new' | 'cards' | 'trends'>('mine');
   const PAGE_ROUTES = ['ideas', 'tasks', 'goals', 'office', 'data', 'chat'] as const;
   type Page = 'home' | typeof PAGE_ROUTES[number];
   const [page, setPage] = useState<Page>(() => (PAGE_ROUTES as readonly string[]).includes(location.hash.slice(1)) ? location.hash.slice(1) as Page : 'home');
@@ -316,16 +319,19 @@ function App() {
   // First run / Settings: owner name and vault folder (per user, stored in their data folder).
   const [setup, setSetup] = useState<SetupState | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  useEffect(() => { request<SetupState>(`${API}/setup`).then(setSetup).catch(() => {}); }, []);
+  useEffect(() => { request<SetupState>(`${API}/setup`).then((next) => { setSetup(next); applyTheme(next.theme); }).catch(() => {}); }, []);
+  // BrainScene and the legend read the palette once, so a theme change remounts/re-renders them.
+  const [themeName, setThemeName] = useState(() => document.documentElement.dataset.theme || 'miami');
+  useEffect(() => { const sync = () => setThemeName(document.documentElement.dataset.theme || 'miami'); window.addEventListener('brainbook-themechange', sync); return () => window.removeEventListener('brainbook-themechange', sync); }, []);
   const ownerName = setup?.ownerName || '';
   // What the account menu says about the offer. Both words come from release/release-info.mjs, and
   // `checkout` stays null until the whole offer is declared there, so this shows a sentence now and a
   // working checkout the day the owner sets the price — with no screen edited.
   const checkout = purchaseLink();
-  const saveSetup = async (patch: { ownerName: string; vaultPath: string; create: boolean }) => {
+  const saveSetup = async (patch: { ownerName: string; vaultPath: string; create: boolean; theme: string }) => {
     try {
       const next = await request<SetupState>(`${API}/setup`, { method: 'POST', body: JSON.stringify(patch) });
-      setSetup(next); setSettingsOpen(false);
+      setSetup(next); applyTheme(next.theme); setSettingsOpen(false);
       await Promise.all([loadVault(), refreshBrain().catch(() => {}), loadXp()]);
       return null;
     } catch (error) { return error instanceof Error ? error.message : 'Could not save.'; }
@@ -602,7 +608,7 @@ function App() {
     <div className={`app-shell ${remote ? 'is-remote' : ''} page-${page} ${brainOpen ? 'brain-open' : ''}`}>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <NavigationHints/><div className="synthwave-backdrop" aria-hidden="true"/>
-      <BrainScene data={brain} area={area} focus={brainOpen} selected={brainPick?.id || null} pulse={pulse} onHover={onBrainHover} onSelect={onBrainSelect} />
+      <BrainScene key={themeName} data={brain} area={area} focus={brainOpen} selected={brainPick?.id || null} pulse={pulse} onHover={onBrainHover} onSelect={onBrainSelect} />
       <div className="vice-sky" aria-hidden="true"><span className="vice-sun" /><span className="vice-grid" /></div>
       <div className="grain" aria-hidden="true" />
       <header className="topbar">
@@ -665,7 +671,7 @@ function App() {
           <span className="eyebrow">BRAIN · {brain?.nodes.length || 0} NOTES · {brain?.links.length || 0} LINKS</span>
           <ol className="flow-steps"><li><b>1</b> Dump</li><li className="on"><b>2</b> Map</li><li><b>3</b> Build</li></ol>
           <p>Drag to turn · scroll to zoom · click an idea</p>
-          <ul>{(['finance', 'learning', 'mental-health', 'work', 'play'] as const).map((key) => <li key={key} className={area !== 'all' && area !== key ? 'dim' : ''}><i style={{ background: `#${AREA_COLOR[key].toString(16).padStart(6, '0')}` }} />{LIFE_AREAS.find((entry) => entry.id === key)?.label}</li>)}</ul>
+          <ul>{(['finance', 'learning', 'mental-health', 'work', 'play'] as const).map((key) => <li key={key} className={area !== 'all' && area !== key ? 'dim' : ''}><i style={{ background: `#${areaColors(activePalette())[key].toString(16).padStart(6, '0')}` }} />{LIFE_AREAS.find((entry) => entry.id === key)?.label}</li>)}</ul>
           <p className="brain-sources">
             <b>Obsidian</b> {brain?.sources.obsidian.notes ?? 0} notes · {brain?.sources.counts.wikilink || 0} wikilinks<br />
             <b>Graphify</b> {brain?.sources.graphify.available ? `${brain.sources.graphify.notesCovered} notes mapped · ${brain.sources.graphify.noteLinks} links · built ${new Date(brain.sources.graphify.builtAt || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'not found (run graphify in the vault)'}<br />
@@ -797,6 +803,7 @@ function App() {
           {page === 'ideas' && <><div className="idea-page-tabs" role="tablist" aria-label="Ideas views">
             <button type="button" role="tab" aria-selected={ideaTab === 'mine'} className={ideaTab === 'mine' ? 'on' : ''} onClick={() => setIdeaTab('mine')}>My ideas</button>
             <button type="button" role="tab" aria-selected={ideaTab === 'new'} className={ideaTab === 'new' ? 'on' : ''} onClick={() => setIdeaTab('new')}>New idea</button>
+            <button type="button" role="tab" aria-selected={ideaTab === 'cards'} className={ideaTab === 'cards' ? 'on' : ''} onClick={() => setIdeaTab('cards')}>Idea cards</button>
             <button type="button" role="tab" aria-selected={ideaTab === 'trends'} className={ideaTab === 'trends' ? 'on' : ''} onClick={() => setIdeaTab('trends')}>Trend picks</button>
           </div>
           {ideaTab === 'mine' && <><IdeaShelf streams={streams} notes={areaNotes} loading={vaultLoading} onSend={sendToHermes} onArea={moveNoteToArea} onKind={setNoteKind} />
@@ -804,6 +811,7 @@ function App() {
             <IdeaTree taskPaths={taskLikePaths} character={character} brain={brain} area={area} selected={brainPick?.id || null} onSelect={(node) => { setBrainPick(node); setBrainOpen(true); }} onStart={(node) => { const note = vaultNotes.find((entry) => entry.path === node.id); if (note) sendToHermes(note); }} onBranch={(node) => setDump({ parent: { id: node.id, title: node.title } })} />
           </details></>}
           {ideaTab === 'new' && <IdeaComposer area={area} onSaved={() => { setIdeaTab('mine'); void refreshBrain(); }} />}
+          {ideaTab === 'cards' && <IdeaCards />}
           {ideaTab === 'trends' && <TrendRadar />}
           </>}
 

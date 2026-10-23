@@ -1,2 +1,10 @@
-export const themePalette: Readonly<Record<'pink'|'rose'|'coral'|'peach'|'lavender'|'lilac'|'mauve'|'text'|'secondary'|'muted'|'night'|'surface'|'deep'|'danger'|'cyanGlow'|'magentaGlow'|'violetGlow'|'sunGlow'|'mintGlow'|'skyGlow'|'hotGlow'|'limeGlow', string>>;
+export type ThemePalette = Readonly<Record<'pink'|'rose'|'coral'|'peach'|'lavender'|'lilac'|'mauve'|'text'|'secondary'|'muted'|'night'|'surface'|'deep'|'danger'|'cyanGlow'|'magentaGlow'|'violetGlow'|'sunGlow'|'mintGlow'|'skyGlow'|'hotGlow'|'limeGlow'|'skyA'|'skyB'|'skyC'|'barA'|'barB', string>>;
+export const themePalette: ThemePalette;
+export const themePalettes: Readonly<Record<string, ThemePalette>>;
+export const DEFAULT_THEME: string;
+export const themeNames: readonly string[];
+export const themeLabels: Readonly<Record<string, string>>;
+export function isThemeName(name: unknown): boolean;
+export function activePalette(): ThemePalette;
+export function hexToInt(hex: string): number;
 export function themeDeclarations(): string;

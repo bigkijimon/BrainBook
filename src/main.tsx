@@ -11,9 +11,12 @@ import '@fontsource/bungee/400.css';
 import '@fontsource/yellowtail/400.css';
 import '@fontsource/vt323/400.css';
 import './theme-palette.mjs';
+import { restoreTheme } from './theme';
 import './styles.css';
 import './neon-navigation.css';
 import './unified-nav.css';
+
+restoreTheme();
 
 // /vr (Office in 3D and WebXR) loads on its own, so the main page does not carry it.
 const OfficeVR = lazy(() => import('./OfficeVR'));

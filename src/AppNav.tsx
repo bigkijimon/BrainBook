@@ -35,6 +35,15 @@ export function AppNav(p: AppNavProps) {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [open]);
+  // Phone: the page row scrolls sideways, so bring the current page's button into view (it was invisible for
+  // Goals/Office/Data/Chat). Moves only the row's own scrollLeft, never the document.
+  const pages = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const row = pages.current; const active = row?.querySelector<HTMLElement>('.nav-item.active');
+    if (!row || !active || row.scrollWidth <= row.clientWidth) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    row.scrollTo({ left: active.offsetLeft - (row.clientWidth - active.offsetWidth) / 2, behavior: reduce ? 'auto' : 'smooth' });
+  }, [p.page, p.viewFilter]);
   const close = () => setOpen(false);
   const pageBtn = (key: string, label: string, Icon: typeof House, active: boolean, onClick: () => void, extra?: { count?: number; dialog?: boolean; aria?: string }) =>
     <button key={key} type="button" className={`nav-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined} aria-haspopup={extra?.dialog ? 'dialog' : undefined} aria-label={extra?.aria} data-nav-label={label} onClick={() => { onClick(); close(); }}>
@@ -44,7 +53,7 @@ export function AppNav(p: AppNavProps) {
   return <nav id="left-navigation" className={`app-nav ${open ? 'is-open' : ''} ${p.compact ? 'is-compact' : ''}`} aria-label="Main navigation">
     <button type="button" ref={trigger} className="nav-menu-btn" aria-label={open ? 'Close menu' : 'Menu'} data-nav-label={open ? 'Close menu' : 'Menu'} aria-expanded={open} aria-controls="app-nav-panel" onClick={() => setOpen((v) => !v)}>{open ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}<span>{open ? 'Close' : 'Menu'}</span></button>
     <button type="button" className="nav-compact-btn" aria-label="Collapse navigation" aria-pressed={p.compact} data-nav-label={p.compact ? 'Expand navigation' : 'Collapse navigation'} onClick={p.onToggleCompact}>{p.compact ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}<span>Navigation</span></button>
-    <div className="nav-pages" role="group" aria-label="Pages">
+    <div className="nav-pages" ref={pages} role="group" aria-label="Pages">
       {pageBtn('home', 'Home', House, p.page === 'home', () => p.onPage('home'))}
       {pageBtn('today', 'Today', Inbox, onTasks && p.viewFilter === 'open', () => p.onView('open'), { count: p.counts.today })}
       {pageBtn('ideas', 'Ideas', Lightbulb, p.page === 'ideas', () => p.onPage('ideas'))}

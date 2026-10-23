@@ -15,6 +15,7 @@ import { resolveRouterSubmit, routeTaskLane, submitWorkerText } from './worker-r
 import { JEV_CONFIDENCE_FLOOR, JEV_DECISIONS, JEV_SEND_BACK_CODES, ROUTER_OWN_DECISION_CONFIDENCE, formatJevSendBack, judgeJevAnswer } from './jev-decisions.mjs';
 import { AREA_IDS, classifyArea, createAreaOverrides, normalizeArea, classifyNoteKind, createKindOverrides } from './areas.mjs';
 import { analyzeIdea } from './idea-score.mjs';
+import { cardGaps, parseCard } from './idea-card.mjs';
 import { buildBrain } from './brain.mjs';
 import { handleEvolutionRequest } from './investment-evolution.mjs';
 import { createIdeaStore } from './ideas.mjs';
@@ -124,11 +125,14 @@ const dbagentUsageFor = async (hours) => {
     try { return await dbagentInflight; } finally { dbagentInflight = null; }
   }
 };
+// Theme names are validated against src/theme-palette.mjs in the UI; the server only stores a safe slug.
+const THEME_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 const setupState = async () => ({
   vaultPath,
   vaultReady: await isDirectory(vaultPath, 4000),
   configured: Boolean(envVault || settings.vaultPath || settings.setupDone),
   ownerName: settings.ownerName || '',
+  theme: THEME_NAME.test(settings.theme || '') ? settings.theme : 'miami',
   suggestedVault: path.join(os.homedir(), 'Documents', 'BrainBook Vault'),
   vaults: await findVaults(),
   hermes: Boolean(hermes?.bin),
@@ -1188,6 +1192,10 @@ const handleApi = async (req, res, url) => {
     const body = await readBody(req);
     const patch = { setupDone: true };
     if (typeof body.ownerName === 'string') patch.ownerName = trim(body.ownerName, 40);
+    if (typeof body.theme === 'string') {
+      if (!THEME_NAME.test(body.theme)) return json(res, { error: 'Unknown theme.' }, 400);
+      patch.theme = body.theme;
+    }
     if (typeof body.vaultPath === 'string' && body.vaultPath.trim()) {
       const target = path.resolve(expandHome(body.vaultPath.trim()));
       if (!path.isAbsolute(target) || target === os.homedir() || target === '/') return json(res, { error: 'Choose a folder for your ideas, not your whole home folder.' }, 400);
@@ -1564,6 +1572,35 @@ const handleApi = async (req, res, url) => {
     const { text } = await readBody(req);
     if (!String(text || '').trim()) return json(res, { error: 'Write an idea first' }, 400);
     return json(res, await analyzeIdea({ text: String(text), candidates: await captureCandidates(), cwd: root, routerSubmitPath }));
+  }
+  // Idea Card (niche / demand evidence / pain-point quote / pitch / decision) lives as sections inside the idea note.
+  if (url.pathname === '/api/ideas/card' && req.method === 'GET') {
+    try { return json(res, await ideaStore.readCard(url.searchParams.get('path'))); } catch (error) {
+      return json(res, { error: error.code === 'ENOENT' ? 'Note not found' : error.message }, error.status || (error.code === 'ENOENT' ? 404 : 500));
+    }
+  }
+  if (url.pathname === '/api/ideas/card' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      return json(res, await ideaStore.saveCard({ path: body.path, card: body.card }));
+    } catch (error) {
+      return json(res, { error: error.code === 'ENOENT' ? 'Note not found' : error.message }, error.status || (error.code === 'ENOENT' ? 404 : 500));
+    }
+  }
+  // Every owner idea with its card state, so the Idea cards tab can list cards and offer cards to start.
+  if (url.pathname === '/api/ideas/cards' && req.method === 'GET') {
+    const items = [];
+    for (const absolute of await walkMarkdown(ideasPath).catch(() => [])) {
+      const relative = path.relative(vaultPath, absolute);
+      if (/(^|\/)(archive|trend-radar)\//.test(relative)) continue;
+      let text; try { text = await fs.readFile(absolute, 'utf8'); } catch { continue; }
+      const lines = text.split(/\r?\n/);
+      if (readFrontmatterValue(lines, 'source_session') && readFrontmatterValue(lines, 'curated') !== 'true') continue;
+      const card = parseCard(text);
+      items.push({ path: relative, title: readNoteTitle(lines, relative), card, gaps: card ? cardGaps(card) : [], updatedAt: readFrontmatterValue(lines, 'updated_at') });
+    }
+    items.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    return json(res, { items: items.slice(0, 200) });
   }
   // Save an analyzed idea as a tracked note.
   if (url.pathname === '/api/ideas/compose' && req.method === 'POST') {

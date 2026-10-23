@@ -4,6 +4,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { cardGaps, normalizeCard, parseCard, upsertCardSections } from './idea-card.mjs';
 
 const MAX_ITEMS = 60;
 const MAX_TEXT = 2000;
@@ -206,5 +207,36 @@ export const createIdeaStore = ({ vaultPath, ideasPath, projectsPath }) => {
     return created;
   };
 
-  return { create, createAnalyzed, link, resolveNote, setDone, logStep };
+  // Attach or update the Idea Card sections (niche, demand evidence, pain-point quote, pitch, decision)
+  // on an existing idea note. Only the card's own sections and the `niche`/`decision` front matter
+  // keys change; checklists (progress/XP), Links and Progress are left exactly as they were.
+  const saveCard = async ({ path: notePath, card }) => {
+    const note = resolveNote(notePath);
+    if (!note || note.kind !== 'idea') throw Object.assign(new Error('Only idea notes can carry an Idea Card'), { status: 400 });
+    const clean = normalizeCard(card);
+    const text = await fs.readFile(note.absolute, 'utf8');
+    const eol = text.includes('\r\n') ? '\r\n' : '\n';
+    let lines = upsertCardSections(text, clean).split(/\r?\n/);
+    if (lines[0] !== '---') lines = ['---', '---', ...lines];
+    let end = lines.indexOf('---', 1);
+    const setKey = (key, value) => {
+      const at = lines.slice(1, end).findIndex((line) => new RegExp(`^${key}:`).test(line));
+      if (at >= 0) lines[at + 1] = `${key}: ${value}`; else { lines.splice(end, 0, `${key}: ${value}`); end += 1; }
+    };
+    setKey('decision', yamlString(clean.decision));
+    if (clean.niche) setKey('niche', yamlString(clean.niche));
+    setKey('updated_at', yamlString(new Date().toISOString()));
+    await fs.writeFile(note.absolute, lines.join(eol), 'utf8');
+    return { path: note.relative, card: clean, gaps: cardGaps(clean) };
+  };
+
+  // Read the card back out of a note (null when the note has none).
+  const readCard = async (notePath) => {
+    const note = resolveNote(notePath);
+    if (!note || note.kind !== 'idea') throw Object.assign(new Error('Only idea notes carry an Idea Card'), { status: 400 });
+    const card = parseCard(await fs.readFile(note.absolute, 'utf8'));
+    return card ? { path: note.relative, card, gaps: cardGaps(card) } : { path: note.relative, card: null, gaps: [] };
+  };
+
+  return { create, createAnalyzed, saveCard, readCard, link, resolveNote, setDone, logStep };
 };

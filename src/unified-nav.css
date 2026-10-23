@@ -63,7 +63,7 @@
 @media (max-width: 760px) {
   .app-shell { --topbar-h: 62px; }
   .app-shell .workspace, .app-shell .workspace.sidebar-collapsed, .app-shell .workspace.has-selection, .app-shell .workspace.sidebar-collapsed.has-selection { display: block; grid-template-columns: minmax(0,1fr); padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
-  .app-nav, .app-nav.is-compact { position: fixed; inset: auto 0 0 0; top: auto; z-index: 45; height: auto; max-height: none; flex-direction: row; align-items: center; gap: 2px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); overflow: visible; background: linear-gradient(0deg, #20142f, #171125 70%); border-right: 0; border-top: 1px solid rgba(var(--theme-magentaGlow-rgb), .35); backdrop-filter: none; }
+  .app-nav, .app-nav.is-compact { position: fixed; inset: auto 0 0 0; top: auto; z-index: 45; height: auto; max-height: none; flex-direction: row; align-items: center; gap: 2px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); overflow: visible; background: linear-gradient(0deg, var(--theme-barA), var(--theme-barB) 70%); border-right: 0; border-top: 1px solid rgba(var(--theme-magentaGlow-rgb), .35); backdrop-filter: none; }
   .app-nav .nav-compact-btn { display: none; }
   .app-nav .nav-menu-btn { display: flex; flex: none; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 54px; min-height: 56px; padding: 0; border: 1px solid var(--theme-lavender); border-radius: 12px; background: #21172f; color: var(--theme-text); cursor: pointer; }
   .app-nav .nav-menu-btn span { font: 700 9px/1 'Manrope', sans-serif; }
@@ -125,7 +125,16 @@
   .app-shell .main-content[data-page] > *, .dp-chip > i { animation: none; }
 }
 
+/* Themes: the synthwave backdrop is a magenta PNG, so non-Miami palettes rotate its hue to their own accent. */
+:root[data-theme="aurora"] .synthwave-backdrop { filter: hue-rotate(-130deg); }
+:root[data-theme="ember"] .synthwave-backdrop { filter: hue-rotate(85deg); }
+:root[data-theme="slate"] .synthwave-backdrop { filter: hue-rotate(-70deg) saturate(.5); }
+
 /* Touch target floor: every interactive control is at least 44px, on every page. */
 .app-shell .product-metrics-refresh, .app-shell .session-link .ghost-button, .app-shell .active-work .link-button { min-height: 44px; min-width: 44px; }
-.app-shell .idea-page-tabs button { min-height: 45px; padding-block: 15px; }
+.app-shell .idea-page-tabs button { min-height: 45px; padding-block: 15px; white-space: nowrap; }
+/* Four tabs must fit one line at 390px: tighter gap, and the strip scrolls rather than wrapping if a label ever grows. */
+.app-shell .idea-page-tabs { overflow-x: auto; scrollbar-width: none; }
+.app-shell .idea-page-tabs::-webkit-scrollbar { display: none; }
+@media (max-width: 520px) { .app-shell .idea-page-tabs { gap: 0; justify-content: space-between; } .app-shell .idea-page-tabs button { margin-right: 0; padding-inline: 8px; font-size: 14px; } }
 .app-shell .toolbar-tab, .app-shell .board-toolbar .search-box, .app-shell .board-toolbar .filter-box { min-height: 45px; }

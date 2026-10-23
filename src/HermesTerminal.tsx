@@ -1,4 +1,4 @@
-import { themePalette } from './theme-palette.mjs';
+import { activePalette, type ThemePalette } from './theme-palette.mjs';
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -12,7 +12,7 @@ import '@xterm/xterm/css/xterm.css';
 // grays instead of warm text, and "cyan" silently mapped to lavender (losing the single most
 // iconic Vice City color). Rebuilt on the real palette: hot magenta, neon cyan, coral/peach
 // sunset, warm night purple — nothing left as a flat, untinted gray or pure black/white.
-const theme = {
+const terminalTheme = (themePalette: ThemePalette) => ({
   background: themePalette.night,
   foreground: themePalette.text,
   cursor: themePalette.coral,
@@ -22,7 +22,7 @@ const theme = {
   blue: themePalette.cyanGlow, magenta: themePalette.magentaGlow, cyan: themePalette.cyanGlow, white: themePalette.text,
   brightBlack: themePalette.muted, brightRed: '#ff7a83', brightGreen: themePalette.peach, brightYellow: themePalette.coral,
   brightBlue: themePalette.cyanGlow, brightMagenta: '#f278bd', brightCyan: themePalette.cyanGlow, brightWhite: '#fff6dc',
-};
+});
 
 type Status = 'connecting' | 'live' | 'exited' | 'offline' | 'missing';
 
@@ -60,10 +60,13 @@ export default function HermesTerminal({ compact = false, phoneKeys = false }: {
   useEffect(() => {
     if (!host.current) return undefined;
     const term = new Terminal({
-      theme, allowProposedApi: true, cursorBlink: true, fontSize: compact ? 11 : 13, lineHeight: 1.15,
+      theme: terminalTheme(activePalette()), allowProposedApi: true, cursorBlink: true, fontSize: compact ? 11 : 13, lineHeight: 1.15,
       fontFamily: '"SF Mono", ui-monospace, Menlo, monospace', scrollback: 8000, macOptionIsMeta: true,
     });
     termRef.current = term;
+    // Live theme switch (Settings): xterm paints from its own JS object, so re-feed it the new palette.
+    const onTheme = () => { term.options.theme = terminalTheme(activePalette()); };
+    window.addEventListener('brainbook-themechange', onTheme);
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new Unicode11Addon());
@@ -188,6 +191,7 @@ export default function HermesTerminal({ compact = false, phoneKeys = false }: {
       disposed = true;
       window.clearTimeout(retry);
       observer.disconnect();
+      window.removeEventListener('brainbook-themechange', onTheme);
       window.clearTimeout(fitFrame);
       window.removeEventListener('orientationchange', refit);
       window.visualViewport?.removeEventListener('resize', refit);

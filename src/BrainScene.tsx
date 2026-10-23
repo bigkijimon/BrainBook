@@ -2,7 +2,7 @@
 // Every Obsidian idea/project note is a neuron, grouped by life area around the core.
 // Real links (Obsidian [[wikilinks]], Graphify, shared subjects) are the wiring, and signals travel along them.
 // Background mode: slow, dim, never catches clicks. Focus mode (Brain button): orbit, hover, click a neuron.
-import { themePalette } from './theme-palette.mjs';
+import { activePalette, themePalette } from './theme-palette.mjs';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -14,7 +14,8 @@ export type BrainNode = { id: string; title: string; kind: string; lifeArea: Lif
 export type BrainLink = { source: string; target: string; kind: 'branch' | 'wikilink' | 'graphify' | 'related'; weight: number };
 export type BrainData = { nodes: BrainNode[]; links: BrainLink[]; sources: { obsidian: { notes: number }; graphify: { available: boolean; builtAt: string | null; notesCovered: number; noteLinks: number }; counts: Record<string, number> } };
 
-export const AREA_COLOR: Record<LifeArea, number> = { finance: Number.parseInt(themePalette.coral.slice(1), 16), learning: Number.parseInt(themePalette.lavender.slice(1), 16), 'mental-health': Number.parseInt(themePalette.peach.slice(1), 16), work: Number.parseInt(themePalette.pink.slice(1), 16), play: Number.parseInt(themePalette.coral.slice(1), 16) };
+export const areaColors = (palette: typeof themePalette): Record<LifeArea, number> => ({ finance: Number.parseInt(palette.coral.slice(1), 16), learning: Number.parseInt(palette.lavender.slice(1), 16), 'mental-health': Number.parseInt(palette.peach.slice(1), 16), work: Number.parseInt(palette.pink.slice(1), 16), play: Number.parseInt(palette.coral.slice(1), 16) });
+export const AREA_COLOR = areaColors(themePalette);
 const AREA_ANCHOR: Record<LifeArea, [number, number, number]> = {
   work: [0.9, 0.35, 1.9],
   finance: [2.0, 0.85, 0.3],
@@ -122,6 +123,10 @@ export function BrainScene({ data, area, focus, selected, pulse, onHover, onSele
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // Theme switch: the caller remounts this scene (key=theme), so the colors are read once here from
+    // whichever palette the page shows; these locals intentionally shadow the module-level defaults.
+    const themePalette = activePalette();
+    const AREA_COLOR = areaColors(themePalette);
     const state = { area: 'all' as 'all' | LifeArea, focus: false, selected: null as string | null };
     const handlers = { onHover, onSelect };
     const scene = new THREE.Scene();

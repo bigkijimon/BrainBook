@@ -30,3 +30,24 @@ test('capture provenance includes the shared palette as well as its generated CS
   assert.ok(LAYOUT_SOURCES.includes('src/theme-palette.mjs'));
   assert.ok(CARD_SOURCES.includes('src/theme-palette.mjs'));
 });
+
+test('every named palette has the full key set and is emitted under :root[data-theme]', () => {
+  const keys = Object.keys(palette.themePalettes.miami).sort();
+  assert.ok(palette.themeNames.length >= 3, 'need more than one palette');
+  assert.equal(palette.themePalettes[palette.DEFAULT_THEME], palette.themePalette, 'default stays Miami/neon');
+  const css = palette.themeDeclarations();
+  for (const [name, colors] of Object.entries(palette.themePalettes)) {
+    assert.deepEqual(Object.keys(colors).sort(), keys, `${name}: key set differs from miami`);
+    const block = css.split(`:root[data-theme="${name}"] {`)[1]?.split('}')[0];
+    assert.ok(block, `${name}: no scoped CSS block`);
+    for (const [key, hex] of Object.entries(colors)) {
+      assert.match(hex, /^#[0-9a-f]{6}$/);
+      assert.ok(block.includes(`--theme-${key}: ${hex};`), `${name}.${key}: not in its scoped block`);
+    }
+  }
+});
+
+test('the checked-in stylesheet carries every scoped palette (not JS-only)', async () => {
+  const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8');
+  for (const name of palette.themeNames) assert.ok(css.includes(`:root[data-theme="${name}"]`), `${name} missing from styles.css`);
+});
