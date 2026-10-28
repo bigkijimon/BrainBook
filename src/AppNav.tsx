@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { ChevronDown, Database, History, House, Inbox, Lightbulb, LayoutGrid, Menu, PanelLeftClose, PanelLeftOpen, Target, Users, X, Wallet, GraduationCap, HeartPulse, Briefcase, Gamepad2 } from 'lucide-react';
+import { ChevronDown, Database, History, House, Lightbulb, LayoutGrid, Menu, PanelLeftClose, PanelLeftOpen, Users, X, Wallet, GraduationCap, HeartPulse, Briefcase, Gamepad2 } from 'lucide-react';
 import { TeamRail } from './TeamRail';
 import { TeamMark } from './TeamMark';
 import { ManagedApps, type AppInventory } from './ManagedApps';
 import { LIFE_AREAS, type LifeArea } from './types';
 
-type Page = 'home' | 'tasks' | 'ideas' | 'goals' | 'data';
+type Page = 'home' | 'ideas' | 'data';
 type TaskView = 'all' | 'open';
 type Stream = { value: string; label: string; color: string };
 
@@ -15,7 +15,9 @@ export type AppNavProps = {
   page: Page; viewFilter: TaskView; domainFilter: string;
   counts: { today: number; done: number };
   historyOpen: boolean;
-  onPage: (page: Page) => void; onView: (view: TaskView) => void; onHistory: () => void;
+  /* Tasks (the old Today page) and Goals are tabs inside Ideas; tasksActive marks when the Tasks tab is showing. */
+  tasksActive: boolean;
+  onPage: (page: Page) => void; onHistory: () => void;
   teams: Parameters<typeof TeamRail>[0]['teams']; selectedTeam: string | null; allTeamsCount: number;
   onSelectTeam: (id: string) => void; onAllTeams: () => void;
   area: 'all' | LifeArea; onChooseArea: (area: 'all' | LifeArea) => void;
@@ -67,15 +69,13 @@ export function AppNav(p: AppNavProps) {
     <button key={key} type="button" className={`nav-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined} aria-haspopup={extra?.dialog ? 'dialog' : undefined} aria-label={extra?.aria} data-nav-label={label} onClick={() => { onClick(); close(); }}>
       <Icon size={18} strokeWidth={1.6} aria-hidden="true" /><span>{label}</span>{extra?.count !== undefined && <b>{extra.count}</b>}
     </button>;
-  const onTasks = p.page === 'tasks';
+  const onTasks = p.tasksActive;
   return <nav id="left-navigation" className={`app-nav ${open ? 'is-open' : ''} ${p.compact ? 'is-compact' : ''}`} aria-label="Main navigation">
     <button type="button" ref={trigger} className="nav-menu-btn" aria-label={open ? 'Close menu' : 'Menu'} data-nav-label={open ? 'Close menu' : 'Menu'} aria-expanded={open} aria-controls="app-nav-panel" onClick={() => setOpen((v) => !v)}>{open ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}<span>{open ? 'Close' : 'Menu'}</span></button>
     <button type="button" className="nav-compact-btn" aria-label="Collapse navigation" aria-pressed={p.compact} data-nav-label={p.compact ? 'Expand navigation' : 'Collapse navigation'} onClick={p.onToggleCompact}>{p.compact ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}<span>Navigation</span></button>
     <div className="nav-pages" ref={pages} role="group" aria-label="Pages">
       {pageBtn('home', 'Home', House, p.page === 'home', () => p.onPage('home'))}
-      {pageBtn('today', 'Today', Inbox, onTasks, () => p.onView(p.viewFilter), { count: p.counts.today })}
       {pageBtn('ideas', 'Ideas', Lightbulb, p.page === 'ideas', () => p.onPage('ideas'))}
-      {pageBtn('goals', 'Goals', Target, p.page === 'goals', () => p.onPage('goals'))}
       {pageBtn('data', 'Data', Database, p.page === 'data', () => p.onPage('data'))}
       {pageBtn('history', '履歴', History, p.historyOpen, p.onHistory, { count: p.counts.done, dialog: true })}
     </div>

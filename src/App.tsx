@@ -181,20 +181,25 @@ function App() {
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [routineOpen, setRoutineOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
-  const [ideaTab, setIdeaTab] = useState<'mine' | 'new' | 'cards' | 'trends'>('mine');
-  const PAGE_ROUTES = ['ideas', 'tasks', 'goals', 'data'] as const;
+  // Ideas is the single home for ideas, tasks (the old Today page) and goals (owner 2026-10-28): one tab bar, three kinds of content.
+  type IdeaTab = 'mine' | 'new' | 'cards' | 'trends' | 'tasks' | 'goals';
+  const LEGACY_TAB: Record<string, IdeaTab> = { tasks: 'tasks', goals: 'goals' };
+  const [ideaTab, setIdeaTab] = useState<IdeaTab>(() => LEGACY_TAB[location.hash.slice(1)] || 'mine');
+  const PAGE_ROUTES = ['ideas', 'data'] as const;
   type Page = 'home' | typeof PAGE_ROUTES[number];
-  // Retired pages keep working as links: Office/Orchestration now live in Data, Chat lives on Home.
-  const LEGACY_ROUTE: Record<string, Page> = { office: 'data', agents: 'data', orchestration: 'data', chat: 'home' };
+  // Retired pages keep working as links: Office/Orchestration now live in Data, Chat lives on Home, Today/Goals are Ideas tabs.
+  const LEGACY_ROUTE: Record<string, Page> = { office: 'data', agents: 'data', orchestration: 'data', chat: 'home', tasks: 'ideas', goals: 'ideas' };
   const routeOf = (raw: string): Page => (PAGE_ROUTES as readonly string[]).includes(raw) ? raw as Page : LEGACY_ROUTE[raw] || 'home';
   const [page, setPage] = useState<Page>(() => routeOf(location.hash.slice(1)));
   const navigate = useCallback((next: Page) => { setPage(next); if(next!=='home'&&next!=='data')setSelectedTeam(null); setBrainOpen(false); setSelectedId(null); if(location.hash !== `#${next}`) location.hash = next; }, []);
+  const chooseIdeaTab = useCallback((tab: IdeaTab) => { setIdeaTab(tab); if (tab !== 'tasks') setSelectedId(null); }, []);
+  const openIdeaTab = useCallback((tab: IdeaTab) => { navigate('ideas'); chooseIdeaTab(tab); }, [navigate, chooseIdeaTab]);
   useEffect(() => {
-    const hash = () => { const route=routeOf(location.hash.slice(1)); setPage(route); if(route!=='home'&&route!=='data')setSelectedTeam(null); };
-    const native = (event: Event) => { const raw = (event as CustomEvent<string>).detail; navigate(routeOf(raw)); if(raw==='agents') window.requestAnimationFrame(()=>document.getElementById('agent-status')?.scrollIntoView({behavior:'auto'})); };
+    const hash = () => { const raw=location.hash.slice(1); const route=routeOf(raw); setPage(route); if(route!=='home'&&route!=='data')setSelectedTeam(null); if(LEGACY_TAB[raw]){setIdeaTab(LEGACY_TAB[raw]);history.replaceState(null,'','#ideas');} };
+    const native = (event: Event) => { const raw = (event as CustomEvent<string>).detail; navigate(routeOf(raw)); if(LEGACY_TAB[raw])chooseIdeaTab(LEGACY_TAB[raw]); if(raw==='agents') window.requestAnimationFrame(()=>document.getElementById('agent-status')?.scrollIntoView({behavior:'auto'})); };
     window.addEventListener('hashchange', hash); window.addEventListener('brainbook:navigate', native);
     return () => {window.removeEventListener('hashchange',hash);window.removeEventListener('brainbook:navigate',native);};
-  }, [navigate]);
+  }, [navigate, chooseIdeaTab]);
   // Filters sidebar starts collapsed; the choice is remembered.
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('brainbook.sidebar') !== 'closed');
   const teams = useTeams();
@@ -462,6 +467,7 @@ function App() {
   const counts = useMemo(() => Object.fromEntries(STATUSES.map((status) => [status, visibleTasks.filter((task) => task.status === status).length])) as Record<TaskStatus, number>, [visibleTasks]);
   const domainCounts = useMemo(() => Object.fromEntries(domainFilters.map((domain) => [domain.value, tasks.filter((task) => !task.isArchived && task.routing?.domain === domain.value).length])) as Record<TaskDomain, number>, [tasks]);
   const activeCount = tasks.filter((task) => !task.isArchived && task.status !== 'done').length;
+  const onTasksTab = page === 'ideas' && ideaTab === 'tasks';
   const liveCount = tasks.filter((task) => !task.isArchived && (task.status === 'working' || task.planStatus === 'analyzing')).length;
   const attentionCount = tasks.filter((task) => !task.isArchived && task.status === 'needs_attention').length;
 
@@ -470,16 +476,8 @@ function App() {
     window.setTimeout(() => setMessage(''), 3200);
   };
 
-  const chooseView = (view: 'all' | 'open') => {
-    navigate('tasks');
-    setViewFilter(view);
-    setPriorityFilter('all');
-    setDomainFilter('all');
-    setQuery('');
-  };
-
   const chooseDomain = (domain: TaskDomain) => {
-    navigate('tasks');
+    openIdeaTab('tasks');
     setViewFilter('all');
     setPriorityFilter('all');
     setDomainFilter(domain);
@@ -498,7 +496,7 @@ function App() {
   };
 
   const openScheduledTask = (task: Task) => {
-    navigate('tasks');
+    openIdeaTab('tasks');
     setViewFilter('all');
     setPriorityFilter('all');
     setDomainFilter('all');
@@ -510,7 +508,7 @@ function App() {
   // paired phone (styles.css hides the inspector on the Ideas tab), so the tap has to move the tab
   // too - otherwise the Control Center row is a dead tap on the phone.
   const openBoardTask = (id: string) => {
-    navigate('tasks'); setSelectedId(id);
+    openIdeaTab('tasks'); setSelectedId(id);
   };
 
   const updateTask = async (taskId: string, patch: Partial<Task>, successMessage = 'Changes saved.') => {
@@ -727,7 +725,7 @@ function App() {
 
       <div className={`workspace ${sidebarOpen ? '' : 'sidebar-collapsed'} ${selectedTask ? 'has-selection' : ''}`}>
         <AppNav page={page as Parameters<typeof AppNav>[0]['page']} viewFilter={viewFilter} domainFilter={domainFilter} counts={{ today: activeCount, done: tasks.filter((task) => task.status === 'done').length }}
-          historyOpen={historyOpen} onPage={navigate} onView={chooseView} onHistory={() => setHistoryOpen(true)}
+          historyOpen={historyOpen} onPage={navigate} tasksActive={onTasksTab} onHistory={() => setHistoryOpen(true)}
           teams={teams} selectedTeam={selectedTeam} allTeamsCount={areaCounts.all || 0}
           onSelectTeam={(id) => { setSelectedTeam(id); setArea('all'); navigate('data'); window.requestAnimationFrame(() => document.getElementById('agent-status')?.scrollIntoView({ behavior: 'auto' })); }}
           onAllTeams={() => { setSelectedTeam(null); setArea('all'); navigate('data'); }}
@@ -737,7 +735,7 @@ function App() {
           compact={!sidebarOpen} onToggleCompact={() => setSidebarOpen((value) => !value)} version={release.version} />
 
         <main id="main-content" className="main-content" key={page} data-page={page}>
-          <PageHeader eyebrow={new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date()).toUpperCase().replace(/,/g, ' ·')} title={PAGE_META[page].title} purpose={PAGE_META[page].purpose}
+          <PageHeader eyebrow={new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date()).toUpperCase().replace(/,/g, ' ·')} title={PAGE_META[page].title} purpose={page === 'ideas' ? IDEA_TAB_PURPOSE[ideaTab] : PAGE_META[page].purpose}
             action={<button className="primary-button" type="button" title="Add a task in the Control Center" onClick={() => openControl(!composerOpen)}><span>New request</span><span className="button-icon"><Plus size={16} strokeWidth={1.7} /></span></button>} />
 
           {setup && setup.configured && !setup.vaultReady && !remote && <div className="vault-missing" role="alert">Your vault folder can’t be reached: <code>{setup.vaultPath.replace(/^\/Users\/[^/]+/, '~')}</code>. If it’s in iCloud, wait for it to download, or <button type="button" className="link-button" onClick={() => setSettingsOpen(true)}>choose another folder</button>.</div>}
@@ -781,10 +779,14 @@ function App() {
               <p className="content-lede">Every Hermes session (live first, with the data and skills each one used) now lives in one place.</p>
               <button type="button" className="ghost-button" onClick={() => { navigate('data'); window.setTimeout(() => window.dispatchEvent(new CustomEvent('brainbook:data-tab', { detail: 'sessions' })), 60); }}>Open Sessions in Data</button>
             </section>
-          </>}{page === 'goals' && <GoalsPanel refreshKey={goalsKey} notify={notify} onToggle={toggleVaultTask} onRun={runVaultTask} />}
+          </>}
           {page === 'data' && <DataPage teams={teams} selectedTeam={selectedTeam} onAllTeams={() => { setSelectedTeam(null); setArea('all'); }} onOpenHome={() => navigate('home')} remote={remote} />}</div>
 
-          {page === 'tasks' && <><div className="board-toolbar">
+          {page === 'ideas' && <div className="idea-page-tabs" role="tablist" aria-label="Ideas views">
+            {([['mine', 'My ideas'], ['new', 'New idea'], ['cards', 'Idea cards'], ['trends', 'Trend picks'], ['tasks', `Tasks · ${activeCount}`], ['goals', 'Goals']] as [IdeaTab, string][]).map(([key, label]) =>
+              <button key={key} type="button" role="tab" aria-selected={ideaTab === key} className={ideaTab === key ? 'on' : ''} data-idea-tab={key} onClick={() => chooseIdeaTab(key)}>{label}</button>)}
+          </div>}
+          {onTasksTab && <><div className="board-toolbar">
             <div className="toolbar-tabs" role="group" aria-label="Which tasks"><button className={`toolbar-tab ${viewFilter === 'open' ? 'active' : ''}`} type="button" aria-pressed={viewFilter === 'open'} onClick={() => setViewFilter('open')}>Open</button><button className={`toolbar-tab ${viewFilter === 'all' ? 'active' : ''}`} type="button" aria-pressed={viewFilter === 'all'} onClick={() => setViewFilter('all')}>Everything</button></div>
             <div className="toolbar-tabs"><button className={`toolbar-tab ${viewMode === 'board' ? 'active' : ''}`} type="button" onClick={() => setViewMode('board')}>Board</button><button className={`toolbar-tab ${viewMode === 'timeline' ? 'active' : ''}`} type="button" onClick={() => setViewMode('timeline')}>Timeline</button>{domainFilter !== 'all' && <button className="active-stream-filter" type="button" onClick={() => setDomainFilter('all')}>{domainFilters.find((domain) => domain.value === domainFilter)?.label} <X size={12} strokeWidth={1.5} /></button>}</div>
             <div className="toolbar-controls">
@@ -806,12 +808,8 @@ function App() {
           ) : <TimelineView tasks={visibleTasks} selectedId={selectedId} onSelect={setSelectedId} />}
 
           </>}
-          {page === 'ideas' && <><div className="idea-page-tabs" role="tablist" aria-label="Ideas views">
-            <button type="button" role="tab" aria-selected={ideaTab === 'mine'} className={ideaTab === 'mine' ? 'on' : ''} onClick={() => setIdeaTab('mine')}>My ideas</button>
-            <button type="button" role="tab" aria-selected={ideaTab === 'new'} className={ideaTab === 'new' ? 'on' : ''} onClick={() => setIdeaTab('new')}>New idea</button>
-            <button type="button" role="tab" aria-selected={ideaTab === 'cards'} className={ideaTab === 'cards' ? 'on' : ''} onClick={() => setIdeaTab('cards')}>Idea cards</button>
-            <button type="button" role="tab" aria-selected={ideaTab === 'trends'} className={ideaTab === 'trends' ? 'on' : ''} onClick={() => setIdeaTab('trends')}>Trend picks</button>
-          </div>
+          {page === 'ideas' && <>
+          {ideaTab === 'goals' && <div className="company-panels"><GoalsPanel refreshKey={goalsKey} notify={notify} onToggle={toggleVaultTask} onRun={runVaultTask} /></div>}
           {ideaTab === 'mine' && <><IdeaShelf streams={streams} notes={areaNotes} loading={vaultLoading} onSend={sendToHermes} onArea={moveNoteToArea} onKind={setNoteKind} />
           <details className="tree-fold"><summary>Idea progress</summary>
             <IdeaTree taskPaths={taskLikePaths} character={character} brain={brain} area={area} selected={brainPick?.id || null} onSelect={(node) => { setBrainPick(node); setBrainOpen(true); }} onStart={(node) => { const note = vaultNotes.find((entry) => entry.path === node.id); if (note) sendToHermes(note); }} onBranch={(node) => setDump({ parent: { id: node.id, title: node.title } })} />
@@ -835,11 +833,14 @@ function App() {
   );
 }
 
+const IDEA_TAB_PURPOSE: Record<string, string> = {
+  mine: 'Find and organize your Obsidian ideas.', new: 'Capture a new idea.', cards: 'Scored idea cards with the evidence behind each.', trends: 'Trend picks worth a look.',
+  tasks: 'Open work on the board or timeline. Switch to Everything to include finished tasks.', goals: 'Your tracked goals, live from the vault.',
+};
+
 const PAGE_META: Record<string, { title: string; purpose: string }> = {
   home: { title: 'Company now', purpose: 'Who is working, and what needs your decision.' },
-  tasks: { title: 'Today', purpose: 'Open work on the board or timeline. Switch to Everything to include finished tasks.' },
   ideas: { title: 'Ideas', purpose: 'Find and organize your Obsidian ideas.' },
-  goals: { title: 'Goals', purpose: 'Your tracked goals, live from the vault.' },
   data: { title: 'Data', purpose: 'Who the agents are, which data each one used, and how work flows between them.' },
 };
 

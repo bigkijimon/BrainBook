@@ -14,8 +14,17 @@ type Schedule = {
   state: null | { modifiedAt: string; latest: { heading: string; nextStep: string | null }; rule: null | { heading: string; text: string | null }; recent: string[] };
   queue: null | { active: Job[]; otherActive: Job[]; shift01Counts: Record<string, number> };
   pipeline?: Pipeline;
+  outlook?: Outlook;
   unknown: string[];
 };
+type Unknown = { unknown: string };
+type Outlook = {
+  sources: { state: string; registry: string; queue: string };
+  next: Unknown | { title: string; heading: string; notStarted: boolean; gate: string | null };
+  paused: Unknown | { label: string; retry: string | null; cancelledJobs: string[]; cancelledAt: string | null; otherStates: number };
+  storyAriake: (Unknown & { queue?: AriakeQueue }) | { classification: string | null; gpuRoute: null | { status: string; since: string | null }; queue: AriakeQueue };
+};
+type AriakeQueue = { generating: number; queued: number; total: number; passed: number; cancelled: number; lastActivity: string | null };
 
 const POLL_MS = 30000;
 const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -66,6 +75,44 @@ function Steps({ pipeline, running }: { pipeline: Pipeline; running: boolean }) 
   </ol>;
 }
 
+const day = (iso: string | null) => (iso ? iso.replace('T', ' ').slice(0, 16) : 'unknown');
+
+// Coarse queue-level view (not another stepper): what follows the video in the stepper. Every row names its source.
+function Queue({ outlook, generating }: { outlook: Outlook; generating: Job[] }) {
+  const { next, paused, storyAriake: ariake } = outlook;
+  return <section className="ms-queue" aria-labelledby="ms-queue-heading">
+    <h4 id="ms-queue-heading">Queue <small>what comes after this video</small></h4>
+    <ol className="ms-queue-list">
+      <li className="ms-q">
+        <Chip tone={generating.length ? 'live' : 'unknown'} dot={generating.length > 0}>{generating.length ? 'Now' : 'Idle'}</Chip>
+        <div><b>SHIFT-01 current build</b><small>{generating.length ? generating.map((job) => job.id).join(', ') : 'No SHIFT-01 job is generating'} · source: gpu-job queue</small></div>
+      </li>
+      <li className="ms-q">
+        <Chip tone="info">Next</Chip>
+        {'unknown' in next
+          ? <div><b>UNKNOWN</b><small>{next.unknown}</small></div>
+          : <div><b>{next.title}</b><small>Next (waiting for current build to finish){next.notStarted ? ' · not started' : ''} · source: EXECUTION-STATE.md</small>
+            {next.gate && <details><summary>Start gate</summary><p>{next.gate}</p></details>}</div>}
+      </li>
+      <li className="ms-q">
+        <Chip tone="warn">Paused</Chip>
+        {'unknown' in paused
+          ? <div><b>UNKNOWN</b><small>{paused.unknown}</small></div>
+          : <div><b>{paused.label}</b><small>Paused: {paused.cancelledJobs.length} still jobs cancelled {day(paused.cancelledAt)} to keep one video at a time. Not rejected; can be resumed. · sources: EXECUTION-STATE.md, gpu-job queue</small>
+            <details><summary>How to resume</summary>{paused.retry && <p>Once the current build is delivered: <code>{paused.retry}</code></p>}<p>{paused.cancelledJobs.join(', ')}</p></details></div>}
+      </li>
+      <li className="ms-q is-separate">
+        <Chip tone="unknown">Separate</Chip>
+        {'unknown' in ariake
+          ? <div><b>storyAriake: UNKNOWN</b><small>{ariake.unknown}{ariake.queue ? ` · the queue holds ${ariake.queue.total} storyAriake jobs` : ''}</small></div>
+          : <div><b>storyAriake · {ariake.queue.generating ? `generating ${ariake.queue.generating}` : ariake.queue.queued ? `queued ${ariake.queue.queued}` : 'idle'}</b>
+            <small>{ariake.queue.generating} generating · {ariake.queue.queued} queued · {ariake.queue.passed} passed · {ariake.queue.cancelled} cancelled · last job update {day(ariake.queue.lastActivity)}</small>
+            <small>{ariake.classification || 'Registry classification UNKNOWN'}{ariake.gpuRoute ? ` · GPU route ${ariake.gpuRoute.status.toLowerCase()}${ariake.gpuRoute.since ? ` ${ariake.gpuRoute.since}` : ''}` : ''}. Own account, not part of the SHIFT-01 queue. · sources: project registry, gpu-job queue</small></div>}
+      </li>
+    </ol>
+  </section>;
+}
+
 export function MovieSchedule() {
   const [data, setData] = useState<Schedule | null>(null);
   const [failed, setFailed] = useState(false);
@@ -103,6 +150,7 @@ export function MovieSchedule() {
       {running
         ? <p className="ms-now" role="status"><span>Generating now</span>{generating.map((job) => <code key={job.id}>{job.id}{job.stage ? ` · ${job.stage}` : ''}</code>)}{pipeline && !pipeline.current && <small>This job is outside the six tracked steps.</small>}</p>
         : <p className="ms-now is-idle"><span>No SHIFT-01 job is generating</span>{data.queue === null && <small>UNKNOWN: the GPU queue could not be read.</small>}</p>}
+      {data.outlook && <Queue outlook={data.outlook} generating={generating} />}
       <div className="ms-grid">
         {data.queue ? <Donut counts={data.queue.shift01Counts} /> : <StateNote kind="error">UNKNOWN: the GPU queue could not be read.</StateNote>}
         <div className="ms-side">

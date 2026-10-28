@@ -78,3 +78,19 @@
 @media (prefers-reduced-motion: reduce) {
   .movie-schedule.is-running .ms-reel-frames, .ms-steps.is-running .ms-node:not(:first-child)::after, .ms-node.is-current .ms-dot, .ms-node.is-current .ms-dot::before { animation: none; }
 }
+
+/* Queue: a coarse vertical list of what follows the current build (owner 2026-10-28). Reuses the card's tokens
+   and Chip; no motion (baseline-ui: no animation unless requested). */
+.ms-queue h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 6px; color: var(--theme-coral); font: 800 14px 'Manrope', sans-serif; text-wrap: balance; }
+.ms-queue h4 small { color: var(--theme-muted); font: 400 12px 'Manrope', sans-serif; }
+.ms-queue-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.ms-q { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: start; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(var(--theme-lavender-rgb), .18); }
+.ms-q:first-child { border-top: 0; }
+.ms-q > div { display: grid; gap: 2px; min-width: 0; }
+.ms-q b { color: var(--theme-text); font: 700 14px/1.35 'Manrope', sans-serif; overflow-wrap: anywhere; text-wrap: balance; }
+.ms-q small { color: var(--theme-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; text-wrap: pretty; font-variant-numeric: tabular-nums; }
+.ms-q code { overflow-wrap: anywhere; font-size: 12px; }
+.ms-q details summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--theme-coral); font-weight: 700; font-size: 13px; }
+.ms-q details p { margin: 0 0 6px; color: var(--theme-secondary); font-size: 13px; line-height: 1.5; text-wrap: pretty; overflow-wrap: anywhere; }
+.ms-q.is-separate { border-top: 1px dashed rgba(var(--theme-lavender-rgb), .4); }
+@media (max-width: 760px) { .ms-q { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
