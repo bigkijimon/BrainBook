@@ -15,6 +15,7 @@ import { restoreTheme } from './theme';
 import './styles.css';
 import './neon-navigation.css';
 import './unified-nav.css';
+import './lite-mode.css';
 
 restoreTheme();
 

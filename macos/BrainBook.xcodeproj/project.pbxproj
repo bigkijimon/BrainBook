@@ -404,7 +404,9 @@
 			buildActionMask = 2147483647;
 			files = ();
 			inputPaths = ();
-			outputPaths = ();
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Info.plist",
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
 			shellScript = "# Generate Info.plist from release/release-info.mjs.\n# Writes to DERIVED_FILE_DIR (an intermediate path), not the bundle's own Contents/Info.plist\n# directly: with GENERATE_INFOPLIST_FILE=NO + INFOPLIST_FILE=$(DERIVED_FILE_DIR)/Info.plist,\n# Xcode's own ProcessInfoPlistFile step COPIES this file into the bundle as its last packaging\n# step instead of generating a fresh (and much emptier) one that would silently stomp this --\n# that stomping caused the shipped app to have no Dock/.app icon and no menu-bar display name.\nset -euo pipefail\nINFO_PLIST=\"${DERIVED_FILE_DIR}/Info.plist\"\nNODE_BIN=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Resources/node\"\nWRITE_PLIST=\"${SRCROOT}/../scripts/write-macos-plist.mjs\"\nif [[ ! -f \"${NODE_BIN}\" ]]; then\n  echo \"ERROR: Node binary not found at ${NODE_BIN}\" >&2\n  exit 1\nfi\nif [[ ! -f \"${WRITE_PLIST}\" ]]; then\n  echo \"ERROR: write-macos-plist.mjs not found at ${WRITE_PLIST}\" >&2\n  exit 1\nfi\nmkdir -p \"${DERIVED_FILE_DIR}\"\n\"${NODE_BIN}\" \"${WRITE_PLIST}\" \"${INFO_PLIST}\"\n";

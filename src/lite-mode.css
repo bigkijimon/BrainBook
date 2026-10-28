@@ -1,0 +1,17 @@
+/* Lite mode: active only while a real GPU video job is running (see useLiteMode.ts).
+   Loads last, so one rule set replaces the ~45 `infinite` animations and ~17 backdrop-filter
+   blurs spread across styles.css / neon-navigation.css / unified-nav.css. Layout, colour and text
+   stay exactly as they are; only motion, blur and the full-window decoration layers go away. */
+html[data-lite] *,
+html[data-lite] *::before,
+html[data-lite] *::after {
+  animation: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  scroll-behavior: auto !important;
+}
+html[data-lite] .synthwave-backdrop,
+html[data-lite] .vice-sky,
+html[data-lite] .grain {
+  display: none !important;
+}

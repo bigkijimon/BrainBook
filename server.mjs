@@ -23,6 +23,8 @@ import { describeStreams, loadStreams } from './streams.mjs';
 import { computeProgress } from './progress.mjs';
 import { buildOffice } from './office.mjs';
 import { collectManagedApps } from './managed-apps.mjs';
+import { createAutopilotGate } from './autopilot-gate.mjs';
+import { readMovieSchedule, MOVIE_STATE_FILE, GPU_JOB_BIN } from './movie-schedule.mjs';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
@@ -723,7 +725,24 @@ const shouldAutoRun = (task) => task.priority === 'high' && task.status === 'inb
 const vaultRunsFile = path.join(appHome, 'vault-runs.json');
 // One Run path for Do-now items, Goals steps and the Goals autopilot. A step that belongs to a goal
 // carries the goal's title and words, so the agent knows what the step is for.
+// Every caller (Goals autopilot, owner Run click) goes through this one gate. The attempt is written to
+// disk BEFORE the planner subprocess starts, so a restart mid-plan cannot make the next boot plan the same
+// step again (that is how two planners for one step appeared at 14:12 and 14:15 on 2026-10-28, across the
+// ship.sh restart). The owner's own click may retry a cooled-down step but never overlaps a live attempt.
 const runVaultItem = async (id, { by = 'owner' } = {}) => {
+  const gate = await autopilotGate.acquire(id, { cooldown: by === 'autopilot' });
+  if (!gate.ok) {
+    if (by === 'autopilot') return { id, gated: gate.why };
+    throw new Error(`A run for this step is already starting or was just tried (${gate.why}).`);
+  }
+  let ok = false;
+  try {
+    const result = await runVaultItemUngated(id, { by });
+    ok = Boolean(result?.kanban);
+    return result;
+  } finally { await autopilotGate.record(id, { ok }); }
+};
+const runVaultItemUngated = async (id, { by = 'owner' } = {}) => {
   const item = (await readVaultSnapshot()).tasks.find((task) => task.id === id);
   if (!item) return null;
   const runs = await readVaultRuns();
@@ -747,8 +766,14 @@ const runVaultItem = async (id, { by = 'owner' } = {}) => {
 // through the same Run path. At most one new card per goal per tick, and one tick every 10 minutes,
 // so the lanes are never flooded. GPU steps go to the night window through queueTaskRun as before.
 const goalAutopilot = { state: { enabled: !process.env.BRAINBOOK_NO_AUTOPILOT, lastTick: null, started: [], skipped: [] } };
+const autopilotGate = createAutopilotGate({ file: path.join(appHome, 'autopilot-attempts.json') });
+let autopilotRunning = false;
 const autopilotTick = async () => {
-  if (!goalAutopilot.state.enabled || !hermes.bin) return;
+  if (!goalAutopilot.state.enabled || !hermes.bin || autopilotRunning) return;
+  autopilotRunning = true;
+  try { await autopilotTickBody(); } finally { autopilotRunning = false; }
+};
+const autopilotTickBody = async () => {
   const started = []; const skipped = [];
   try {
     for (const goal of await readGoals()) {
@@ -757,8 +782,13 @@ const autopilotTick = async () => {
       if (goal.steps.some((step) => step.state === 'waiting')) { skipped.push({ goal: goal.title, why: 'waiting for Yuma on a step' }); continue; }
       const next = goal.steps.find((step) => step.state === 'todo' && !(step.uses?.kind === 'card' && step.uses.status !== 'gone'));
       if (!next) { skipped.push({ goal: goal.title, why: 'no open step' }); continue; }
-      const task = await runVaultItem(next.id, { by: 'autopilot' });
-      if (task?.kanban) started.push({ goal: goal.title, step: next.text, card: task.kanban.id, status: task.kanban.status });
+      try {
+        const task = await runVaultItem(next.id, { by: 'autopilot' }); // gated: cooldown + in-flight + attempt written before start
+        if (task?.gated) skipped.push({ goal: goal.title, why: `step not retried: ${task.gated}` });
+        else if (task?.kanban) started.push({ goal: goal.title, step: next.text, card: task.kanban.id, status: task.kanban.status });
+      } catch (error) {
+        skipped.push({ goal: goal.title, why: `autopilot error: ${String(error.message || error).slice(0, 200)}` }); // one goal's failure must not starve the others
+      }
     }
   } catch (error) {
     skipped.push({ goal: '*', why: `autopilot error: ${String(error.message || error).slice(0, 200)}` });
@@ -1444,6 +1474,15 @@ const handleApi = async (req, res, url) => {
     } catch (error) {
       return json(res, { rooms: [], desk: [], error: `Could not read Hermes: ${String(error.message || error).slice(0, 200)}` }, 502);
     }
+  }
+  // MoviePro / SHIFT-01 status (owner 2026-10-28). Read-only: the project's EXECUTION-STATE.md plus the
+  // shared `gpu-job queue list`. BrainBook never enqueues, cancels or approves anything here.
+  if (url.pathname === '/api/movie-schedule' && req.method === 'GET') {
+    const result = await readMovieSchedule({
+      stateFile: process.env.BRAINBOOK_MOVIE_STATE || MOVIE_STATE_FILE,
+      run: async () => (await execFileAsync(process.env.BRAINBOOK_GPU_JOB || GPU_JOB_BIN, ['queue', 'list'], { timeout: 8000, maxBuffer: 16 * 1024 * 1024 })).stdout,
+    });
+    return json(res, result);
   }
   if (url.pathname === '/api/dbagent' && req.method === 'GET') {
     const hours = Math.min(72, Math.max(1, Math.round(Number(url.searchParams.get('hours')) || 6)));

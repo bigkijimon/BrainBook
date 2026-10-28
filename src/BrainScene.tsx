@@ -14,8 +14,8 @@ export type BrainNode = { id: string; title: string; kind: string; lifeArea: Lif
 export type BrainLink = { source: string; target: string; kind: 'branch' | 'wikilink' | 'graphify' | 'related'; weight: number };
 export type BrainData = { nodes: BrainNode[]; links: BrainLink[]; sources: { obsidian: { notes: number }; graphify: { available: boolean; builtAt: string | null; notesCovered: number; noteLinks: number }; counts: Record<string, number> } };
 
-export const areaColors = (palette: typeof themePalette): Record<LifeArea, number> => ({ finance: Number.parseInt(palette.coral.slice(1), 16), learning: Number.parseInt(palette.lavender.slice(1), 16), 'mental-health': Number.parseInt(palette.peach.slice(1), 16), work: Number.parseInt(palette.pink.slice(1), 16), play: Number.parseInt(palette.coral.slice(1), 16) });
-export const AREA_COLOR = areaColors(themePalette);
+import { areaColors, AREA_COLOR } from './brain-colors';
+export { areaColors, AREA_COLOR };
 const AREA_ANCHOR: Record<LifeArea, [number, number, number]> = {
   work: [0.9, 0.35, 1.9],
   finance: [2.0, 0.85, 0.3],

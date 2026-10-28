@@ -3454,3 +3454,11 @@ body:has([role="dialog"]) .toast-stack { display: none; }
 .dp-tree-row.is-used .dp-tree-name { color: var(--theme-mintGlow); }
 .dp-tree-row.is-alias .dp-tree-name { color: var(--theme-muted); font-weight: 600; }
 @media (max-width: 760px) { .dp-tree-list .dp-tree-list { margin-left: 8px; padding-left: 6px; } .dp-tree-root { max-height: 60dvh; } }
+
+/* MoviePro / SHIFT-01 schedule card (read-only; reuses card-shell, Chip, StateNote). */
+.movie-schedule { display: grid; gap: 8px; padding: 14px 16px; }
+.movie-schedule header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px; }
+.movie-schedule h3 { margin: 0; font-size: 1rem; }
+.movie-schedule p { margin: 0; overflow-wrap: anywhere; }
+.movie-schedule code { margin-right: 6px; overflow-wrap: anywhere; }
+.movie-schedule ol { margin: 6px 0 0; padding-left: 18px; }

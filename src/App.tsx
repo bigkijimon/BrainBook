@@ -9,7 +9,7 @@ import {IdeaComposer} from './IdeaComposer';
 import {TrendRadar} from './TrendRadar';
 import {IdeaCards} from './IdeaCards';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive, ListTodo, ArrowUpRight,
   CalendarDays,
@@ -47,7 +47,12 @@ import { OfficeView } from './OfficeView';
 import { AgentFeed, type AgentMessage } from './AgentFeed';
 import { IdeaDump, type DumpItem } from './IdeaDump';
 import { IdeaTree, STAGE_LABEL } from './IdeaTree';
-import { areaColors, BrainScene, type BrainData, type BrainNode } from './BrainScene';
+import { useLiteMode } from './useLiteMode';
+import { MovieSchedule } from './MovieSchedule';
+import { areaColors } from './brain-colors';
+import type { BrainData, BrainNode } from './BrainScene';
+// Three.js lives only in BrainScene: load it on demand so the first paint does not parse it.
+const BrainScene = lazy(() => import('./BrainScene').then((module) => ({ default: module.BrainScene })));
 import PhoneDialog from './PhoneDialog';
 import { useTeams } from './TeamRail';
 import { LIFE_AREAS, STATUSES, isTaskStatus, statusMeta, type LifeArea, type Priority, type Task, type TaskDomain, type TaskStatus, type VaultNote, type VaultTask } from './types';
@@ -209,6 +214,7 @@ function App() {
   useEffect(() => { void loadXp(); }, []);
   const [brain, setBrain] = useState<BrainData | null>(null);
   const [brainOpen, setBrainOpen] = useState(false);
+  const lite = useLiteMode();
   const [brainHover, setBrainHover] = useState<{ node: BrainNode; x: number; y: number } | null>(null);
   const [brainPick, setBrainPick] = useState<BrainNode | null>(null);
   const [pulse, setPulse] = useState<{ id: string; at: number } | null>(null);
@@ -608,7 +614,7 @@ function App() {
     <div className={`app-shell ${remote ? 'is-remote' : ''} page-${page} ${brainOpen ? 'brain-open' : ''}`}>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <NavigationHints/><div className="synthwave-backdrop" aria-hidden="true"/>
-      <BrainScene key={themeName} data={brain} area={area} focus={brainOpen} selected={brainPick?.id || null} pulse={pulse} onHover={onBrainHover} onSelect={onBrainSelect} />
+      {(!lite || brainOpen) && <Suspense fallback={null}><BrainScene key={themeName} data={brain} area={area} focus={brainOpen} selected={brainPick?.id || null} pulse={pulse} onHover={onBrainHover} onSelect={onBrainSelect} /></Suspense>}
       <div className="vice-sky" aria-hidden="true"><span className="vice-sun" /><span className="vice-grid" /></div>
       <div className="grain" aria-hidden="true" />
       <header className="topbar">
@@ -750,6 +756,7 @@ function App() {
             { productName: 'Mr.INV', apiUrl: '/api/product-metrics/mrinv', iconUrl: 'https://shop.hsacademy202404.site/assets/logo.png' },
             { productName: '予約SaaS', apiUrl: '/api/product-metrics/reservation-saas' },
           ]} refreshIntervalMs={30000} />}
+          {page === 'home' && <MovieSchedule />}
           {page === 'home' && <ActivityPanel onOpenRoster={() => navigate('office')}
             teams={teams} workOpen={workOpen} onCloseWork={()=>{setWorkOpen(false);setComposerOpen(false);}} onOpenWork={openControl}
             problem={Boolean(taskProblem || vaultProblem)}
