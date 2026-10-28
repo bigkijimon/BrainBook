@@ -138,7 +138,7 @@ export function MovieSchedule() {
   const pipeline = data?.pipeline;
   return <section className={`movie-schedule card-shell ${running ? 'is-running' : ''}`} aria-labelledby="movie-schedule-heading">
     <header className="ms-head">
-      <svg className="ms-reel" viewBox="0 0 64 40" aria-hidden="true"><rect x="1" y="1" width="62" height="38" rx="7" className="ms-reel-body" /><g className="ms-reel-frames">{[0, 1, 2, 3, 4, 5].map((i) => <rect key={i} x={6 + i * 17} y="11" width="12" height="18" rx="2" />)}</g><g className="ms-reel-holes">{[0, 1, 2, 3, 4, 5, 6].map((i) => <circle key={i} cx={5 + i * 9} cy="5.5" r="1.4" />)}{[0, 1, 2, 3, 4, 5, 6].map((i) => <circle key={i} cx={5 + i * 9} cy="34.5" r="1.4" />)}</g></svg>
+      <svg className="ms-reel" viewBox="0 0 64 40" aria-hidden="true"><rect x="1" y="1" width="62" height="38" rx="7" className="ms-reel-body" /><g className="ms-reel-frames">{[0, 1, 2, 3].map((i) => <rect key={i} x={5 + i * 14} y="11" width="11" height="18" rx="2" />)}</g><g className="ms-reel-holes">{[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <circle key={i} cx={4 + i * 8} cy="5.5" r="1.4" />)}{[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <circle key={i} cx={4 + i * 8} cy="34.5" r="1.4" />)}</g></svg>
       <div><h3 id="movie-schedule-heading"><Clapperboard size={16} strokeWidth={1.8} aria-hidden="true" /> MoviePro / SHIFT-01</h3>
         <small>Read-only · {data ? `read ${time(data.readAt)}` : 'loading'}{failed && ' · update failed, showing the last read'}</small></div>
       {data && <Chip tone={running ? 'live' : 'unknown'} dot={running}>{running ? 'Generating' : 'Idle'}</Chip>}

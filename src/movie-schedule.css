@@ -9,7 +9,7 @@
 .ms-reel-frames rect { fill: rgba(var(--theme-cyanGlow-rgb), .14); stroke: var(--theme-cyanGlow); stroke-opacity: .6; stroke-width: 1; }
 .ms-reel-holes circle { fill: var(--theme-lavender); fill-opacity: .55; }
 .movie-schedule.is-running .ms-reel-frames { animation: ms-reel 3.2s linear infinite; }
-@keyframes ms-reel { from { transform: translateX(0); } to { transform: translateX(-17px); } }
+@keyframes ms-reel { from { transform: translateX(0); } to { transform: translateX(-14px); } }
 
 /* Stepper: six nodes on one rail. The line between nodes only travels while a job is verifiably generating. */
 .ms-steps { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
