@@ -38,11 +38,15 @@ export type TaskPlan = {
   generatedAt: string;
 };
 
+// 'mental-health' kept in the type (not in the displayed LIFE_AREAS list below) for backward
+// compatibility with any already-saved note/task that used it; 2026-10-28 measured usage across
+// every Goal, Task and vault note found zero real items tagged 'mental-health' (vs. finance=4,
+// learning=5, work=24, play=5), so the filter icon for it was retired from the nav per owner
+// instruction ("無駄な機能と判断した場合はいい感じに修正して処理してください").
 export type LifeArea = 'finance' | 'learning' | 'mental-health' | 'work' | 'play';
 export const LIFE_AREAS: { id: LifeArea; label: string }[] = [
   { id: 'finance', label: 'Finance' },
   { id: 'learning', label: 'Learning' },
-  { id: 'mental-health', label: 'Mental health' },
   { id: 'work', label: 'Work' },
   { id: 'play', label: 'Play' },
 ];
