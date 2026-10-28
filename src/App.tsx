@@ -751,7 +751,7 @@ function App() {
             { productName: 'StudyAbroadOS', apiUrl: '/api/product-metrics/studyabroados' },
             { productName: 'EikenPrep', apiUrl: '/api/product-metrics/eikenprep' },
             { productName: 'Mr.INV', apiUrl: '/api/product-metrics/mrinv', iconUrl: 'https://shop.hsacademy202404.site/assets/logo.png' },
-            { productName: '予約SaaS', apiUrl: '/api/product-metrics/reservation-saas' },
+            { productName: '予約SaaS', apiUrl: '/api/product-metrics/reservation-saas', iconUrl: 'https://reservation-saas-omega.vercel.app/icon.png', notes: { subscriptions: '無料トライアル中のテナントを含む件数です（status が active / trialing / past_due）。カード課金された数とは限りません。', revenue: '収益は未計測です。商品側APIが常に0を返す固定値で、実売上0円とは限りません。' } },
           ]} refreshIntervalMs={30000} />}
           {page === 'home' && <MovieSchedule />}
           {page === 'home' && <ActivityPanel onOpenRoster={() => navigate('data')}

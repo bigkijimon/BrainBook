@@ -58,6 +58,7 @@
 .app-nav.is-compact .nav-item { justify-content: center; padding: 0; }
 .app-nav.is-compact .managed-app-item { justify-content: center; padding: 6px 0; }
 .app-nav.is-compact .managed-apps h3::after { display: none; }
+.app-nav.is-compact .managed-apps h3 { margin: 0; }
 
 /* ---- Phone: the same <nav> is a fixed bottom bar; teams, filters and apps open as a sheet above it. ---- */
 @media (max-width: 760px) {

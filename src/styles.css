@@ -3344,6 +3344,7 @@ body:has([role="dialog"]) .toast-stack { display: none; }
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
+.products-overview-note { font-size: 0.68rem; font-weight: 500; color: var(--muted); }
 .products-overview-legend {
   margin: 8px 2px 0;
   font-size: 0.68rem;

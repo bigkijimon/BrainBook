@@ -5,6 +5,8 @@ export interface ProductsOverviewItem {
   productName: string;
   apiUrl: string;
   iconUrl?: string;
+  /* Caveats for a product whose source API does not mean what the legend says; shown beside the number. */
+  notes?: { subscriptions?: string; revenue?: string };
 }
 
 interface ProductMetricsData {
@@ -119,13 +121,15 @@ export function ProductsOverview({ products, refreshIntervalMs = 30000 }: Produc
                     <Activity size={13} className="pm-color-emerald" aria-hidden="true" />
                     {formatNumber(d?.totalDiagnoses ?? 0)}
                   </span>
-                  <span className="products-overview-stat">
+                  <span className="products-overview-stat" title={p.notes?.subscriptions}>
                     <CreditCard size={13} className="pm-color-amber" aria-hidden="true" />
                     {formatNumber(d?.activeSubscriptions ?? 0)}
+                    {p.notes?.subscriptions && <small className="products-overview-note">試用含む<span className="sr-only">: {p.notes.subscriptions}</span></small>}
                   </span>
-                  <span className="products-overview-stat">
+                  <span className="products-overview-stat" title={p.notes?.revenue}>
                     <Wallet size={13} className="pm-color-rose" aria-hidden="true" />
                     {formatCurrency(d?.totalRevenueJpy ?? 0)}
+                    {p.notes?.revenue && <small className="products-overview-note">未計測<span className="sr-only">: {p.notes.revenue}</span></small>}
                   </span>
                 </div>
               )}
