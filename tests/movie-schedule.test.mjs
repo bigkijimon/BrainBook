@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { parseExecutionState, summarizeQueue, readMovieSchedule } from '../movie-schedule.mjs';
+import { parseExecutionState, summarizeQueue, readMovieSchedule, locatePipeline, PIPELINE_STEPS } from '../movie-schedule.mjs';
 
 const NOTE = `# state
 ## 2026-10-28 13:43 JST -- t4 running (MovieAgent)
@@ -48,4 +48,18 @@ test('unreadable sources are reported as unknown, not as empty success', async (
   const ok = await readMovieSchedule({ stateFile: file, run: async () => '[]' });
   assert.deepEqual(ok.unknown, []);
   assert.equal(ok.queue.active.length, 0);
+});
+
+test('pipeline: current comes only from a running job naming a step; next only from the note; nothing else is inferred', () => {
+  assert.deepEqual(PIPELINE_STEPS, ['t1', 't7', 'ti', 't8', 'assembly', 'final']);
+  const running = locatePipeline({ generating: [{ id: 'shift01-build02-t7-m2', stage: 'video' }], nextStep: 'NEXT STEP: t4-m2-c1-r3 -> review -> t7 m2 -> ti -> t8 -> final' });
+  assert.equal(running.current.step, 't7');
+  assert.equal(running.next.step, 't7');
+  const outside = locatePipeline({ generating: [{ id: 'shift01-build02-t4-m2-c1-r3', stage: 'video' }], nextStep: 'a8 m3 grade -> t8 -> finish + final qapro' });
+  assert.equal(outside.current, null, 't4 is not one of the six tracked steps, so no step is claimed as current');
+  assert.equal(outside.next.step, 't8');
+  const none = locatePipeline({ generating: [], nextStep: null });
+  assert.equal(none.current, null);
+  assert.equal(none.next, null);
+  assert.equal(locatePipeline({ generating: [], nextStep: 'tidy things, timeline' }).next, null, 'a step name inside another word does not count');
 });

@@ -9,8 +9,8 @@ const RAIL_VISIBLE_CAP=4;
 // apart at a glance even where the theme hides the text name (narrow icon rail). Owner
 // screenshot 2026-10-11: with the generic AppWindow icon on every entry and the name
 // hidden, every managed app looked identical and the list grew without a limit.
-const badgeColor=(id:string)=>{let h=0;for(let i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0;return `hsl(${h%360} 60% 46%)`;};
-const initialsOf=(name:string)=>{const words=name.trim().split(/\s+/).filter(Boolean);const chars=(words.length>1?[words[0][0],words[1][0]]:[...name.replace(/\s+/g,'')].slice(0,2));return chars.join('').toUpperCase()||'?';};
+export const badgeColor=(id:string)=>{let h=0;for(let i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0;return `hsl(${h%360} 60% 46%)`;};
+export const initialsOf=(name:string)=>{const words=name.trim().split(/\s+/).filter(Boolean);const chars=(words.length>1?[words[0][0],words[1][0]]:[...name.replace(/\s+/g,'')].slice(0,2));return chars.join('').toUpperCase()||'?';};
 export function ManagedApps({inventory,error=''}:{inventory:AppInventory|null;error?:string}) {
  const [pick,setPick]=useState<ManagedApp|null>(null),[list,setList]=useState(false),[query,setQuery]=useState('');
  const apps=inventory?.apps||[];

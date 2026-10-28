@@ -25,6 +25,7 @@ import { buildOffice } from './office.mjs';
 import { collectManagedApps } from './managed-apps.mjs';
 import { createAutopilotGate } from './autopilot-gate.mjs';
 import { readMovieSchedule, MOVIE_STATE_FILE, GPU_JOB_BIN } from './movie-schedule.mjs';
+import { readLocalPorts } from './local-ports.mjs';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
@@ -1483,6 +1484,10 @@ const handleApi = async (req, res, url) => {
       run: async () => (await execFileAsync(process.env.BRAINBOOK_GPU_JOB || GPU_JOB_BIN, ['queue', 'list'], { timeout: 8000, maxBuffer: 16 * 1024 * 1024 })).stdout,
     });
     return json(res, result);
+  }
+  // Local services (owner 2026-10-28): the retired PortMenuBar app's job. lsof listeners mapped to openable services.
+  if (url.pathname === '/api/local-ports' && req.method === 'GET') {
+    return json(res, await readLocalPorts({ run: async () => (await execFileAsync('/usr/sbin/lsof', ['-nP', '-iTCP', '-sTCP:LISTEN'], { timeout: 8000, maxBuffer: 16 * 1024 * 1024 })).stdout }));
   }
   if (url.pathname === '/api/dbagent' && req.method === 'GET') {
     const hours = Math.min(72, Math.max(1, Math.round(Number(url.searchParams.get('hours')) || 6)));

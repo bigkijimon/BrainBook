@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Bot, CircleDot, Database, Flag, History, House, Inbox, Lightbulb, LayoutGrid, Menu, PanelLeftClose, PanelLeftOpen, Target, Workflow, X, Wallet, GraduationCap, HeartPulse, Briefcase, Gamepad2 } from 'lucide-react';
+import { ChevronDown, Database, History, House, Inbox, Lightbulb, LayoutGrid, Menu, PanelLeftClose, PanelLeftOpen, Target, Users, X, Wallet, GraduationCap, HeartPulse, Briefcase, Gamepad2 } from 'lucide-react';
 import { TeamRail } from './TeamRail';
+import { TeamMark } from './TeamMark';
 import { ManagedApps, type AppInventory } from './ManagedApps';
 import { LIFE_AREAS, type LifeArea } from './types';
 
-type Page = 'home' | 'tasks' | 'ideas' | 'goals' | 'office' | 'data' | 'chat';
-type TaskView = 'all' | 'open' | 'high';
+type Page = 'home' | 'tasks' | 'ideas' | 'goals' | 'data';
+type TaskView = 'all' | 'open';
 type Stream = { value: string; label: string; color: string };
 
 const AREA_ICON: Record<'all' | LifeArea, typeof Wallet> = { all: LayoutGrid, finance: Wallet, learning: GraduationCap, 'mental-health': HeartPulse, work: Briefcase, play: Gamepad2 };
 
 export type AppNavProps = {
   page: Page; viewFilter: TaskView; domainFilter: string;
-  counts: { today: number; open: number; high: number; done: number };
-  historyOpen: boolean; orchestrationOpen: boolean;
-  onPage: (page: Page) => void; onView: (view: TaskView) => void; onHistory: () => void; onOrchestration: () => void;
+  counts: { today: number; done: number };
+  historyOpen: boolean;
+  onPage: (page: Page) => void; onView: (view: TaskView) => void; onHistory: () => void;
   teams: Parameters<typeof TeamRail>[0]['teams']; selectedTeam: string | null; allTeamsCount: number;
   onSelectTeam: (id: string) => void; onAllTeams: () => void;
   area: 'all' | LifeArea; onChooseArea: (area: 'all' | LifeArea) => void;
@@ -25,7 +26,9 @@ export type AppNavProps = {
 
 /* The one navigation landmark. Desktop: a left column (Pages, Teams, Filters, Apps). Phone: the same
    element is a fixed bottom bar; the page row stays visible and the rest opens as a sheet above it.
-   Layout switches in unified-nav.css only; there is never a second <nav>. */
+   Layout switches in unified-nav.css only; there is never a second <nav>.
+   Teams are ONE trigger (owner 2026-10-28): the list opens in a picker (flyout on desktop, inline in the
+   sheet on phone) instead of standing as a column of separate tap targets. */
 export function AppNav(p: AppNavProps) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -35,8 +38,8 @@ export function AppNav(p: AppNavProps) {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [open]);
-  // Phone: the page row scrolls sideways, so bring the current page's button into view (it was invisible for
-  // Goals/Office/Data/Chat). Moves only the row's own scrollLeft, never the document.
+  // Phone: the page row scrolls sideways, so bring the current page's button into view. Moves only the
+  // row's own scrollLeft, never the document.
   const pages = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const row = pages.current; const active = row?.querySelector<HTMLElement>('.nav-item.active');
@@ -44,7 +47,22 @@ export function AppNav(p: AppNavProps) {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     row.scrollTo({ left: active.offsetLeft - (row.clientWidth - active.offsetWidth) / 2, behavior: reduce ? 'auto' : 'smooth' });
   }, [p.page, p.viewFilter]);
-  const close = () => setOpen(false);
+
+  const [picker, setPicker] = useState(false);
+  const [pickerTop, setPickerTop] = useState(0);
+  const pickerBtn = useRef<HTMLButtonElement>(null);
+  const togglePicker = () => { setPickerTop(pickerBtn.current?.getBoundingClientRect().top ?? 0); setPicker((v) => !v); };
+  useEffect(() => {
+    if (!picker) return;
+    // Capture phase + stopPropagation: Escape closes the picker first, not the phone sheet beneath it.
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) { e.stopPropagation(); setPicker(false); pickerBtn.current?.focus({ preventScroll: true }); } };
+    const away = (e: PointerEvent) => { const t = e.target as Element | null; if (t && !t.closest('.team-picker, .team-picker-btn, [role="dialog"]')) setPicker(false); };
+    window.addEventListener('keydown', key, true); document.addEventListener('pointerdown', away);
+    return () => { window.removeEventListener('keydown', key, true); document.removeEventListener('pointerdown', away); };
+  }, [picker]);
+  const close = () => { setOpen(false); setPicker(false); };
+  const chosen = p.teams.find((team) => team.id === p.selectedTeam) || null;
+
   const pageBtn = (key: string, label: string, Icon: typeof House, active: boolean, onClick: () => void, extra?: { count?: number; dialog?: boolean; aria?: string }) =>
     <button key={key} type="button" className={`nav-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined} aria-haspopup={extra?.dialog ? 'dialog' : undefined} aria-label={extra?.aria} data-nav-label={label} onClick={() => { onClick(); close(); }}>
       <Icon size={18} strokeWidth={1.6} aria-hidden="true" /><span>{label}</span>{extra?.count !== undefined && <b>{extra.count}</b>}
@@ -55,21 +73,21 @@ export function AppNav(p: AppNavProps) {
     <button type="button" className="nav-compact-btn" aria-label="Collapse navigation" aria-pressed={p.compact} data-nav-label={p.compact ? 'Expand navigation' : 'Collapse navigation'} onClick={p.onToggleCompact}>{p.compact ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}<span>Navigation</span></button>
     <div className="nav-pages" ref={pages} role="group" aria-label="Pages">
       {pageBtn('home', 'Home', House, p.page === 'home', () => p.onPage('home'))}
-      {pageBtn('today', 'Today', Inbox, onTasks && p.viewFilter === 'open', () => p.onView('open'), { count: p.counts.today })}
+      {pageBtn('today', 'Today', Inbox, onTasks, () => p.onView(p.viewFilter), { count: p.counts.today })}
       {pageBtn('ideas', 'Ideas', Lightbulb, p.page === 'ideas', () => p.onPage('ideas'))}
-      {pageBtn('all', 'All tasks', CircleDot, onTasks && p.viewFilter === 'all', () => p.onView('all'), { count: p.counts.open })}
-      {pageBtn('high', 'High signal', Flag, onTasks && p.viewFilter === 'high', () => p.onView('high'), { count: p.counts.high })}
       {pageBtn('goals', 'Goals', Target, p.page === 'goals', () => p.onPage('goals'))}
-      {pageBtn('office', 'Office', LayoutGrid, p.page === 'office', () => p.onPage('office'))}
       {pageBtn('data', 'Data', Database, p.page === 'data', () => p.onPage('data'))}
-      {pageBtn('chat', 'Chat', Bot, p.page === 'chat', () => p.onPage('chat'))}
       {pageBtn('history', '履歴', History, p.historyOpen, p.onHistory, { count: p.counts.done, dialog: true })}
-      {pageBtn('orchestration', 'Orchestration', Workflow, p.orchestrationOpen, p.onOrchestration, { dialog: true, aria: 'Open orchestration graph' })}
     </div>
     <div className="nav-panel" id="app-nav-panel">
       <section className="nav-group" aria-label="Hermes teams">
         <h3 className="nav-heading"><span>TEAMS</span><small>{p.teams.length}</small></h3>
-        <div className="nav-team-list">
+        <button type="button" ref={pickerBtn} className={`nav-item team-picker-btn ${chosen ? 'has-team' : ''}`} aria-expanded={picker} aria-controls="team-picker" aria-label={`Teams: ${chosen ? chosen.name : 'all teams'}. ${picker ? 'Close the list' : 'Choose a team'}`} data-nav-label={chosen ? `Team · ${chosen.name}` : `Teams · ${p.teams.length}`} onClick={togglePicker}>
+          {chosen ? <TeamMark id={chosen.id} /> : <Users size={18} strokeWidth={1.6} aria-hidden="true" />}
+          <span>{chosen ? chosen.name : 'All teams'}</span><ChevronDown size={14} strokeWidth={1.8} className="team-picker-caret" aria-hidden="true" />
+        </button>
+        {/* Hidden, not unmounted: TeamRail owns the members dialog, which must outlive the picker closing after a pick. */}
+        <div id="team-picker" className="team-picker nav-team-list" hidden={!picker} role="group" aria-label="Choose a team" style={{ '--picker-top': `${pickerTop}px` } as CSSProperties}>
           <TeamRail itemClass="nav-item" teams={p.teams} allCount={p.allTeamsCount} selectedTeam={p.selectedTeam} allActive={p.area === 'all' && p.selectedTeam === null} onSelect={(id) => { p.onSelectTeam(id); close(); }} onAll={() => { p.onAllTeams(); close(); }} />
         </div>
       </section>

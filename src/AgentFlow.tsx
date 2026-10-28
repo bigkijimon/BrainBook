@@ -440,18 +440,20 @@ function useTwoColumns() {
   );
 }
 
-export function AgentFlow({ open, onClose }: { open: boolean; onClose: () => void }) {
+/* `embedded` renders the very same map and hand-off log inline (the Data page) instead of as a modal: no backdrop,
+   no close button, no Escape handler. Nothing about the drawing or its animation differs. */
+export function AgentFlow({ open, onClose, embedded = false }: { open: boolean; onClose: () => void; embedded?: boolean }) {
   const { handoffs, agents } = useAgentFlow(open);
   const [pick, setPick] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const models = useModels();
   const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   useEffect(() => {
-    if (!open) return;
+    if (!open || embedded) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, embedded]);
 
   // Safety net for the log: filter out any handoff still naming a hidden agent even
   // though the server should already have relabelled it (see HIDDEN_AGENTS above).
@@ -518,15 +520,15 @@ export function AgentFlow({ open, onClose }: { open: boolean; onClose: () => voi
     '--flow-hub-model-size': `${stage.spec.type.hubModel}px`,
   } as React.CSSProperties;
   return (
-    <div className="flow-backdrop" onClick={onClose}>
-      <section className="flow-dialog" role="dialog" aria-modal="true" aria-label="Agent team" onClick={(event) => event.stopPropagation()}>
+    <div className={`flow-backdrop ${embedded ? 'is-embedded' : ''}`} onClick={embedded ? undefined : onClose}>
+      <section className={`flow-dialog ${embedded ? 'is-embedded' : ''}`} role={embedded ? 'region' : 'dialog'} aria-modal={embedded ? undefined : 'true'} aria-label="Agent team" onClick={(event) => event.stopPropagation()}>
         <header className="flow-head">
           <div>
             <span className="eyebrow">ORCHESTRATION / LAST 24 H</span>
             <h3>{working.length ? <>{working.length} working now <span className="flow-head-names">{working.map(personaOf).join(' · ')}</span></> : 'No agent is working right now'}</h3>
             <p>Bigkiji receives your tasks and hands them to a team lead; the lead hands them to its members. Select anyone to see only their hand-offs.</p>
           </div>
-          <button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} strokeWidth={1.6} /></button>
+          {!embedded && <button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} strokeWidth={1.6} /></button>}
         </header>
         <div className="flow-body">
           {/* The viewBox is the drawing's own size (stage.width × stage.height), not a fixed 452,

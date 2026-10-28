@@ -1,4 +1,47 @@
-# BrainBook / task-system — TEAM-STATE
+# app-dev — TEAM-STATE
+
+## 2026-10-24: new-app-root registration gap (RoboFab, 7th app-dev app)
+
+AppAgent built RoboFab (7th app-dev app after HabitFit; `/Users/yuma/Documents/Projects/
+Apps/RoboFab`, a Phase B MVP DIY-robot-building offline simulation game) this session.
+Full evidence, Pi check (brief+verify, both real and passing) and the independent-review
+status are in `/Users/yuma/Documents/Projects/Apps/RoboFab/REPORT.md`.
+
+**Standing gap, confirmed by reading the live file directly (2026-10-24):** none of
+RocketCraft, Pet Trimmer Tycoon, MusicTheoryDojo, SafeSpend, ShelfLife, HabitFit or
+RoboFab are registered in `AI/router/config/teams.yaml`'s `app-dev.roots`/`checks` map.
+This blocks the Router's qualified-independent-review gate for every one of them
+(`context/skill_kits.team_for_root` cannot resolve team identity for an unregistered
+root → `qa_team_root_unverified` if the team is declared, or zero qualified reviewers if
+it is not — confirmed live via `bin/submit`, see RoboFab's REPORT.md section 4 for the
+exact job records). SafeSpend's README already flagged this on 2026-10-23 for itself
+alone; this confirms it is a blanket gap across all 7 apps, not a one-off.
+
+**Separately observed, also blocking:** the free `mimo`/`opencode` worker pool was
+saturated at the time of this session (dozens of concurrent unrelated
+`router-brainbook-*` BrainBook-autopilot jobs, `ps aux`, 2026-10-23/24) — 3 of 4 real
+Router dispatch attempts for RoboFab (2 build, 1 read-only inspection) timed out
+(`free_runtime_guard: opencode_timeout`) even after raising the budget to 1200s.
+
+**Proposed fix (control-plane write, not mine to apply):** add all 7 roots + their
+`node --check`/`npm test` (or equivalent) checks to `teams.yaml`'s `app-dev` team via the
+control-plane release procedure (`AI/router` is a protected root per `policies.yaml`
+`control_plane.roots`). Exact JSON for RoboFab is in its `REPORT.md` section 6; the other
+6 apps follow the same `logic.js`+`node --test` or `app.js`+smoke-check pattern and can be
+added the same way. This file (this section) is the durable pointer; do not re-discover
+this gap from scratch next session.
+
+**Blockers for the next session / Bigkiji / Router operator:**
+1. Apply the `teams.yaml` addition above (control-plane release), then re-submit
+   RoboFab's archived review packet (`/Users/yuma/.hermes/profiles/appagent/cache/
+   scratch/robofab_review_packet.json`) once free worker capacity is no longer saturated.
+2. HabitFit (6th app) is still sitting in `AI/jobs/waiting/` (`WAITING_MODEL_CAPACITY`,
+   `UI_IMPLEMENTATION`, 0 qualified models) from an earlier session — unrelated to
+   RoboFab's own build method, but the same underlying free-capacity scarcity.
+
+---
+
+## 2026-10-19: BrainBook display-name rename (prior task, kept for history)
 
 Current state of the `app-dev` team's BrainBook/task-system root, as observed/changed 2026-10-19 by AppAgent (`appagent`, acting as Claude Code within the AppAgent session, per the owner order relayed the same day) for the display-name rename (MoviePro→MovieAgent, AppPro→AppAgent, AccountPro→AccountAgent, ClassPro→ClassAgent, InvestPro→InvestAgent, SecurityPro→SecurityAgent, RentPro→Igataya/Web Services; CreativePro unchanged). Overwritten each time this is refreshed. See `RUNBOOK.md` for run/verify/recover and `/Users/yuma/Documents/ObsidianVault/Vault/knowledge/app-dev-brainbook-facts-2026-10-19.md` for the morning's measured baseline.
 

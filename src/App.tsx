@@ -37,13 +37,10 @@ import {
 import { SetupDialog, type SetupState } from './SetupDialog';
 import { applyTheme } from './theme';
 import { activePalette } from './theme-palette.mjs';
-import { AgentFlow
-} from './AgentFlow';
 import { RunButton } from './ControlCenter';
 import { GoalsPanel } from './GoalsPanel';
 import { DataPage } from './DataPage';
 import { AgentChatPanel } from './AgentChatPanel';
-import { OfficeView } from './OfficeView';
 import { AgentFeed, type AgentMessage } from './AgentFeed';
 import { IdeaDump, type DumpItem } from './IdeaDump';
 import { IdeaTree, STAGE_LABEL } from './IdeaTree';
@@ -125,7 +122,8 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all');
-  const [viewFilter, setViewFilter] = useState<'all' | 'open' | 'high'>('all');
+  // Today and All tasks were one filter twice (both hid done tasks); they are one view now, with a scope toggle.
+  const [viewFilter, setViewFilter] = useState<'all' | 'open'>('open');
   const [domainFilter, setDomainFilter] = useState<'all' | TaskDomain>('all');
   // Streams are per user (streams.json in their data folder); the UI never hard-codes them.
   const [streams, setStreams] = useState<Stream[]>([]);
@@ -159,7 +157,6 @@ function App() {
   const [vaultNotes, setVaultNotes] = useState<VaultNote[]>([]);
   const taskLikePaths = useMemo(() => new Set(vaultNotes.filter((note) => note.noteKind === 'task').map((note) => note.path)), [vaultNotes]);
   const [vaultTasks, setVaultTasks] = useState<VaultTask[]>([]);
-  const [teamOpen, setTeamOpen] = useState(false);
   // Agents waiting on the owner (latest event per card is "blocked"), refreshed every minute.
   const [agentAsks, setAgentAsks] = useState<AgentAsk[]>([]);
   useEffect(() => {
@@ -185,13 +182,16 @@ function App() {
   const [routineOpen, setRoutineOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [ideaTab, setIdeaTab] = useState<'mine' | 'new' | 'cards' | 'trends'>('mine');
-  const PAGE_ROUTES = ['ideas', 'tasks', 'goals', 'office', 'data', 'chat'] as const;
+  const PAGE_ROUTES = ['ideas', 'tasks', 'goals', 'data'] as const;
   type Page = 'home' | typeof PAGE_ROUTES[number];
-  const [page, setPage] = useState<Page>(() => (PAGE_ROUTES as readonly string[]).includes(location.hash.slice(1)) ? location.hash.slice(1) as Page : 'home');
-  const navigate = useCallback((next: Page) => { setPage(next); if(next!=='home'&&next!=='office')setSelectedTeam(null); setBrainOpen(false); setSelectedId(null); if(location.hash !== `#${next}`) location.hash = next; }, []);
+  // Retired pages keep working as links: Office/Orchestration now live in Data, Chat lives on Home.
+  const LEGACY_ROUTE: Record<string, Page> = { office: 'data', agents: 'data', orchestration: 'data', chat: 'home' };
+  const routeOf = (raw: string): Page => (PAGE_ROUTES as readonly string[]).includes(raw) ? raw as Page : LEGACY_ROUTE[raw] || 'home';
+  const [page, setPage] = useState<Page>(() => routeOf(location.hash.slice(1)));
+  const navigate = useCallback((next: Page) => { setPage(next); if(next!=='home'&&next!=='data')setSelectedTeam(null); setBrainOpen(false); setSelectedId(null); if(location.hash !== `#${next}`) location.hash = next; }, []);
   useEffect(() => {
-    const hash = () => { const route=((PAGE_ROUTES as readonly string[]).includes(location.hash.slice(1)) ? location.hash.slice(1) as Page : 'home'); setPage(route); if(route!=='home')setSelectedTeam(null); };
-    const native = (event: Event) => { const route = (event as CustomEvent<string>).detail; navigate((PAGE_ROUTES as readonly string[]).includes(route) ? route as Page : 'home'); if(route==='agents') window.requestAnimationFrame(()=>document.getElementById('agent-status')?.scrollIntoView({behavior:'auto'})); };
+    const hash = () => { const route=routeOf(location.hash.slice(1)); setPage(route); if(route!=='home'&&route!=='data')setSelectedTeam(null); };
+    const native = (event: Event) => { const raw = (event as CustomEvent<string>).detail; navigate(routeOf(raw)); if(raw==='agents') window.requestAnimationFrame(()=>document.getElementById('agent-status')?.scrollIntoView({behavior:'auto'})); };
     window.addEventListener('hashchange', hash); window.addEventListener('brainbook:navigate', native);
     return () => {window.removeEventListener('hashchange',hash);window.removeEventListener('brainbook:navigate',native);};
   }, [navigate]);
@@ -361,7 +361,7 @@ function App() {
     return tasks.filter((task) => {
       const matchesQuery = !normalizedQuery || `${task.title} ${task.description}`.toLowerCase().includes(normalizedQuery);
       const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      const matchesView = (viewFilter === 'all' && task.status !== 'done') || (viewFilter === 'open' && task.status !== 'done') || (viewFilter === 'high' && task.priority === 'high' && task.status !== 'done');
+      const matchesView = viewFilter === 'all' || task.status !== 'done';
       const matchesDomain = domainFilter === 'all' || task.routing?.domain === domainFilter;
       const matchesArea = area === 'all' || task.lifeArea === area;
       return !task.isArchived && matchesQuery && matchesPriority && matchesView && matchesDomain && matchesArea;
@@ -470,10 +470,10 @@ function App() {
     window.setTimeout(() => setMessage(''), 3200);
   };
 
-  const chooseView = (view: 'all' | 'open' | 'high') => {
+  const chooseView = (view: 'all' | 'open') => {
     navigate('tasks');
     setViewFilter(view);
-    setPriorityFilter(view === 'high' ? 'high' : 'all');
+    setPriorityFilter('all');
     setDomainFilter('all');
     setQuery('');
   };
@@ -726,11 +726,11 @@ function App() {
       {brainOpen && brainHover && !brainPick && <div className="brain-tip" style={{ left: brainHover.x + 14, top: brainHover.y + 14 }}><b>{brainHover.node.title}</b><small>{LIFE_AREAS.find((entry) => entry.id === brainHover.node.lifeArea)?.label}</small></div>}
 
       <div className={`workspace ${sidebarOpen ? '' : 'sidebar-collapsed'} ${selectedTask ? 'has-selection' : ''}`}>
-        <AppNav page={page as Parameters<typeof AppNav>[0]['page']} viewFilter={viewFilter} domainFilter={domainFilter} counts={{ today: activeCount, open: tasks.filter((task) => !task.isArchived && task.status !== 'done').length, high: tasks.filter((task) => !task.isArchived && task.priority === 'high').length, done: tasks.filter((task) => task.status === 'done').length }}
-          historyOpen={historyOpen} orchestrationOpen={teamOpen} onPage={navigate} onView={chooseView} onHistory={() => setHistoryOpen(true)} onOrchestration={() => setTeamOpen(true)}
+        <AppNav page={page as Parameters<typeof AppNav>[0]['page']} viewFilter={viewFilter} domainFilter={domainFilter} counts={{ today: activeCount, done: tasks.filter((task) => task.status === 'done').length }}
+          historyOpen={historyOpen} onPage={navigate} onView={chooseView} onHistory={() => setHistoryOpen(true)}
           teams={teams} selectedTeam={selectedTeam} allTeamsCount={areaCounts.all || 0}
-          onSelectTeam={(id) => { setSelectedTeam(id); setArea('all'); navigate('office'); window.requestAnimationFrame(() => document.getElementById('agent-status')?.scrollIntoView({ behavior: 'auto' })); }}
-          onAllTeams={() => { setSelectedTeam(null); setArea('all'); navigate('office'); }}
+          onSelectTeam={(id) => { setSelectedTeam(id); setArea('all'); navigate('data'); window.requestAnimationFrame(() => document.getElementById('agent-status')?.scrollIntoView({ behavior: 'auto' })); }}
+          onAllTeams={() => { setSelectedTeam(null); setArea('all'); navigate('data'); }}
           area={area} onChooseArea={(next) => { setSelectedTeam(null); setArea(next); }}
           streams={domainFilters} streamCounts={domainCounts} onStream={(value) => chooseDomain(value as TaskDomain)}
           inventory={managedAppsInventory} inventoryError={managedAppsError}
@@ -741,7 +741,6 @@ function App() {
             action={<button className="primary-button" type="button" title="Add a task in the Control Center" onClick={() => openControl(!composerOpen)}><span>New request</span><span className="button-icon"><Plus size={16} strokeWidth={1.7} /></span></button>} />
 
           {setup && setup.configured && !setup.vaultReady && !remote && <div className="vault-missing" role="alert">Your vault folder can’t be reached: <code>{setup.vaultPath.replace(/^\/Users\/[^/]+/, '~')}</code>. If it’s in iCloud, wait for it to download, or <button type="button" className="link-button" onClick={() => setSettingsOpen(true)}>choose another folder</button>.</div>}
-          <AgentFlow open={teamOpen} onClose={() => setTeamOpen(false)} />
 
           {/* The one task entry point (owner 2026-10-02): capture plus the Next Work List live here,
               and the rest of the app reaches work through this card instead of its own list. */}
@@ -757,7 +756,7 @@ function App() {
             { productName: '予約SaaS', apiUrl: '/api/product-metrics/reservation-saas' },
           ]} refreshIntervalMs={30000} />}
           {page === 'home' && <MovieSchedule />}
-          {page === 'home' && <ActivityPanel onOpenRoster={() => navigate('office')}
+          {page === 'home' && <ActivityPanel onOpenRoster={() => navigate('data')}
             teams={teams} workOpen={workOpen} onCloseWork={()=>{setWorkOpen(false);setComposerOpen(false);}} onOpenWork={openControl}
             problem={Boolean(taskProblem || vaultProblem)}
             sectionRef={controlRef}
@@ -776,17 +775,17 @@ function App() {
             loading={vaultLoading}
           />}
           <div className="company-panels">{page === 'home' && <>
+            <AgentChatPanel remote={remote} />
             <section className="card-shell session-link" aria-labelledby="session-link-heading">
               <header className="agent-chat-head"><h3 id="session-link-heading"><ListTodo size={16} strokeWidth={1.8} aria-hidden="true" /> Sessions</h3></header>
               <p className="content-lede">Every Hermes session (live first, with the data and skills each one used) now lives in one place.</p>
-              <button type="button" className="ghost-button" onClick={() => { navigate('data'); window.setTimeout(() => document.getElementById('sessions')?.scrollIntoView({ behavior: 'auto' }), 400); }}>Open Sessions in Data</button>
+              <button type="button" className="ghost-button" onClick={() => { navigate('data'); window.setTimeout(() => window.dispatchEvent(new CustomEvent('brainbook:data-tab', { detail: 'sessions' })), 60); }}>Open Sessions in Data</button>
             </section>
           </>}{page === 'goals' && <GoalsPanel refreshKey={goalsKey} notify={notify} onToggle={toggleVaultTask} onRun={runVaultTask} />}
-          {page === 'office' && <OfficeView onOpenHome={() => navigate('home')} remote={remote} teams={teams} selectedTeam={selectedTeam} onAll={()=>{setSelectedTeam(null);setArea('all');}} />}
-          {page === 'data' && <DataPage />}
-          {page === 'chat' && <AgentChatPanel remote={remote} />}</div>
+          {page === 'data' && <DataPage teams={teams} selectedTeam={selectedTeam} onAllTeams={() => { setSelectedTeam(null); setArea('all'); }} onOpenHome={() => navigate('home')} remote={remote} />}</div>
 
           {page === 'tasks' && <><div className="board-toolbar">
+            <div className="toolbar-tabs" role="group" aria-label="Which tasks"><button className={`toolbar-tab ${viewFilter === 'open' ? 'active' : ''}`} type="button" aria-pressed={viewFilter === 'open'} onClick={() => setViewFilter('open')}>Open</button><button className={`toolbar-tab ${viewFilter === 'all' ? 'active' : ''}`} type="button" aria-pressed={viewFilter === 'all'} onClick={() => setViewFilter('all')}>Everything</button></div>
             <div className="toolbar-tabs"><button className={`toolbar-tab ${viewMode === 'board' ? 'active' : ''}`} type="button" onClick={() => setViewMode('board')}>Board</button><button className={`toolbar-tab ${viewMode === 'timeline' ? 'active' : ''}`} type="button" onClick={() => setViewMode('timeline')}>Timeline</button>{domainFilter !== 'all' && <button className="active-stream-filter" type="button" onClick={() => setDomainFilter('all')}>{domainFilters.find((domain) => domain.value === domainFilter)?.label} <X size={12} strokeWidth={1.5} /></button>}</div>
             <div className="toolbar-controls">
               <label className="search-box"><Search size={15} strokeWidth={1.5} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" aria-label="Search tasks" /></label>
@@ -838,12 +837,10 @@ function App() {
 
 const PAGE_META: Record<string, { title: string; purpose: string }> = {
   home: { title: 'Company now', purpose: 'Who is working, and what needs your decision.' },
-  tasks: { title: 'Tasks', purpose: 'View work on the board or timeline.' },
+  tasks: { title: 'Today', purpose: 'Open work on the board or timeline. Switch to Everything to include finished tasks.' },
   ideas: { title: 'Ideas', purpose: 'Find and organize your Obsidian ideas.' },
   goals: { title: 'Goals', purpose: 'Your tracked goals, live from the vault.' },
-  office: { title: 'Office', purpose: 'The full agent roster: every team, every room.' },
-  data: { title: 'Data', purpose: 'What the agents know, and which data they actually read.' },
-  chat: { title: 'Chat', purpose: 'Talk directly with an agent.' },
+  data: { title: 'Data', purpose: 'Who the agents are, which data each one used, and how work flows between them.' },
 };
 
 type AgentAsk = { taskId: string; taskTitle: string; boardName: string; kind: string; text: string; at: number };

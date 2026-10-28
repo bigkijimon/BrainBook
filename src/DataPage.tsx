@@ -1,10 +1,17 @@
 // Data page (owner 2026-10-21): what the Hermes agents know and which data they actually read. Everything here comes
 // from /api/dbagent, which serves DBAgent's registry / selfcheck and a fresh usage audit. Nothing is inferred: a value
 // the audit could not determine is shown as "unknown", never as pass or fail.
+// Owner 2026-10-28: Office (roster), Orchestration (hand-off map) and All teams now live here, as four tabs:
+// Agents (who, and which data each used) · Flow (the live hand-off map) · System · Sessions.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Database } from 'lucide-react';
+import { Database, Network, Server, Users, ListTree } from 'lucide-react';
 import { Chip, StateNote, type Tone } from './ui';
 import { DirectoryTree, type DirRow } from './DirectoryTree';
+import { AgentFlow, useAgentFlow } from './AgentFlow';
+import { OfficeStatus, useOfficeData } from './OfficeView';
+import { AgentDataMap } from './AgentDataMap';
+import { LocalPorts } from './LocalPorts';
+import { projectOffice, type TeamAssociation } from './office-projection.mjs';
 
 type Verdict = 'OK' | 'OTHER_SKILL' | 'NO_SKILL' | 'UNMAPPED' | 'PRELOAD_UNKNOWN';
 type Tool = { tool: string; first_use: string; uses: number; verdict: Verdict; skills_before?: string[] };
@@ -72,12 +79,25 @@ function SessionRow({ session }: { session: Session }) {
   </li>;
 }
 
-export function DataPage() {
+type Tab = 'agents' | 'flow' | 'system' | 'sessions';
+const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [{ id: 'agents', label: 'Agents', Icon: Users }, { id: 'flow', label: 'Flow', Icon: Network }, { id: 'system', label: 'System', Icon: Server }, { id: 'sessions', label: 'Sessions', Icon: ListTree }];
+
+export function DataPage({ teams, selectedTeam, onAllTeams, onOpenHome, remote }: { teams: TeamAssociation[]; selectedTeam: string | null; onAllTeams: () => void; onOpenHome: () => void; remote: boolean }) {
+  const [tab, setTab] = useState<Tab>('agents');
+  // Picking a team in the nav scopes the Agents tab; Home's "Open Sessions in Data" asks for Sessions.
+  useEffect(() => { if (selectedTeam) setTab('agents'); }, [selectedTeam]);
+  useEffect(() => {
+    const want = (event: Event) => { const id = (event as CustomEvent<string>).detail as Tab; if (TABS.some((t) => t.id === id)) setTab(id); };
+    window.addEventListener('brainbook:data-tab', want);
+    return () => window.removeEventListener('brainbook:data-tab', want);
+  }, []);
+  const flow = useAgentFlow(false);
+  const { office, error: officeError } = useOfficeData();
+  const projection = useMemo(() => projectOffice(office, flow, teams, selectedTeam), [office, flow, teams, selectedTeam]);
   const [hours, setHours] = useState<number>(6);
   const [data, setData] = useState<Payload | null>(null);
   const [problem, setProblem] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [cell, setCell] = useState<{ label: string; profile: string } | null>(null);
   const [allSessions, setAllSessions] = useState(false);
   const seq = useRef(0);
   const load = useCallback(async () => {
@@ -91,7 +111,6 @@ export function DataPage() {
     } catch { if (mine === seq.current) { setProblem(true); setNow(Date.now()); /* keep the last snapshot, labelled */ } }
   }, [hours]);
   useEffect(() => {
-    setCell(null);
     void load();
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 10000);
     const visible = () => { if (document.visibilityState === 'visible') void load(); };
@@ -108,9 +127,6 @@ export function DataPage() {
   const crons = registry?.cron_jobs || [];
   const failing = crons.filter((job) => job.enabled && (job.failure_streak > 0 || job.last_status === 'error'));
   const pausedWithErrors = crons.filter((job) => !job.enabled && (job.failure_streak > 0 || job.last_status === 'error')).length;
-  const labels = Object.keys(usage?.data_matrix || {});
-  const columns = useMemo(() => [...new Set(Object.values(usage?.data_matrix || {}).flatMap((row) => Object.keys(row)))].sort(), [usage]);
-  const picked = cell && usage ? usage.sessions.filter((s) => s.profile === cell.profile && s.data_used && cell.label in s.data_used) : [];
   const toolSkill = useMemo(() => [...(usage?.tool_skill || [])].sort((a, b) => b.NO_SKILL - a.NO_SKILL || b.sessions - a.sessions), [usage]);
   const shown = usage ? (allSessions ? usage.sessions : usage.sessions.slice(0, 25)) : [];
 
@@ -134,6 +150,19 @@ export function DataPage() {
       {registry?.error && <StateNote kind="error">{registry.error}</StateNote>}
     </section>
 
+    <div className="toolbar-tabs dp-tabs" role="group" aria-label="Data views">
+      {TABS.map(({ id, label, Icon }) => <button key={id} type="button" className={`toolbar-tab ${tab === id ? 'active' : ''}`} aria-pressed={tab === id} onClick={() => setTab(id)}><Icon size={14} strokeWidth={1.8} aria-hidden="true" /> {label}</button>)}
+    </div>
+
+    {tab === 'agents' && <>
+      <AgentDataMap agents={projection.agents} usage={usage} hours={hours} scopeLabel={projection.scopeLabel} />
+      <OfficeStatus office={office} flow={flow} teams={teams} selectedTeam={selectedTeam} onAll={onAllTeams} onOpenHome={onOpenHome} remote={remote} error={officeError} />
+    </>}
+
+    {tab === 'flow' && <AgentFlow open embedded onClose={() => {}} />}
+
+    {tab === 'system' && <>
+    <LocalPorts />
     <DirectoryTree rows={registry?.directories || []} />
 
     <section className="dp-card card-shell" aria-labelledby="dp-self">
@@ -168,22 +197,9 @@ export function DataPage() {
       </div>
     </section>
 
-    <section className="dp-card card-shell" aria-labelledby="dp-who">
-      <header className="dp-head"><h3 id="dp-who">Who used which data</h3><small>sessions per agent · click a count</small></header>
-      {!usage ? <StateNote kind="empty">Usage not available.</StateNote> : labels.length === 0 ? <StateNote kind="empty">No data reads in this window.</StateNote> : <div className="dp-scroll"><table className="dp-table">
-        <thead><tr><th scope="col">Data</th>{columns.map((c) => <th scope="col" key={c}>{c}</th>)}</tr></thead>
-        <tbody>{labels.map((label) => <tr key={label}><th scope="row">{label}</th>{columns.map((c) => {
-          const n = usage.data_matrix[label]?.[c] || 0;
-          const on = cell?.label === label && cell.profile === c;
-          return <td key={c}>{n ? <button type="button" className={`dp-cell ${on ? 'active' : ''}`} aria-pressed={on} onClick={() => setCell(on ? null : { label, profile: c })}>{n}</button> : <span className="dp-none">·</span>}</td>;
-        })}</tr>)}</tbody>
-      </table></div>}
-      {cell && <div className="dp-picked" aria-live="polite">
-        <p className="eyebrow">{cell.profile} read “{cell.label}” in {picked.length} session{picked.length === 1 ? '' : 's'}</p>
-        <ul className="dp-list">{picked.map((s) => <li key={s.session} className={s.live ? 'is-live-text' : ''}><time>{clock(s.data_used[cell.label])}</time><b>{s.model}</b><small>{s.session} · started {clock(s.started)}{s.live ? ' · LIVE' : ''}</small></li>)}</ul>
-      </div>}
-    </section>
+    </>}
 
+    {tab === 'sessions' && <>
     <section id="sessions" className="dp-card card-shell" aria-labelledby="dp-think">
       <header className="dp-head"><h3 id="dp-think">Sessions</h3><small>{usage ? `${usage.sessions.length} sessions · ${usage.sessions.filter((s) => s.live).length} live · newest first` : ''}</small></header>
       {!usage ? <StateNote kind="empty">Usage not available.</StateNote> : <>
@@ -199,6 +215,8 @@ export function DataPage() {
         <tbody>{toolSkill.map((row) => <tr key={`${row.profile}/${row.tool}`} className={row.NO_SKILL > 0 ? 'is-fail' : ''}><th scope="row">{row.profile}</th><td>{row.tool}</td><td>{row.sessions}</td>{VERDICTS.map((v) => <td key={v}>{row[v] || <span className="dp-none">·</span>}</td>)}</tr>)}</tbody>
       </table></div>}
     </section>
+
+    </>}
 
     <details className="dp-card card-shell dp-method">
       <summary>How this is measured</summary>

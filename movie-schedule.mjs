@@ -43,6 +43,22 @@ export const summarizeQueue = (rows, prefix = 'shift01') => {
   };
 };
 
+// The six steps the owner named for one SHIFT-01 video. Neither source records per-step completion, so the only
+// facts drawn from them are: (current) a running job whose stage or id names a step, and (next) the first step
+// named in the note's NEXT STEP line. Everything else about the steps stays unknown.
+export const PIPELINE_STEPS = ['t1', 't7', 'ti', 't8', 'assembly', 'final'];
+const tokenAt = (step, text) => String(text || '').search(new RegExp(`(^|[^a-z0-9])${step}(?![a-z0-9])`, 'i'));
+export const locatePipeline = ({ generating = [], nextStep = null }) => {
+  let current = null;
+  for (const job of generating) {
+    const step = PIPELINE_STEPS.find((candidate) => tokenAt(candidate, `${job.stage || ''} ${job.id || ''}`) >= 0);
+    if (step) { current = { step, jobId: job.id, basis: `running job ${job.id}` }; break; }
+  }
+  const hits = PIPELINE_STEPS.map((step) => ({ step, at: tokenAt(step, nextStep) })).filter((hit) => hit.at >= 0).sort((a, b) => a.at - b.at);
+  const next = hits.length ? { step: hits[0].step, basis: 'first tracked step named in the note NEXT STEP line' } : null;
+  return { steps: PIPELINE_STEPS, current, next };
+};
+
 export const readMovieSchedule = async ({ stateFile = MOVIE_STATE_FILE, run }) => {
   const out = { source: { state: stateFile, queue: 'gpu-job queue list' }, readAt: new Date().toISOString(), state: null, queue: null, unknown: [] };
   try {
@@ -53,5 +69,7 @@ export const readMovieSchedule = async ({ stateFile = MOVIE_STATE_FILE, run }) =
   try {
     out.queue = summarizeQueue(JSON.parse(await run()));
   } catch (error) { out.unknown.push(`gpu-job queue unreadable: ${String(error.message || error).slice(0, 120)}`); }
+  const generating = (out.queue?.active || []).filter((job) => job.status === 'GENERATING');
+  out.pipeline = locatePipeline({ generating, nextStep: out.state?.latest?.nextStep });
   return out;
 };
