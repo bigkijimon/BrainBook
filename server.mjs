@@ -1359,6 +1359,35 @@ const handleApi = async (req, res, url) => {
       return json(res, { error: `Failed to fetch metrics: ${String(error.message || error).slice(0, 200)}` }, 502);
     }
   }
+  // H&S Academy本体サイトの訪問者数(GA4) — StudyAbroadOS/EikenPrepをH&Sへ統合(owner指示2026-10-29)
+  // したため、個別の収益化数字でなく本体サイトの訪問数を見せる。GA4 Data APIの認証情報(GA_PROPERTY_ID等)
+  // がVercel側未設定の間は configured:false が返り、UIは0表示(エラーではない)。
+  if (url.pathname === '/api/product-metrics/hsacademy-site' && req.method === 'GET') {
+    const targetUrl = 'https://hsacademy202404.site/api/admin/analytics?days=28';
+    const token = process.env.HSACADEMY_ANALYTICS_TOKEN || settings.hsacademyAnalyticsToken;
+    if (!token) return json(res, { error: 'hsacademyAnalyticsToken not configured in config.json' }, 500);
+    try {
+      const response = await fetch(targetUrl, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+        headers: { authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error(`Upstream ${response.status}`);
+      const data = await response.json();
+      // Reshape GA4 summary into the ProductsOverviewItem metric shape.
+      return json(res, {
+        totalUsers: data?.totals?.activeUsers ?? 0,
+        totalDiagnoses: data?.totals?.screenPageViews ?? 0,
+        activeSubscriptions: 0,
+        totalRevenueJpy: 0,
+        currency: 'JPY',
+        asOf: new Date().toISOString(),
+        gaConfigured: Boolean(data?.configured),
+      });
+    } catch (error) {
+      return json(res, { error: `Failed to fetch analytics: ${String(error.message || error).slice(0, 200)}` }, 502);
+    }
+  }
   if (url.pathname === '/api/agents/flow' && req.method === 'GET') {
     const since = Math.max(0, Number(url.searchParams.get('since')) || 0);
     const hermesHome = expandHome(process.env.HERMES_HOME || settings.hermesHome || '~/.hermes');

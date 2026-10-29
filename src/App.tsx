@@ -748,8 +748,7 @@ function App() {
             <button type="button" onClick={() => { void loadTasks(); void loadVault(); }}>Retry</button>
           </div>}
           {page === 'home' && <ProductsOverview products={[
-            { productName: 'StudyAbroadOS', apiUrl: '/api/product-metrics/studyabroados' },
-            { productName: 'EikenPrep', apiUrl: '/api/product-metrics/eikenprep' },
+            { productName: 'H&S Academy（サイト訪問者数・PV）', apiUrl: '/api/product-metrics/hsacademy-site', notes: { subscriptions: 'H&S本体サイトなので会員数は対象外（常に0）', revenue: 'GA4連携が未設定の間は0（Google Cloud側の設定待ち）' } },
             { productName: 'Mr.INV', apiUrl: '/api/product-metrics/mrinv', iconUrl: 'https://shop.hsacademy202404.site/assets/logo.png' },
             { productName: '予約SaaS', apiUrl: '/api/product-metrics/reservation-saas', iconUrl: 'https://reservation-saas-omega.vercel.app/icon.png', notes: { subscriptions: '無料トライアル中のテナントを含む件数です（status が active / trialing / past_due）。カード課金された数とは限りません。', revenue: '収益は未計測です。商品側APIが常に0を返す固定値で、実売上0円とは限りません。' } },
           ]} refreshIntervalMs={30000} />}
